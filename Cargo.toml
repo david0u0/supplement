@@ -8,3 +8,5 @@ categories = ["command-line-utilities"]
 description = "The awesome supplement for your awesome command-line tool"
 
 [dependencies]
+log = '*'
+env_logger = '*' # FIXME: don't use this
