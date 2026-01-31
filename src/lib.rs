@@ -1,21 +1,14 @@
 pub mod error;
+pub mod id;
 
-mod history;
+pub mod history;
 mod utils;
-pub use history::*;
+pub use history::History;
 pub use utils::*;
 
 pub(crate) mod parsed_flag;
 
 pub type Result<T = ()> = std::result::Result<T, error::Error>;
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct SupplementID(u32, &'static str);
-impl SupplementID {
-    pub const fn new(id: u32, ident: &'static str) -> Self {
-        SupplementID(id, ident)
-    }
-}
 
 #[derive(Debug, Eq, PartialEq)]
 pub struct Completion {

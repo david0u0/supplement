@@ -1,8 +1,9 @@
 use std::iter::{Peekable, once};
 
 use crate::error::Error;
+use crate::id;
 use crate::parsed_flag::ParsedFlag;
-use crate::{Completion, History, Result, SupplementID};
+use crate::{Completion, History, Result};
 
 pub struct FlagInfo {
     pub short: Option<char>,
@@ -15,18 +16,18 @@ pub struct CommandInfo {
 }
 
 pub struct Flag {
-    pub id: SupplementID,
+    pub id: id::Flag,
     pub info: FlagInfo,
     pub comp_options: Option<fn(&History, &str) -> Vec<Completion>>,
     pub once: bool,
 }
 pub struct Arg {
-    pub id: SupplementID,
+    pub id: id::Arg,
     pub comp_options: fn(&History, &str) -> Vec<Completion>,
     // TODO: infinite args?
 }
 pub struct Command {
-    pub id: SupplementID,
+    pub id: id::Command,
     pub info: CommandInfo,
     pub true_flags: Vec<Flag>,
     pub args: Vec<Arg>,

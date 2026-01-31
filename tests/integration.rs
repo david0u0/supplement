@@ -1,10 +1,11 @@
+use history::*;
 use supplements::*;
 
 mod def {
     use super::*;
 
     pub const C_FLAG: Flag = Flag {
-        id: SupplementID::new(line!(), "long-c"),
+        id: id::Flag::new(line!(), "long-c"),
         info: FlagInfo {
             short: Some('c'),
             long: "long-c",
@@ -20,8 +21,8 @@ mod def {
                 Completion::new("flag-option2", "description of option2"),
             ]
         }
-        fn id() -> SupplementID {
-            SupplementID::new(line!(), "long-b")
+        fn id() -> id::Flag {
+            id::Flag::new(line!(), "long-b")
         }
         fn generate() -> Flag {
             Flag {
@@ -41,8 +42,8 @@ mod def {
         fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
             vec![]
         }
-        fn id() -> SupplementID {
-            SupplementID::new(line!(), "")
+        fn id() -> id::Arg {
+            id::Arg::new(line!(), "aarg")
         }
         fn generate() -> Arg {
             Arg {
@@ -56,8 +57,8 @@ mod def {
         type B: BFlag;
         type Sub: SubCommand;
 
-        fn id() -> SupplementID {
-            SupplementID::new(line!(), "root")
+        fn id() -> id::Command {
+            id::Command::new(line!(), "root")
         }
         fn generate() -> Command {
             Command {
@@ -77,8 +78,8 @@ mod def {
         type B: BFlag;
         type A: AArg;
         type A2: AArg;
-        fn id() -> SupplementID {
-            SupplementID::new(line!(), "sub")
+        fn id() -> id::Command {
+            id::Command::new(line!(), "sub")
         }
         fn generate() -> Command {
             Command {
@@ -143,31 +144,31 @@ fn map_comp_values(arr: &[Completion]) -> Vec<&str> {
 
 macro_rules! b_flag {
     ($name:ident) => {
-        SingleHistory::Flag {
+        SingleHistory::Flag(SingleHistoryFlag {
             id: def::$name.id,
             value: String::new(),
-        }
+        })
     };
 }
 macro_rules! flag {
     ($name:ident, $value:expr) => {
-        SingleHistory::Flag {
+        SingleHistory::Flag(SingleHistoryFlag {
             id: my_impl::$name::id(),
             value: $value.to_owned(),
-        }
+        })
     };
 }
 macro_rules! arg {
     ($name:ident, $value:expr) => {
-        SingleHistory::Arg {
+        SingleHistory::Arg(SingleHistoryArg {
             id: my_impl::$name::id(),
             value: $value.to_owned(),
-        }
+        })
     };
 }
 macro_rules! cmd {
     ($name:ident) => {
-        SingleHistory::Command(my_impl::$name::id())
+        SingleHistory::Command(SingleHistoryCommand(my_impl::$name::id()))
     };
 }
 
