@@ -1,7 +1,8 @@
 use std::iter::{Peekable, once};
 
+use crate::error::Error;
 use crate::parsed_flag::ParsedFlag;
-use crate::{CompResult, History, SupplementID};
+use crate::{Completion, History, Result, SupplementID};
 
 pub struct FlagInfo {
     pub short: Option<char>,
@@ -16,12 +17,12 @@ pub struct CommandInfo {
 pub struct Flag {
     pub id: SupplementID,
     pub info: FlagInfo,
-    pub comp_options: Option<fn(&History, &str) -> Vec<CompResult>>,
+    pub comp_options: Option<fn(&History, &str) -> Vec<Completion>>,
     pub once: bool,
 }
 pub struct Arg {
     pub id: SupplementID,
-    pub comp_options: fn(&History, &str) -> Vec<CompResult>,
+    pub comp_options: fn(&History, &str) -> Vec<Completion>,
     // TODO: infinite args?
 }
 pub struct Command {
@@ -37,8 +38,9 @@ impl Arg {
         &self,
         history: &mut History,
         args: &mut Peekable<impl Iterator<Item = String>>,
-    ) -> Option<Vec<CompResult>> {
+    ) -> Option<Vec<Completion>> {
         let value = args.next().unwrap();
+        // TODO: use `ParsedFlag` to check if `value` is valid
         if args.peek().is_none() {
             return Some((self.comp_options)(history, &value));
         }
@@ -53,7 +55,7 @@ impl Flag {
         &self,
         history: &mut History,
         args: &mut Peekable<impl Iterator<Item = String>>,
-    ) -> Option<Vec<CompResult>> {
+    ) -> Option<Vec<Completion>> {
         let Some(comp_options) = self.comp_options else {
             history.push_pure_flag(self.id);
             return None;
@@ -74,7 +76,7 @@ impl Command {
         &self,
         args: impl Iterator<Item = String>,
         last_is_empty: bool,
-    ) -> Vec<CompResult> {
+    ) -> Result<Vec<Completion>> {
         let mut history = History::default();
         self.supplement_with_history(&mut history, args, last_is_empty)
     }
@@ -84,7 +86,7 @@ impl Command {
         history: &mut History,
         args: impl Iterator<Item = String>,
         last_is_empty: bool,
-    ) -> Vec<CompResult> {
+    ) -> Result<Vec<Completion>> {
         let last_arg = if last_is_empty {
             Some(String::new())
         } else {
@@ -113,12 +115,24 @@ impl Command {
         })
     }
 
+    fn find_flag<F: FnMut(&Flag) -> bool>(
+        &self,
+        arg: &str,
+        history: &History,
+        mut filter: F,
+    ) -> Result<&Flag> {
+        match self.flags(history).find(|f| filter(f)) {
+            Some(flag) => Ok(flag),
+            None => Err(Error::FlagNotFound(arg.to_owned())),
+        }
+    }
+
     fn supplement_recur(
         &self,
         is_first: bool,
         history: &mut History,
         args: &mut Peekable<impl Iterator<Item = String>>,
-    ) -> Vec<CompResult> {
+    ) -> Result<Vec<Completion>> {
         let arg = args.next().unwrap();
         if is_first {
             history.push_command(self.id);
@@ -132,19 +146,19 @@ impl Command {
             ($flag:expr, $equal:expr, $history:expr) => {
                 if let Some(equal) = $equal {
                     if $flag.comp_options.is_none() {
-                        unimplemented!("error: value for a boolean flag");
+                        return Err(Error::ValueForBoolFlag(arg));
                     }
                     $history.push_flag($flag.id, equal.to_string());
                 } else {
                     let res = $flag.supplement($history, args);
                     if let Some(res) = res {
-                        return res;
+                        return Ok(res);
                     }
                 }
             };
         }
 
-        match ParsedFlag::new(&arg) {
+        match ParsedFlag::new(&arg)? {
             ParsedFlag::SingleDash | ParsedFlag::DoubleDash => {
                 return self.supplement_args(history, args, arg);
             }
@@ -156,13 +170,11 @@ impl Command {
                 };
             }
             ParsedFlag::Long { body, equal } => {
-                let flag = self.flags(history).find(|f| f.info.long == body);
-                let Some(flag) = flag else { unimplemented!() };
+                let flag = self.find_flag(&arg, history, |f| f.info.long == body)?;
                 handle_flag!(flag, equal, history);
             }
             ParsedFlag::Short { body, equal } => {
-                let flag = self.flags(history).find(|f| f.info.short == Some(body));
-                let Some(flag) = flag else { unimplemented!() };
+                let flag = self.find_flag(&arg, history, |f| f.info.short == Some(body))?;
                 handle_flag!(flag, equal, history);
             }
             ParsedFlag::MultiShort { body, equal } => {
@@ -171,18 +183,16 @@ impl Command {
                     let Some(ch) = body.next() else {
                         break;
                     };
+                    let flag = self.find_flag(&arg, history, |f| f.info.short == Some(ch))?;
                     let is_last = body.peek().is_none();
-                    let flag = self.flags(history).find(|f| f.info.short == Some(ch));
-                    let Some(flag) = flag else { unimplemented!() };
 
                     if is_last {
                         handle_flag!(flag, equal, history);
                     } else {
                         if flag.comp_options.is_some() {
                             if equal.is_some() {
-                                println!("{:?}", ParsedFlag::new(&arg));
                                 // e.g. git commit -ma=abcd
-                                unimplemented!();
+                                return Err(Error::FlagValueNotGiven(arg));
                             }
                             // e.g. git commit -mabcde
                             history.push_flag(flag.id, body.collect());
@@ -193,24 +203,24 @@ impl Command {
                     }
                 }
             }
-            ParsedFlag::Error(_) | ParsedFlag::Empty => {
-                unimplemented!()
+            ParsedFlag::Empty => {
+                return Err(Error::EmptyNonLast);
             }
         }
 
         self.supplement_recur(false, history, args)
     }
 
-    fn supplement_last(&self, history: &mut History, arg: String) -> Vec<CompResult> {
-        let all_long_flags = self.flags(history).map(|f| CompResult {
+    fn supplement_last(&self, history: &mut History, arg: String) -> Result<Vec<Completion>> {
+        let all_long_flags = self.flags(history).map(|f| Completion {
             value: format!("--{}", f.info.long),
             description: f.info.description.to_string(),
         });
 
-        match ParsedFlag::new(&arg) {
+        let ret = match ParsedFlag::new(&arg)? {
             ParsedFlag::Empty => {
                 // TODO: error if empty?
-                let cmd_iter = self.commands.iter().map(|c| CompResult {
+                let cmd_iter = self.commands.iter().map(|c| Completion {
                     value: c.info.name.to_string(),
                     description: c.info.description.to_string(),
                 });
@@ -219,15 +229,13 @@ impl Command {
                 } else {
                     vec![]
                 };
-                return cmd_iter.chain(arg_comp.into_iter()).collect();
+                cmd_iter.chain(arg_comp.into_iter()).collect()
             }
-            ParsedFlag::DoubleDash => {
-                return all_long_flags.collect();
-            }
+            ParsedFlag::DoubleDash => all_long_flags.collect(),
             ParsedFlag::SingleDash => {
                 let iter = self.flags(history).filter_map(|f| {
                     if let Some(c) = f.info.short {
-                        Some(CompResult {
+                        Some(Completion {
                             value: format!("-{}", c),
                             description: f.info.description.to_string(),
                         })
@@ -236,22 +244,23 @@ impl Command {
                     }
                 });
                 let iter = iter.chain(all_long_flags);
-                return iter.collect();
+                iter.collect()
             }
             _ => unimplemented!(),
-        }
+        };
+        Ok(ret)
     }
     fn supplement_args(
         &self,
         history: &mut History,
         args: &mut Peekable<impl Iterator<Item = String>>,
         arg: String,
-    ) -> Vec<CompResult> {
+    ) -> Result<Vec<Completion>> {
         let mut args = once(arg).chain(args).peekable();
         for arg_obj in self.args.iter() {
             let res = arg_obj.supplement(history, &mut args);
             if let Some(res) = res {
-                return res;
+                return Ok(res);
             }
         }
 

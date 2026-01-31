@@ -14,10 +14,10 @@ mod def {
         once: true,
     };
     pub trait BFlag {
-        fn comp_options(_history: &History, _arg: &str) -> Vec<CompResult> {
+        fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
             vec![
-                CompResult::new("flag-option1", "description of option1"),
-                CompResult::new("flag-option2", "description of option2"),
+                Completion::new("flag-option1", "description of option1"),
+                Completion::new("flag-option2", "description of option2"),
             ]
         }
         fn id() -> SupplementID {
@@ -38,7 +38,7 @@ mod def {
     }
 
     pub trait AArg {
-        fn comp_options(_history: &History, _arg: &str) -> Vec<CompResult> {
+        fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
             vec![]
         }
         fn id() -> SupplementID {
@@ -100,10 +100,10 @@ mod my_impl {
 
     pub struct AArg;
     impl def::AArg for AArg {
-        fn comp_options(_history: &History, _arg: &str) -> Vec<CompResult> {
+        fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
             vec![
-                CompResult::new("arg-option1", "description of option1"),
-                CompResult::new("arg-option2", "description of option2"),
+                Completion::new("arg-option1", "description of option1"),
+                Completion::new("arg-option2", "description of option2"),
             ]
         }
     }
@@ -126,12 +126,19 @@ mod my_impl {
 }
 use def::*;
 
-fn run(args: &str, last_is_empty: bool) -> (History, Vec<CompResult>) {
+fn run(args: &str, last_is_empty: bool) -> (History, Vec<Completion>) {
+    let _ = env_logger::try_init();
+
     use def::Root;
     let args = args.split(' ').map(|s| s.to_owned());
     let mut history = History::default();
     let res = my_impl::Root::generate().supplement_with_history(&mut history, args, last_is_empty);
-    (history, res)
+    (history, res.unwrap())
+}
+fn map_comp_values(arr: &[Completion]) -> Vec<&str> {
+    let mut v: Vec<_> = arr.iter().map(|c| &*c.value).collect();
+    v.sort();
+    v
 }
 
 macro_rules! b_flag {
@@ -203,20 +210,14 @@ fn test_flags_not_last() {
 
 #[test]
 fn test_once_flag() {
-    let (h, r) = run("--", false);
+    let (h, r) = run("-", false);
     assert_eq!(h.into_inner(), vec![cmd!(Root)]);
     assert_eq!(
-        r,
-        vec![
-            CompResult::new("--long-b", "test description for flag B"),
-            CompResult::new("--long-c", "test description for flag C")
-        ]
+        map_comp_values(&r),
+        vec!["--long-b", "--long-c", "-b", "-c"],
     );
 
-    let (h, r) = run("-b option --", false);
+    let (h, r) = run("-b option -", false);
     assert_eq!(h.into_inner(), vec![cmd!(Root), flag!(BFlag, "option")]);
-    assert_eq!(
-        r,
-        vec![CompResult::new("--long-c", "test description for flag C")]
-    );
+    assert_eq!(map_comp_values(&r), vec!["--long-c", "-c"],);
 }
