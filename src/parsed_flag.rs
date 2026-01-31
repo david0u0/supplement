@@ -2,7 +2,6 @@
 pub enum Error {
     DashNotAllowed,
     ConsecutiveDashes,
-    TooManyEquals,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -14,10 +13,7 @@ pub(crate) enum ParsedFlag<'a> {
         body: char,
         equal: Option<&'a str>,
     },
-    MultiShort {
-        body: &'a str,
-        equal: Option<&'a str>,
-    },
+    MultiShort(&'a str),
     Long {
         body: &'a str,
         equal: Option<&'a str>,
@@ -28,7 +24,6 @@ impl<'a> ParsedFlag<'a> {
     fn validate(s: &str, allow_single_dash: bool) -> Result<(), Error> {
         let s = &s[1..];
         let mut last_is_dash = false;
-        let mut equal_appeard = false;
         for ch in s.chars() {
             if ch == '-' {
                 if !allow_single_dash {
@@ -41,14 +36,6 @@ impl<'a> ParsedFlag<'a> {
                 continue;
             }
             last_is_dash = false;
-
-            if ch == '=' {
-                if equal_appeard {
-                    return Err(Error::TooManyEquals);
-                }
-                equal_appeard = true;
-                continue;
-            }
 
             // NOTE: we may want to check characters e.g. '/' or '#' shouldn't be allowed.
             // But in practice, it will probably just cause a "flag not found" error, so no need to bother
@@ -93,24 +80,13 @@ impl<'a> ParsedFlag<'a> {
                         equal: None,
                     }
                 } else {
-                    if let Some(equal_pos) = flag_part.chars().position(|c| c == '=') {
-                        let equal = Some(&flag_part[equal_pos + 1..]);
-                        if equal_pos == 1 {
-                            Self::Short {
-                                body: flag_part.chars().nth(0).unwrap(),
-                                equal,
-                            }
-                        } else {
-                            Self::MultiShort {
-                                body: &flag_part[..equal_pos],
-                                equal,
-                            }
+                    if flag_part.chars().nth(1) == Some('=') {
+                        Self::Short {
+                            body: flag_part.chars().nth(0).unwrap(),
+                            equal: Some(&flag_part[2..]),
                         }
                     } else {
-                        Self::MultiShort {
-                            body: flag_part,
-                            equal: None,
-                        }
+                        Self::MultiShort(flag_part)
                     }
                 }
             }
@@ -144,10 +120,7 @@ mod test {
         );
         assert_eq!(
             ParsedFlag::new("-long").unwrap(),
-            ParsedFlag::MultiShort {
-                body: "long",
-                equal: None
-            }
+            ParsedFlag::MultiShort("long",)
         );
 
         assert_eq!(
@@ -177,11 +150,8 @@ mod test {
             }
         );
         assert_eq!(
-            ParsedFlag::new("-long=x").unwrap(),
-            ParsedFlag::MultiShort {
-                body: "long",
-                equal: Some("x")
-            }
+            ParsedFlag::new("-long=x=b").unwrap(),
+            ParsedFlag::MultiShort("long=x=b",)
         );
 
         assert_eq!(
@@ -201,6 +171,5 @@ mod test {
         assert_eq!(ParsedFlag::new("-s-b"), Err(DashNotAllowed));
         assert_eq!(ParsedFlag::new("---long"), Err(ConsecutiveDashes));
         assert_eq!(ParsedFlag::new("--long--and"), Err(ConsecutiveDashes));
-        assert_eq!(ParsedFlag::new("-a=b=c"), Err(TooManyEquals));
     }
 }

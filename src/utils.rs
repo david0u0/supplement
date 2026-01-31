@@ -160,7 +160,7 @@ impl Command {
         }
 
         match ParsedFlag::new(&arg)? {
-            ParsedFlag::SingleDash | ParsedFlag::DoubleDash => {
+            ParsedFlag::SingleDash | ParsedFlag::DoubleDash | ParsedFlag::Empty => {
                 return self.supplement_args(history, args, arg);
             }
             ParsedFlag::NotFlag => {
@@ -178,34 +178,32 @@ impl Command {
                 let flag = self.find_flag(&arg, history, |f| f.info.short == Some(body))?;
                 handle_flag!(flag, equal, history);
             }
-            ParsedFlag::MultiShort { body, equal } => {
+            ParsedFlag::MultiShort(body) => {
                 let mut body = body.chars().peekable();
                 loop {
                     let Some(ch) = body.next() else {
                         break;
                     };
                     let flag = self.find_flag(&arg, history, |f| f.info.short == Some(ch))?;
-                    let is_last = body.peek().is_none();
-
-                    if is_last {
-                        handle_flag!(flag, equal, history);
-                    } else {
-                        if flag.comp_options.is_some() {
-                            if equal.is_some() {
-                                // e.g. git commit -ma=abcd
-                                return Err(Error::FlagValueNotGiven(arg));
-                            }
-                            // e.g. git commit -mabcde
-                            history.push_flag(flag.id, body.collect());
+                    match body.peek() {
+                        None => {
+                            handle_flag!(flag, None::<&str>, history);
+                        }
+                        Some('=') => {
+                            body.next();
+                            let equal: String = body.collect();
+                            handle_flag!(flag, Some(equal), history);
                             break;
                         }
-
-                        history.push_pure_flag(flag.id);
+                        _ => {
+                            if flag.comp_options.is_some() {
+                                history.push_flag(flag.id, body.collect());
+                                break;
+                            }
+                            history.push_pure_flag(flag.id);
+                        }
                     }
                 }
-            }
-            ParsedFlag::Empty => {
-                return Err(Error::EmptyNonLast);
             }
         }
 

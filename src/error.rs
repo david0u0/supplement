@@ -5,8 +5,6 @@ pub enum Error {
     ParsedFlag(ParsedFlagError),
     ValueForBoolFlag(String),
     FlagNotFound(String),
-    FlagValueNotGiven(String),
-    EmptyNonLast,
 }
 
 impl From<ParsedFlagError> for Error {

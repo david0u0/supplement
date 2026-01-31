@@ -206,7 +206,12 @@ fn test_flags_not_last() {
     let res = run("-cboption sub", true);
     assert_eq!(expected, res);
 
-    //run("-bc=abcd sub", true); TODO: test error handle
+    let (h, r) = run("-bc=option sub", true);
+    assert_eq!(expected.1, r);
+    assert_eq!(
+        h.into_inner(),
+        vec![cmd!(Root), flag!(BFlag, "c=option"), cmd!(SubCommand)]
+    );
 }
 
 #[test]
