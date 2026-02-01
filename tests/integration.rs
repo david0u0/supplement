@@ -99,8 +99,9 @@ mod def {
 mod my_impl {
     use super::*;
 
-    pub struct AArg;
-    impl def::AArg for AArg {
+    pub struct Dummy;
+
+    impl def::AArg for Dummy {
         fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
             vec![
                 Completion::new("arg-option1", "description of option1"),
@@ -109,31 +110,28 @@ mod my_impl {
         }
     }
 
-    pub struct BFlag;
-    impl def::BFlag for BFlag {}
+    impl def::BFlag for Dummy {}
 
-    pub struct Root;
-    impl def::Root for Root {
-        type B = BFlag;
-        type Sub = SubCommand;
+    impl def::Root for Dummy {
+        type B = Dummy;
+        type Sub = Dummy;
     }
 
-    pub struct SubCommand;
-    impl def::SubCommand for SubCommand {
-        type B = BFlag;
-        type A = AArg;
-        type A2 = AArg;
+    impl def::SubCommand for Dummy {
+        type B = Dummy;
+        type A = Dummy;
+        type A2 = Dummy;
     }
 }
-use def::*;
+    use my_impl::Dummy;
 
 fn run(args: &str, last_is_empty: bool) -> (History, Vec<Completion>) {
     let _ = env_logger::try_init();
 
-    use def::Root;
+
     let args = args.split(' ').map(|s| s.to_owned());
     let mut history = History::default();
-    let res = my_impl::Root::generate().supplement_with_history(&mut history, args, last_is_empty);
+    let res = <Dummy as def::Root>::generate().supplement_with_history(&mut history, args, last_is_empty);
     (history, res.unwrap())
 }
 fn map_comp_values(arr: &[Completion]) -> Vec<&str> {
@@ -153,7 +151,7 @@ macro_rules! b_flag {
 macro_rules! flag {
     ($name:ident, $value:expr) => {
         SingleHistory::Flag(SingleHistoryFlag {
-            id: my_impl::$name::id(),
+            id: <Dummy as def::$name>::id(),
             value: $value.to_owned(),
         })
     };
@@ -161,21 +159,21 @@ macro_rules! flag {
 macro_rules! arg {
     ($name:ident, $value:expr) => {
         SingleHistory::Arg(SingleHistoryArg {
-            id: my_impl::$name::id(),
+            id: <Dummy as def::$name>::id(),
             value: $value.to_owned(),
         })
     };
 }
 macro_rules! cmd {
     ($name:ident) => {
-        SingleHistory::Command(SingleHistoryCommand(my_impl::$name::id()))
+        SingleHistory::Command(SingleHistoryCommand(<Dummy as def::$name>::id()))
     };
 }
 
 #[test]
 fn test_args_last() {
     let (h, r) = run("sub a1", true);
-    assert_eq!(r, my_impl::AArg::comp_options(&h, ""));
+    assert_eq!(r, <Dummy as def::AArg>::comp_options(&h, ""));
     assert_eq!(
         h.into_inner(),
         vec![cmd!(Root), cmd!(SubCommand), arg!(AArg, "a1")]
@@ -192,7 +190,7 @@ fn test_flags_not_last() {
             cmd!(SubCommand),
         ]
         .into(),
-        my_impl::AArg::comp_options(&Default::default(), ""),
+        <Dummy as def::AArg>::comp_options(&Default::default(), ""),
     );
 
     let res = run("-c --long-b=option sub", true);
