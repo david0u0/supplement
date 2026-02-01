@@ -7,8 +7,8 @@ mod def {
     pub const C_FLAG: Flag = Flag {
         id: id::Flag::new(line!(), "long-c"),
         info: FlagInfo {
-            short: Some('c'),
-            long: "long-c",
+            short: &['c'],
+            long: &["long-c", "long-c-2"],
             description: "test description for flag C",
         },
         comp_options: None,
@@ -28,8 +28,8 @@ mod def {
             Flag {
                 id: Self::id(),
                 info: FlagInfo {
-                    short: Some('b'),
-                    long: "long-b",
+                    short: &['b', 'x'],
+                    long: &["long-b"],
                     description: "test description for flag B",
                 },
                 comp_options: Some(Self::comp_options),
@@ -123,15 +123,15 @@ mod my_impl {
         type A2 = Dummy;
     }
 }
-    use my_impl::Dummy;
+use my_impl::Dummy;
 
 fn run(args: &str, last_is_empty: bool) -> (History, Vec<Completion>) {
     let _ = env_logger::try_init();
 
-
     let args = args.split(' ').map(|s| s.to_owned());
     let mut history = History::default();
-    let res = <Dummy as def::Root>::generate().supplement_with_history(&mut history, args, last_is_empty);
+    let res =
+        <Dummy as def::Root>::generate().supplement_with_history(&mut history, args, last_is_empty);
     (history, res.unwrap())
 }
 fn map_comp_values(arr: &[Completion]) -> Vec<&str> {
@@ -218,10 +218,10 @@ fn test_once_flag() {
     assert_eq!(h.into_inner(), vec![cmd!(Root)]);
     assert_eq!(
         map_comp_values(&r),
-        vec!["--long-b", "--long-c", "-b", "-c"],
+        vec!["--long-b", "--long-c", "--long-c-2", "-b", "-c", "-x"],
     );
 
     let (h, r) = run("-b option -", false);
     assert_eq!(h.into_inner(), vec![cmd!(Root), flag!(BFlag, "option")]);
-    assert_eq!(map_comp_values(&r), vec!["--long-c", "-c"],);
+    assert_eq!(map_comp_values(&r), vec!["--long-c", "--long-c-2", "-c"],);
 }

@@ -3,11 +3,11 @@ use std::iter::{Peekable, once};
 use crate::error::Error;
 use crate::id;
 use crate::parsed_flag::ParsedFlag;
-use crate::{Completion, History, Result};
+use crate::{Completion, Either, History, Result};
 
 pub struct FlagInfo {
-    pub short: Option<char>,
-    pub long: &'static str,
+    pub short: &'static [char],
+    pub long: &'static [&'static str],
     pub description: &'static str,
 }
 pub struct CommandInfo {
@@ -52,6 +52,21 @@ impl Arg {
 }
 
 impl Flag {
+    fn gen_completion(&self, is_long: Option<bool>) -> impl Iterator<Item = Completion> {
+        let iter_long = self.info.long.iter().map(|t| Either::A(t));
+        let iter_short = self.info.short.iter().map(|t| Either::B(t));
+        let iter = iter_long.chain(iter_short);
+
+        iter.filter_map(move |t| match t {
+            Either::A(l) if is_long != Some(false) => {
+                Some(Completion::new(&format!("--{l}"), self.info.description))
+            }
+            Either::B(s) if is_long != Some(true) => {
+                Some(Completion::new(&format!("-{s}"), self.info.description))
+            }
+            _ => None,
+        })
+    }
     fn supplement(
         &self,
         history: &mut History,
@@ -128,6 +143,15 @@ impl Command {
         }
     }
 
+    fn find_long_flag(&self, flag: &str, history: &History) -> Result<&Flag> {
+        self.find_flag(flag, history, |f| f.info.long.iter().any(|l| *l == flag))
+    }
+    fn find_short_flag(&self, flag: char, history: &History) -> Result<&Flag> {
+        self.find_flag(&flag.to_string(), history, |f| {
+            f.info.short.iter().any(|s| *s == flag)
+        })
+    }
+
     fn supplement_recur(
         &self,
         is_first: bool,
@@ -171,11 +195,11 @@ impl Command {
                 };
             }
             ParsedFlag::Long { body, equal } => {
-                let flag = self.find_flag(&arg, history, |f| f.info.long == body)?;
+                let flag = self.find_long_flag(body, history)?;
                 handle_flag!(flag, equal, history);
             }
             ParsedFlag::Short { body, equal } => {
-                let flag = self.find_flag(&arg, history, |f| f.info.short == Some(body))?;
+                let flag = self.find_short_flag(body, history)?;
                 handle_flag!(flag, equal, history);
             }
             ParsedFlag::MultiShort(body) => {
@@ -184,7 +208,7 @@ impl Command {
                     let Some(ch) = body.next() else {
                         break;
                     };
-                    let flag = self.find_flag(&arg, history, |f| f.info.short == Some(ch))?;
+                    let flag = self.find_short_flag(ch, history)?;
                     match body.peek() {
                         None => {
                             handle_flag!(flag, None::<&str>, history);
@@ -211,14 +235,9 @@ impl Command {
     }
 
     fn supplement_last(&self, history: &mut History, arg: String) -> Result<Vec<Completion>> {
-        let all_long_flags = self.flags(history).map(|f| Completion {
-            value: format!("--{}", f.info.long),
-            description: f.info.description.to_string(),
-        });
-
         let ret = match ParsedFlag::new(&arg)? {
             ParsedFlag::Empty => {
-                // TODO: error if empty?
+                // TODO: error if both empty?
                 let cmd_iter = self.commands.iter().map(|c| Completion {
                     value: c.info.name.to_string(),
                     description: c.info.description.to_string(),
@@ -230,21 +249,16 @@ impl Command {
                 };
                 cmd_iter.chain(arg_comp.into_iter()).collect()
             }
-            ParsedFlag::DoubleDash => all_long_flags.collect(),
-            ParsedFlag::SingleDash => {
-                let iter = self.flags(history).filter_map(|f| {
-                    if let Some(c) = f.info.short {
-                        Some(Completion {
-                            value: format!("-{}", c),
-                            description: f.info.description.to_string(),
-                        })
-                    } else {
-                        None
-                    }
-                });
-                let iter = iter.chain(all_long_flags);
-                iter.collect()
-            }
+            ParsedFlag::DoubleDash => self
+                .flags(history)
+                .map(|f| f.gen_completion(Some(true)))
+                .flatten()
+                .collect(),
+            ParsedFlag::SingleDash => self
+                .flags(history)
+                .map(|f| f.gen_completion(None))
+                .flatten()
+                .collect(),
             _ => unimplemented!(),
         };
         Ok(ret)

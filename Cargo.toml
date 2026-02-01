@@ -9,6 +9,7 @@ description = "The awesome supplement for your awesome command-line tool"
 
 [dependencies]
 log = '*'
+clap = '4'
 
 [dev-dependencies]
 env_logger = '*'
