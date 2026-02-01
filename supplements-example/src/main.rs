@@ -1,21 +1,20 @@
-mod definition {
+mod def {
     include!(concat!(env!("OUT_DIR"), "/definition.rs"));
 }
-use definition::supplements_example as root;
 
 struct Dummy;
 
-impl root::FlagThisTest for Dummy { }
-impl root::Cmd for Dummy {
+impl def::FlagThisTest for Dummy {}
+impl def::Cmd for Dummy {
     type IFlagThisTest = Dummy;
 }
 
 fn main() {
     env_logger::init();
 
-    let args:Vec<_> = std::env::args().collect();
+    let args: Vec<_> = std::env::args().collect();
     log::info!("args = {:?}", args);
 
-    let res = <Dummy as root::Cmd>::generate().supplement(args.into_iter(), false);
+    let res = <Dummy as def::Cmd>::generate().supplement(args.into_iter(), false);
     println!("{:?}", res);
 }

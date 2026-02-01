@@ -122,9 +122,6 @@ fn generate_flags_in_cmd(
 
         if takes_values {
             let possible_values = flag.get_possible_values();
-            //let possible_values: Vec<_> = possible_values
-            //    .map(|t| t.map(|p| PossibleValueDisplay(p)).collect())
-            //    .unwrap_or_default();
             let possible_values = JoinQuotes(
                 possible_values.iter().map(|p| PossibleValueDisplay(p)),
                 None,
@@ -136,7 +133,7 @@ fn generate_flags_in_cmd(
                 "\
 {indent}pub trait {rust_name} {{
 {indent}    fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {{
-{indent}        vec![{possible_values}] // TODO posible value?
+{indent}        vec![{possible_values}]
 {indent}    }}
 {indent}    fn id() -> id::Flag {{
 {indent}        id::Flag::new(line!(), \"{name}\")
@@ -178,9 +175,14 @@ fn generate_flags_in_cmd(
 fn generate_recur(indent: &str, cmd: &Command, w: &mut impl Write) -> std::io::Result<()> {
     let name = cmd.get_name();
     let description = cmd.get_before_help().unwrap_or_default().to_string();
-    writeln!(w, "{indent}pub mod {} {{", to_snake_case(cmd.get_name()))?;
+    if indent != "" {
+        writeln!(w, "{indent}pub mod {} {{", to_snake_case(cmd.get_name()))?;
+    } // else: it's the first time, don't need a mod
+
     {
-        let indent = format!("    {indent}");
+        let inner_indent = format!("    {indent}");
+        let indent = if indent != "" { &inner_indent } else { indent };
+
         writeln!(w, "{indent}use supplements::*;")?;
 
         let flags = generate_flags_in_cmd(&indent, cmd, w)?;
@@ -225,5 +227,8 @@ fn generate_recur(indent: &str, cmd: &Command, w: &mut impl Write) -> std::io::R
 {indent}}}"
         )?;
     }
-    writeln!(w, "{indent}}}")
+    if indent != "" {
+        writeln!(w, "{indent}}}")?;
+    }
+    Ok(())
 }
