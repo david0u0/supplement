@@ -3,6 +3,7 @@ use supplements::*;
 
 mod def {
     use super::*;
+    use supplements::info::*;
 
     pub const C_FLAG: Flag = Flag {
         id: id::Flag::new(line!(), "long-c"),
@@ -129,6 +130,7 @@ fn run(args: &str, last_is_empty: bool) -> (History, Vec<Completion>) {
     let _ = env_logger::try_init();
 
     let args = args.split(' ').map(|s| s.to_owned());
+    let args = std::iter::once("whatever".to_owned()).chain(args);
     let mut history = History::default();
     let res =
         <Dummy as def::Root>::generate().supplement_with_history(&mut history, args, last_is_empty);
