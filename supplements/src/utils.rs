@@ -2,31 +2,21 @@ use std::iter::{Peekable, once};
 
 use crate::error::Error;
 use crate::id;
+use crate::info::*;
 use crate::parsed_flag::ParsedFlag;
 use crate::{Completion, History, Result};
 
-pub mod info {
-    pub struct FlagInfo {
-        pub short: &'static [char],
-        pub long: &'static [&'static str],
-        pub description: &'static str,
-    }
-    pub struct CommandInfo {
-        pub name: &'static str,
-        pub description: &'static str,
-    }
-}
-use info::*;
+type CompOption = fn(&History, &str) -> Vec<Completion>;
 
 pub struct Flag {
     pub id: id::Flag,
     pub info: FlagInfo,
-    pub comp_options: Option<fn(&History, &str) -> Vec<Completion>>,
+    pub comp_options: Option<CompOption>,
     pub once: bool,
 }
 pub struct Arg {
     pub id: id::Arg,
-    pub comp_options: fn(&History, &str) -> Vec<Completion>,
+    pub comp_options: CompOption,
     // TODO: infinite args?
 }
 pub struct Command {
@@ -202,32 +192,9 @@ impl Command {
                 let flag = self.find_long_flag(body, history)?;
                 handle_flag!(flag, equal, history);
             }
-            ParsedFlag::Shorts(body) => {
-                let mut body = body.chars().peekable();
-                loop {
-                    let Some(ch) = body.next() else {
-                        break;
-                    };
-                    let flag = self.find_short_flag(ch, history)?;
-                    match body.peek() {
-                        None => {
-                            handle_flag!(flag, None::<&str>, history);
-                        }
-                        Some('=') => {
-                            body.next();
-                            let equal: String = body.collect();
-                            handle_flag!(flag, Some(equal), history);
-                            break;
-                        }
-                        _ => {
-                            if flag.comp_options.is_some() {
-                                history.push_flag(flag.id, body.collect());
-                                break;
-                            }
-                            history.push_pure_flag(flag.id);
-                        }
-                    }
-                }
+            ParsedFlag::Shorts => {
+                let resolved = self.resolve_shorts(history, &arg)?;
+                handle_flag!(resolved.last_flag, resolved.value, history);
             }
         }
 
@@ -273,62 +240,33 @@ impl Command {
                     .map(|c| Completion::new(&format!("--{}={}", body, c.value), &c.description))
                     .collect()
             }
-            ParsedFlag::Shorts(flags) => {
-                let mut body = flags.chars().peekable();
-                let mut len = 0;
-                loop {
-                    let Some(ch) = body.next() else {
-                        let flags = &flags[..len];
-                        log::debug!("list short flags with history {:?}", history);
-                        break self
-                            .flags(history)
-                            .map(|f| f.gen_completion(Some(false)))
-                            .flatten()
-                            .map(|c| {
-                                let flag = &c.value[1..]; // skip the first '-' character
-                                Completion::new(&format!("-{}{}", flags, &flag), &c.description)
-                            })
-                            .collect();
-                    };
-                    len += 1;
-                    let flag = self.find_short_flag(ch, history)?;
-                    match body.peek() {
-                        Some('=') => {
-                            raise_empty_err = false;
-                            body.next();
-                            let value: String = body.collect();
-                            let Some(comp_options) = flag.comp_options else {
-                                return Err(Error::BoolFlagEqualsValue(arg));
-                            };
-                            let flags = &flags[..len];
-                            break comp_options(history, &value)
-                                .into_iter()
-                                .map(|c| {
-                                    Completion::new(
-                                        &format!("-{}={}", flags, c.value),
-                                        &c.description,
-                                    )
-                                })
-                                .collect();
-                        }
-                        _ => {
-                            if let Some(comp_options) = flag.comp_options {
-                                raise_empty_err = false;
-                                let value: String = body.collect();
-                                let flags = &flags[..len];
-                                break comp_options(history, &value)
-                                    .into_iter()
-                                    .map(|c| {
-                                        Completion::new(
-                                            &format!("-{}{}", flags, c.value),
-                                            &c.description,
-                                        )
-                                    })
-                                    .collect();
-                            }
-                            history.push_pure_flag(flag.id);
-                        }
-                    }
+            ParsedFlag::Shorts => {
+                let resolved = self.resolve_shorts(history, &arg)?;
+                if let Some(comp_options) = resolved.last_flag.comp_options {
+                    let value = resolved.value.unwrap_or("");
+                    comp_options(history, value)
+                        .into_iter()
+                        .map(|c| {
+                            Completion::new(
+                                &format!("{}{}", resolved.flag_part, c.value),
+                                &c.description,
+                            )
+                        })
+                        .collect()
+                } else {
+                    log::debug!("list short flags with history {:?}", history);
+                    history.push_pure_flag(resolved.last_flag.id);
+                    self.flags(history)
+                        .map(|f| f.gen_completion(Some(false)))
+                        .flatten()
+                        .map(|c| {
+                            let flag = &c.value[1..]; // skip the first '-' character
+                            Completion::new(
+                                &format!("{}{}", resolved.flag_part, &flag),
+                                &c.description,
+                            )
+                        })
+                        .collect()
                 }
             }
         };
@@ -353,4 +291,56 @@ impl Command {
 
         panic!("too many args");
     }
+
+    fn resolve_shorts<'a, 'b>(
+        &'b self,
+        history: &mut History,
+        shorts: &'a str,
+    ) -> Result<ResolvedMultiShort<'a, 'b>> {
+        let mut chars = shorts.chars().peekable();
+        let mut len = 1; // ignore the first '-'
+        chars.next(); // ignore the first '-'
+        loop {
+            len += 1;
+            let ch = chars.next().unwrap();
+            let flag = self.find_short_flag(ch, history)?;
+            match chars.peek() {
+                None => {
+                    return Ok(ResolvedMultiShort {
+                        flag_part: shorts,
+                        last_flag: flag,
+                        value: None,
+                    });
+                }
+                Some('=') => {
+                    if flag.comp_options.is_none() {
+                        return Err(Error::BoolFlagEqualsValue(shorts.to_owned()));
+                    };
+                    len += 1;
+                    return Ok(ResolvedMultiShort {
+                        flag_part: &shorts[..len],
+                        last_flag: flag,
+                        value: Some(&shorts[len..]),
+                    });
+                }
+                _ => {
+                    if flag.comp_options.is_some() {
+                        return Ok(ResolvedMultiShort {
+                            flag_part: &shorts[..len],
+                            last_flag: flag,
+                            value: Some(&shorts[len..]),
+                        });
+                    }
+
+                    history.push_pure_flag(flag.id);
+                }
+            }
+        }
+    }
+}
+
+struct ResolvedMultiShort<'a, 'b> {
+    flag_part: &'a str,
+    last_flag: &'b Flag,
+    value: Option<&'a str>,
 }

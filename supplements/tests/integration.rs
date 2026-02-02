@@ -253,4 +253,8 @@ fn test_flags_last() {
     let (h, r) = run("-cb", false);
     assert_eq!(expected_h, h);
     assert_eq!(map_comp_values(&r), vec!["-cb!"]);
+
+    let (h, r) = run("-c", false);
+    assert_eq!(expected_h, h);
+    assert_eq!(map_comp_values(&r), vec!["-cb", "-cx"]);
 }

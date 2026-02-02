@@ -9,7 +9,7 @@ pub(crate) enum ParsedFlag<'a> {
     Empty,
     SingleDash,
     DoubleDash,
-    Shorts(&'a str),
+    Shorts,
     Long {
         body: &'a str,
         equal: Option<&'a str>,
@@ -68,9 +68,8 @@ impl<'a> ParsedFlag<'a> {
                 }
             }
             _ => {
-                let flag_part = &s[1..];
                 Self::validate(s, false)?;
-                Self::Shorts(flag_part)
+                Self::Shorts
             }
         };
         Ok(ret)
@@ -86,7 +85,7 @@ mod test {
         assert_eq!(ParsedFlag::new("").unwrap(), ParsedFlag::Empty);
         assert_eq!(ParsedFlag::new("-").unwrap(), ParsedFlag::SingleDash);
         assert_eq!(ParsedFlag::new("--").unwrap(), ParsedFlag::DoubleDash);
-        assert_eq!(ParsedFlag::new("-s").unwrap(), ParsedFlag::Shorts("s"));
+        assert_eq!(ParsedFlag::new("-s").unwrap(), ParsedFlag::Shorts);
         assert_eq!(
             ParsedFlag::new("--long").unwrap(),
             ParsedFlag::Long {
@@ -94,10 +93,7 @@ mod test {
                 equal: None
             }
         );
-        assert_eq!(
-            ParsedFlag::new("-long").unwrap(),
-            ParsedFlag::Shorts("long")
-        );
+        assert_eq!(ParsedFlag::new("-long").unwrap(), ParsedFlag::Shorts);
 
         assert_eq!(
             ParsedFlag::new("--l").unwrap(),
@@ -111,7 +107,7 @@ mod test {
 
     #[test]
     fn test_equal() {
-        assert_eq!(ParsedFlag::new("-s=").unwrap(), ParsedFlag::Shorts("s="));
+        assert_eq!(ParsedFlag::new("-s=").unwrap(), ParsedFlag::Shorts);
         assert_eq!(
             ParsedFlag::new("--long=x").unwrap(),
             ParsedFlag::Long {
@@ -119,10 +115,7 @@ mod test {
                 equal: Some("x")
             }
         );
-        assert_eq!(
-            ParsedFlag::new("-long=x=b").unwrap(),
-            ParsedFlag::Shorts("long=x=b",)
-        );
+        assert_eq!(ParsedFlag::new("-long=x=b").unwrap(), ParsedFlag::Shorts);
 
         assert_eq!(
             ParsedFlag::new("--l=x").unwrap(),
