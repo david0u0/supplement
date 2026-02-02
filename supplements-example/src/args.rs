@@ -26,5 +26,6 @@ pub enum SubCommand {
         #[clap(short = 's', long, help = "help for \"s\"")]
         sub_test: Option<ThisTest>,
     },
-    Sub2,
+    #[clap(about = "help for \"sub2\"")]
+    Sub2 { sub_test: String },
 }

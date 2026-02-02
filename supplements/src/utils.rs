@@ -105,7 +105,7 @@ impl Command {
 
         let mut args = args.chain(last_arg.into_iter()).peekable();
         if args.peek().is_none() {
-            panic!();
+            return Err(Error::ArgsTooShort);
         }
 
         self.supplement_recur(true, history, &mut args)
@@ -185,7 +185,12 @@ impl Command {
                 let command = self.commands.iter().find(|c| arg == c.info.name);
                 return match command {
                     Some(command) => command.supplement_recur(true, history, args),
-                    None => self.supplement_args(history, args, arg),
+                    None => {
+                        if self.args.is_empty() {
+                            return Err(Error::SubCommandNotFound(arg));
+                        }
+                        self.supplement_args(history, args, arg)
+                    }
                 };
             }
             ParsedFlag::Long { body, equal } => {
@@ -289,7 +294,7 @@ impl Command {
             }
         }
 
-        panic!("too many args");
+        return Err(Error::ArgsTooLong(args.next().unwrap()));
     }
 
     fn resolve_shorts<'a, 'b>(

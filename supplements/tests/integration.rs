@@ -55,9 +55,25 @@ mod def {
             }
         }
     }
+    pub trait DArg {
+        fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
+            vec![Completion::new("d-arg!", "")]
+        }
+        fn id() -> id::Arg {
+            id::Arg::new(line!(), "darg")
+        }
+        fn generate() -> Arg {
+            Arg {
+                id: Self::id(),
+                comp_options: Self::comp_options,
+            }
+        }
+    }
 
     pub trait Root {
         type B: BFlag;
+        type A: AArg;
+        type D: DArg;
         type Sub: SubCommand;
 
         fn id() -> id::Command {
@@ -71,7 +87,7 @@ mod def {
                     name: "root",
                     description: "",
                 },
-                args: vec![],
+                args: vec![Self::A::generate(), Self::D::generate()],
                 commands: vec![Self::Sub::generate()],
             }
         }
@@ -79,7 +95,6 @@ mod def {
 
     pub trait SubCommand {
         type B: BFlag;
-        type A: AArg;
         type A2: AArg;
         fn id() -> id::Command {
             id::Command::new(line!(), "sub")
@@ -92,7 +107,7 @@ mod def {
                     name: "sub",
                     description: "test sub description",
                 },
-                args: vec![Self::A::generate(), Self::A2::generate()],
+                args: vec![Self::A2::generate(), Self::A2::generate()],
                 commands: vec![],
             }
         }
@@ -112,17 +127,19 @@ mod my_impl {
             ]
         }
     }
+    impl def::DArg for Dummy {}
 
     impl def::BFlag for Dummy {}
 
     impl def::Root for Dummy {
         type B = Dummy;
+        type A = Dummy;
+        type D = Dummy;
         type Sub = Dummy;
     }
 
     impl def::SubCommand for Dummy {
         type B = Dummy;
-        type A = Dummy;
         type A2 = Dummy;
     }
 }
@@ -275,5 +292,18 @@ fn test_flags_supplement() {
 
     let res = run("-c x", false);
     assert_eq!(expected.0, res.0);
-    assert_eq!(map_comp_values(&res.1), vec!["sub"]);
+    assert_eq!(
+        map_comp_values(&res.1),
+        vec!["arg-option1", "arg-option2", "sub"]
+    );
+}
+
+#[test]
+fn test_fall_back_arg() {
+    let (h, r) = run("arg1", true);
+    assert_eq!(h, vec![cmd!(Root), arg!(AArg, "arg1")].into());
+    assert_eq!(
+        map_comp_values(&r),
+        vec!["d-arg!"]
+    );
 }

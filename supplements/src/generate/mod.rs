@@ -115,6 +115,44 @@ impl<'a> std::fmt::Display for CompOptionDisplay<'a> {
     }
 }
 
+fn generate_args_in_cmd(
+    indent: &str,
+    cmd: &Command,
+    w: &mut impl Write,
+) -> std::io::Result<Vec<String>> {
+    let mut args_names = vec![];
+    for arg in utils::args(cmd) {
+        let name = arg.get_id().to_string();
+
+        log::debug!("generating arg {}", name);
+
+        let rust_name = gen_rust_name(NameType::ARG, &name, false);
+
+        writeln!(
+            w,
+            "\
+{indent}pub trait {rust_name} {{
+{indent}    fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {{
+{indent}        vec![]
+{indent}    }}
+        fn id() -> id::Arg {{
+            id::Arg::new(line!(), \"{name}\")
+        }}
+        fn generate() -> Arg {{
+            Arg {{
+                id: Self::id(),
+                comp_options: Self::comp_options,
+            }}
+        }}
+{indent}}}"
+        )?;
+
+        args_names.push(rust_name);
+    }
+
+    Ok(args_names)
+}
+
 fn generate_flags_in_cmd(
     indent: &str,
     cmd: &Command,
@@ -191,7 +229,7 @@ fn generate_flags_in_cmd(
 {indent}}};"
             )?;
         }
-        flag_names.push((is_const, rust_name.clone()));
+        flag_names.push((is_const, rust_name));
     }
     Ok(flag_names)
 }
@@ -211,7 +249,7 @@ fn generate_recur(
     w: &mut impl Write,
 ) -> std::io::Result<()> {
     let name = cmd.get_name();
-    let description = cmd.get_before_help().unwrap_or_default().to_string();
+    let description = utils::escape_help(cmd.get_about().unwrap_or_default());
     if !first {
         writeln!(w, "{indent}pub mod {} {{", to_snake_case(cmd.get_name()))?;
     } // else: it's the first time, don't need a mod
@@ -225,10 +263,14 @@ fn generate_recur(
         writeln!(w, "{indent}use supplements::*;")?;
 
         let flags = generate_flags_in_cmd(&indent, cmd, w)?;
+        let args = generate_args_in_cmd(&indent, cmd, w)?;
 
         let rust_name = NameType::COMMAND;
         writeln!(w, "{indent}pub trait {rust_name} {{")?;
 
+        for arg in args.iter() {
+            writeln!(w, "{indent}    type I{arg}: {arg};")?;
+        }
         for (is_const, flag) in flags.iter() {
             if *is_const {
                 continue;
@@ -236,14 +278,17 @@ fn generate_recur(
             writeln!(w, "{indent}    type I{flag}: {flag};")?;
         }
 
-        let flags = flags.iter().map(|(is_const, f)| {
-            if *is_const {
-                Cow::Borrowed(f)
-            } else {
-                Cow::Owned(format!("Self::I{f}::generate()"))
-            }
-        });
-        let flags = JoinQuotes(None, flags);
+        let args = JoinQuotes(None, args.iter().map(|a| format!("Self::I{a}::generate()")));
+        let flags = JoinQuotes(
+            None,
+            flags.iter().map(|(is_const, f)| {
+                if *is_const {
+                    Cow::Borrowed(f)
+                } else {
+                    Cow::Owned(format!("Self::I{f}::generate()"))
+                }
+            }),
+        );
 
         let sub_cmds: Vec<_> = generate_subcmd_names(cmd).collect();
         for (mod_name, ty_name) in sub_cmds.iter() {
@@ -274,7 +319,7 @@ fn generate_recur(
 {indent}                description: \"{description}\",
 {indent}            }},
 {indent}            all_flags: vec![{flags}],
-{indent}            args: vec![/*TODO*/],
+{indent}            args: vec![{args}],
 {indent}            commands: vec![{sub_cmds}],
 {indent}        }}
 {indent}    }}

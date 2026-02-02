@@ -1,4 +1,5 @@
 use clap::{CommandFactory, Parser};
+use supplements::{Completion, History};
 use supplements_example::args::Root;
 
 mod def {
@@ -14,7 +15,17 @@ impl def::Cmd for Dummy {
     type ICmdSub2 = Dummy;
 }
 impl def::sub1::Cmd for Dummy {}
-impl def::sub2::Cmd for Dummy {}
+impl def::sub2::ArgSubTest for Dummy {
+    fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
+        vec![
+            Completion::new("arg-value-1", ""),
+            Completion::new("arg-value-2", ""),
+        ]
+    }
+}
+impl def::sub2::Cmd for Dummy {
+    type IArgSubTest = Dummy;
+}
 
 fn main() {
     env_logger::init();
