@@ -175,7 +175,7 @@ impl Command {
             ($flag:expr, $equal:expr, $history:expr) => {
                 if let Some(equal) = $equal {
                     if $flag.comp_options.is_none() {
-                        return Err(Error::ValueForBoolFlag(arg));
+                        return Err(Error::BoolFlagEqualsValue(arg));
                     }
                     $history.push_flag($flag.id, equal.to_string());
                 } else {
@@ -202,11 +202,7 @@ impl Command {
                 let flag = self.find_long_flag(body, history)?;
                 handle_flag!(flag, equal, history);
             }
-            ParsedFlag::Short { body, equal } => {
-                let flag = self.find_short_flag(body, history)?;
-                handle_flag!(flag, equal, history);
-            }
-            ParsedFlag::MultiShort(body) => {
+            ParsedFlag::Shorts(body) => {
                 let mut body = body.chars().peekable();
                 loop {
                     let Some(ch) = body.next() else {
@@ -239,6 +235,7 @@ impl Command {
     }
 
     fn supplement_last(&self, history: &mut History, arg: String) -> Result<Vec<Completion>> {
+        let mut raise_empty_err = true;
         let ret: Vec<_> = match ParsedFlag::new(&arg)? {
             ParsedFlag::Empty | ParsedFlag::NotFlag => {
                 let cmd_iter = self.commands.iter().map(|c| Completion {
@@ -252,7 +249,7 @@ impl Command {
                 };
                 cmd_iter.chain(arg_comp.into_iter()).collect()
             }
-            ParsedFlag::DoubleDash => self
+            ParsedFlag::DoubleDash | ParsedFlag::Long { equal: None, .. } => self
                 .flags(history)
                 .map(|f| f.gen_completion(Some(true)))
                 .flatten()
@@ -262,9 +259,80 @@ impl Command {
                 .map(|f| f.gen_completion(None))
                 .flatten()
                 .collect(),
-            _ => unimplemented!(),
+            ParsedFlag::Long {
+                equal: Some(value),
+                body,
+            } => {
+                raise_empty_err = false;
+                let flag = self.find_long_flag(body, history)?;
+                let Some(comp_options) = flag.comp_options else {
+                    return Err(Error::BoolFlagEqualsValue(arg));
+                };
+                comp_options(history, value)
+                    .into_iter()
+                    .map(|c| Completion::new(&format!("--{}={}", body, c.value), &c.description))
+                    .collect()
+            }
+            ParsedFlag::Shorts(flags) => {
+                let mut body = flags.chars().peekable();
+                let mut len = 0;
+                loop {
+                    let Some(ch) = body.next() else {
+                        let flags = &flags[..len];
+                        log::debug!("list short flags with history {:?}", history);
+                        break self
+                            .flags(history)
+                            .map(|f| f.gen_completion(Some(false)))
+                            .flatten()
+                            .map(|c| {
+                                let flag = &c.value[1..]; // skip the first '-' character
+                                Completion::new(&format!("-{}{}", flags, &flag), &c.description)
+                            })
+                            .collect();
+                    };
+                    len += 1;
+                    let flag = self.find_short_flag(ch, history)?;
+                    match body.peek() {
+                        Some('=') => {
+                            raise_empty_err = false;
+                            body.next();
+                            let value: String = body.collect();
+                            let Some(comp_options) = flag.comp_options else {
+                                return Err(Error::BoolFlagEqualsValue(arg));
+                            };
+                            let flags = &flags[..len];
+                            break comp_options(history, &value)
+                                .into_iter()
+                                .map(|c| {
+                                    Completion::new(
+                                        &format!("-{}={}", flags, c.value),
+                                        &c.description,
+                                    )
+                                })
+                                .collect();
+                        }
+                        _ => {
+                            if let Some(comp_options) = flag.comp_options {
+                                raise_empty_err = false;
+                                let value: String = body.collect();
+                                let flags = &flags[..len];
+                                break comp_options(history, &value)
+                                    .into_iter()
+                                    .map(|c| {
+                                        Completion::new(
+                                            &format!("-{}{}", flags, c.value),
+                                            &c.description,
+                                        )
+                                    })
+                                    .collect();
+                            }
+                            history.push_pure_flag(flag.id);
+                        }
+                    }
+                }
+            }
         };
-        if ret.is_empty() {
+        if ret.is_empty() && raise_empty_err {
             return Err(Error::NoPossibleCompletion);
         }
         Ok(ret)

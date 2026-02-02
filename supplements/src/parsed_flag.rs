@@ -9,11 +9,7 @@ pub(crate) enum ParsedFlag<'a> {
     Empty,
     SingleDash,
     DoubleDash,
-    Short {
-        body: char,
-        equal: Option<&'a str>,
-    },
-    MultiShort(&'a str),
+    Shorts(&'a str),
     Long {
         body: &'a str,
         equal: Option<&'a str>,
@@ -74,21 +70,7 @@ impl<'a> ParsedFlag<'a> {
             _ => {
                 let flag_part = &s[1..];
                 Self::validate(s, false)?;
-                if flag_part.len() == 1 {
-                    Self::Short {
-                        body: flag_part.chars().nth(0).unwrap(),
-                        equal: None,
-                    }
-                } else {
-                    if flag_part.chars().nth(1) == Some('=') {
-                        Self::Short {
-                            body: flag_part.chars().nth(0).unwrap(),
-                            equal: Some(&flag_part[2..]),
-                        }
-                    } else {
-                        Self::MultiShort(flag_part)
-                    }
-                }
+                Self::Shorts(flag_part)
             }
         };
         Ok(ret)
@@ -104,13 +86,7 @@ mod test {
         assert_eq!(ParsedFlag::new("").unwrap(), ParsedFlag::Empty);
         assert_eq!(ParsedFlag::new("-").unwrap(), ParsedFlag::SingleDash);
         assert_eq!(ParsedFlag::new("--").unwrap(), ParsedFlag::DoubleDash);
-        assert_eq!(
-            ParsedFlag::new("-s").unwrap(),
-            ParsedFlag::Short {
-                body: 's',
-                equal: None
-            }
-        );
+        assert_eq!(ParsedFlag::new("-s").unwrap(), ParsedFlag::Shorts("s"));
         assert_eq!(
             ParsedFlag::new("--long").unwrap(),
             ParsedFlag::Long {
@@ -120,7 +96,7 @@ mod test {
         );
         assert_eq!(
             ParsedFlag::new("-long").unwrap(),
-            ParsedFlag::MultiShort("long",)
+            ParsedFlag::Shorts("long")
         );
 
         assert_eq!(
@@ -135,13 +111,7 @@ mod test {
 
     #[test]
     fn test_equal() {
-        assert_eq!(
-            ParsedFlag::new("-s=").unwrap(),
-            ParsedFlag::Short {
-                body: 's',
-                equal: Some("")
-            }
-        );
+        assert_eq!(ParsedFlag::new("-s=").unwrap(), ParsedFlag::Shorts("s="));
         assert_eq!(
             ParsedFlag::new("--long=x").unwrap(),
             ParsedFlag::Long {
@@ -151,7 +121,7 @@ mod test {
         );
         assert_eq!(
             ParsedFlag::new("-long=x=b").unwrap(),
-            ParsedFlag::MultiShort("long=x=b",)
+            ParsedFlag::Shorts("long=x=b",)
         );
 
         assert_eq!(

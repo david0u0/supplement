@@ -3,7 +3,7 @@ use crate::parsed_flag::Error as ParsedFlagError;
 #[derive(Debug)]
 pub enum Error {
     ParsedFlag(ParsedFlagError),
-    ValueForBoolFlag(String),
+    BoolFlagEqualsValue(String),
     FlagNotFound(String),
     NoPossibleCompletion,
 }

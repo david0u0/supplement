@@ -1,4 +1,7 @@
-use clap::{Command, builder::{PossibleValue, ArgAction}};
+use clap::{
+    Command,
+    builder::{ArgAction, PossibleValue},
+};
 use std::borrow::Cow;
 use std::io::Write;
 
@@ -135,7 +138,7 @@ fn generate_flags_in_cmd(
 
         let once = match flag.get_action() {
             ArgAction::Count | ArgAction::Append => false,
-            _ => true // NOTE: should also check `flag.overrides`, but it's private :(
+            _ => true, // NOTE: should also check `flag.overrides`, but it's private :(
         };
         let description = utils::escape_help(flag.get_help().unwrap_or_default());
 

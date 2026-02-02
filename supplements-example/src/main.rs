@@ -1,5 +1,5 @@
-use supplements_example::args::Root;
 use clap::{CommandFactory, Parser};
+use supplements_example::args::Root;
 
 mod def {
     include!(concat!(env!("OUT_DIR"), "/definition.rs"));
