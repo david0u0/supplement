@@ -6,7 +6,7 @@ mod def {
     use supplements::info::*;
 
     pub const C_FLAG: Flag = Flag {
-        id: id::Flag::new(line!(), "long-c"),
+        id: id::Flag::new(line!(), ""),
         info: FlagInfo {
             short: &['c'],
             long: &["long-c", "long-c-2"],
@@ -15,147 +15,72 @@ mod def {
         comp_options: None,
         once: true,
     };
-    pub trait BFlag {
-        fn comp_options(_history: &History, arg: &str) -> Vec<Completion> {
+    pub const B_FLAG: Flag = Flag {
+        id: id::Flag::new(line!(), ""),
+        info: FlagInfo {
+            short: &['b', 'x'],
+            long: &["long-b"],
+            description: "test description for flag B",
+        },
+        comp_options: Some(|_history, arg| {
             let mut ret = vec![];
             if arg != "" {
                 ret.push(Completion::new(arg, ""));
             }
             ret.push(Completion::new(&format!("{arg}!"), ""));
             ret
-        }
-        fn id() -> id::Flag {
-            id::Flag::new(line!(), "long-b")
-        }
-        fn generate() -> Flag {
-            Flag {
-                id: Self::id(),
-                info: FlagInfo {
-                    short: &['b', 'x'],
-                    long: &["long-b"],
-                    description: "test description for flag B",
-                },
-                comp_options: Some(Self::comp_options),
-                once: true,
-            }
-        }
-    }
-
-    pub trait AArg {
-        fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
-            vec![]
-        }
-        fn id() -> id::Arg {
-            id::Arg::new(line!(), "aarg")
-        }
-        fn generate() -> Arg {
-            Arg {
-                id: Self::id(),
-                comp_options: Self::comp_options,
-                max_values: 1.try_into().unwrap(),
-            }
-        }
-    }
-    pub trait DArg {
-        fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
-            vec![Completion::new("d-arg!", "")]
-        }
-        fn id() -> id::Arg {
-            id::Arg::new(line!(), "darg")
-        }
-        fn generate() -> Arg {
-            Arg {
-                id: Self::id(),
-                comp_options: Self::comp_options,
-                max_values: 1.try_into().unwrap(),
-            }
-        }
-    }
-
-    pub trait Root {
-        type B: BFlag;
-        type A: AArg;
-        type D: DArg;
-        type Sub: SubCommand;
-
-        fn id() -> id::Command {
-            id::Command::new(line!(), "root")
-        }
-        fn generate() -> Command {
-            Command {
-                id: Self::id(),
-                all_flags: vec![Self::B::generate(), C_FLAG],
-                info: CommandInfo {
-                    name: "root",
-                    description: "",
-                },
-                args: vec![Self::A::generate(), Self::D::generate()],
-                commands: vec![Self::Sub::generate()],
-            }
-        }
-    }
-
-    pub trait SubCommand {
-        type B: BFlag;
-        type A2: AArg;
-        fn id() -> id::Command {
-            id::Command::new(line!(), "sub")
-        }
-        fn generate() -> Command {
-            Command {
-                id: Self::id(),
-                all_flags: vec![Self::B::generate()],
-                info: CommandInfo {
-                    name: "sub",
-                    description: "test sub description",
-                },
-                args: vec![Self::A2::generate(), Self::A2::generate()],
-                commands: vec![],
-            }
-        }
-    }
-}
-
-mod my_impl {
-    use super::*;
-
-    pub struct Dummy;
-
-    impl def::AArg for Dummy {
-        fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
+        }),
+        once: true,
+    };
+    pub const A_ARG: Arg = Arg {
+        id: id::Arg::new(line!(), ""),
+        comp_options: |_, _| {
             vec![
-                Completion::new("arg-option1", "description of option1"),
-                Completion::new("arg-option2", "description of option2"),
+                Completion::new("arg-option1", ""),
+                Completion::new("arg-option2", ""),
             ]
-        }
-    }
-    impl def::DArg for Dummy {}
-
-    impl def::BFlag for Dummy {}
-
-    impl def::Root for Dummy {
-        type B = Dummy;
-        type A = Dummy;
-        type D = Dummy;
-        type Sub = Dummy;
-    }
-
-    impl def::SubCommand for Dummy {
-        type B = Dummy;
-        type A2 = Dummy;
-    }
+        },
+        max_values: 1,
+    };
+    pub const ROOT: Command = Command {
+        id: id::Command::new(line!(), ""),
+        all_flags: &[B_FLAG, C_FLAG],
+        info: CommandInfo {
+            name: "root",
+            description: "",
+        },
+        args: &[A_ARG, D_ARG],
+        commands: &[SUB],
+    };
+    pub const SUB: Command = Command {
+        id: id::Command::new(line!(), ""),
+        all_flags: &[B_FLAG],
+        info: CommandInfo {
+            name: "sub",
+            description: "test sub description",
+        },
+        args: &[A_ARG, A_ARG],
+        commands: &[],
+    };
+    pub const D_ARG: Arg = Arg {
+        id: id::Arg::new(line!(), ""),
+        comp_options: |_, _| vec![Completion::new("d-arg!", "")],
+        max_values: 2,
+    };
 }
-use my_impl::Dummy;
 
-fn run(args: &str, last_is_empty: bool) -> (History, Vec<Completion>) {
+fn try_run(args: &str, last_is_empty: bool) -> Result<(Vec<SingleHistory>, Vec<Completion>)> {
     let _ = env_logger::try_init();
 
     let args = args.split(' ').map(|s| s.to_owned());
     let args = std::iter::once("whatever".to_owned()).chain(args);
     let mut history = History::default();
-    let res =
-        <Dummy as def::Root>::generate().supplement_with_history(&mut history, args, last_is_empty);
-    (history, res.unwrap())
+    let res = def::ROOT.supplement_with_history(&mut history, args, last_is_empty)?;
+    let history: Vec<_> = history.into_inner().into_iter().skip(1).collect();
+    Ok((history, res))
+}
+fn run(args: &str, last_is_empty: bool) -> (Vec<SingleHistory>, Vec<Completion>) {
+    try_run(args, last_is_empty).unwrap()
 }
 fn map_comp_values(arr: &[Completion]) -> Vec<&str> {
     let mut v: Vec<_> = arr.iter().map(|c| &*c.value).collect();
@@ -174,7 +99,7 @@ macro_rules! b_flag {
 macro_rules! flag {
     ($name:ident, $value:expr) => {
         SingleHistory::Flag(SingleHistoryFlag {
-            id: <Dummy as def::$name>::id(),
+            id: def::$name.id,
             value: $value.to_owned(),
         })
     };
@@ -182,38 +107,29 @@ macro_rules! flag {
 macro_rules! arg {
     ($name:ident, $value:expr) => {
         SingleHistory::Arg(SingleHistoryArg {
-            id: <Dummy as def::$name>::id(),
+            id: def::$name.id,
             value: $value.to_owned(),
         })
     };
 }
 macro_rules! cmd {
     ($name:ident) => {
-        SingleHistory::Command(SingleHistoryCommand(<Dummy as def::$name>::id()))
+        SingleHistory::Command(SingleHistoryCommand(def::$name.id))
     };
 }
 
 #[test]
 fn test_args_last() {
     let (h, r) = run("sub a1", true);
-    assert_eq!(r, <Dummy as def::AArg>::comp_options(&h, ""));
-    assert_eq!(
-        h.into_inner(),
-        vec![cmd!(Root), cmd!(SubCommand), arg!(AArg, "a1")]
-    );
+    assert_eq!(h, vec![cmd!(SUB), arg!(A_ARG, "a1")]);
+    assert_eq!(r, (def::A_ARG.comp_options)(&h.into(), ""));
 }
 
 #[test]
 fn test_flags_not_last() {
     let expected = (
-        vec![
-            cmd!(Root),
-            b_flag!(C_FLAG),
-            flag!(BFlag, "option"),
-            cmd!(SubCommand),
-        ]
-        .into(),
-        <Dummy as def::AArg>::comp_options(&Default::default(), ""),
+        vec![b_flag!(C_FLAG), flag!(B_FLAG, "option"), cmd!(SUB)],
+        (def::A_ARG.comp_options)(&Default::default(), ""),
     );
 
     let res = run("-c --long-b=option sub", true);
@@ -229,29 +145,26 @@ fn test_flags_not_last() {
 
     let (h, r) = run("-bc=option sub", true);
     assert_eq!(expected.1, r);
-    assert_eq!(
-        h.into_inner(),
-        vec![cmd!(Root), flag!(BFlag, "c=option"), cmd!(SubCommand)]
-    );
+    assert_eq!(h, vec![flag!(B_FLAG, "c=option"), cmd!(SUB)]);
 }
 
 #[test]
 fn test_once_flag() {
     let (h, r) = run("-", false);
-    assert_eq!(h.into_inner(), vec![cmd!(Root)]);
+    assert_eq!(h, vec![]);
     assert_eq!(
         map_comp_values(&r),
         vec!["--long-b", "--long-c", "--long-c-2", "-b", "-c", "-x"],
     );
 
     let (h, r) = run("-b option -", false);
-    assert_eq!(h.into_inner(), vec![cmd!(Root), flag!(BFlag, "option")]);
+    assert_eq!(h, vec![flag!(B_FLAG, "option")]);
     assert_eq!(map_comp_values(&r), vec!["--long-c", "--long-c-2", "-c"],);
 }
 
 #[test]
 fn test_flags_last() {
-    let expected_h: History = vec![cmd!(Root), b_flag!(C_FLAG)].into();
+    let expected_h = vec![b_flag!(C_FLAG)];
 
     let (h, r) = run("-c --long-b=x", false);
     assert_eq!(expected_h, h);
@@ -281,8 +194,8 @@ fn test_flags_last() {
 #[test]
 fn test_flags_supplement() {
     let expected = (
-        vec![cmd!(Root), b_flag!(C_FLAG)].into(),
-        <Dummy as def::BFlag>::comp_options(&Default::default(), "x"),
+        vec![b_flag!(C_FLAG)],
+        (def::B_FLAG.comp_options.unwrap())(&Default::default(), "x"),
     );
 
     let res = run("-c --long-b x", false);
@@ -301,8 +214,15 @@ fn test_flags_supplement() {
 }
 
 #[test]
-fn test_fall_back_arg() {
+fn test_fall_back_and_var_len_arg() {
     let (h, r) = run("arg1", true);
-    assert_eq!(h, vec![cmd!(Root), arg!(AArg, "arg1")].into());
+    assert_eq!(h, vec![arg!(A_ARG, "arg1")]);
     assert_eq!(map_comp_values(&r), vec!["d-arg!"]);
+
+    let (h, r) = run("arg1 d1", true);
+    assert_eq!(h, vec![arg!(A_ARG, "arg1"), arg!(D_ARG, "d1")]);
+    assert_eq!(map_comp_values(&r), vec!["d-arg!"]);
+
+    let err = try_run("arg1 d1 d2", true).unwrap_err();
+    assert_eq!(err, error::Error::ArgsTooLong("".to_owned()));
 }

@@ -1,5 +1,4 @@
 use std::iter::{Peekable, once};
-use std::num::NonZeroUsize;
 
 use crate::error::Error;
 use crate::id;
@@ -18,14 +17,14 @@ pub struct Flag {
 pub struct Arg {
     pub id: id::Arg,
     pub comp_options: CompOption,
-    pub max_values: NonZeroUsize,
+    pub max_values: usize,
 }
 pub struct Command {
     pub id: id::Command,
     pub info: CommandInfo,
-    pub all_flags: Vec<Flag>,
-    pub args: Vec<Arg>,
-    pub commands: Vec<Command>,
+    pub all_flags: &'static [Flag],
+    pub args: &'static [Arg],
+    pub commands: &'static [Command],
 }
 
 impl Arg {
@@ -44,7 +43,7 @@ impl Arg {
                 return Some((self.comp_options)(history, &value));
             }
             history.push_arg(self.id, value);
-            if seen == self.max_values.get() {
+            if seen == self.max_values {
                 break None;
             }
         }
@@ -186,6 +185,9 @@ impl Command {
 
         match ParsedFlag::new(&arg)? {
             ParsedFlag::SingleDash | ParsedFlag::DoubleDash | ParsedFlag::Empty => {
+                if self.args.is_empty() {
+                    return Err(Error::NoArgAtAll(arg));
+                }
                 return self.supplement_args(history, args, arg);
             }
             ParsedFlag::NotFlag => {
@@ -193,8 +195,13 @@ impl Command {
                 return match command {
                     Some(command) => command.supplement_recur(true, history, args),
                     None => {
+                        log::info!("No subcommand. Try fallback args.");
                         if self.args.is_empty() {
-                            return Err(Error::SubCommandNotFound(arg));
+                            if self.commands.is_empty() {
+                                return Err(Error::NoSubcommandAtAll(arg));
+                            } else {
+                                return Err(Error::SubCommandNotFound(arg));
+                            }
                         }
                         self.supplement_args(history, args, arg)
                     }
@@ -217,11 +224,13 @@ impl Command {
         let mut raise_empty_err = true;
         let ret: Vec<_> = match ParsedFlag::new(&arg)? {
             ParsedFlag::Empty | ParsedFlag::NotFlag => {
+                log::debug!("completion for {} subcommands", self.commands.len());
                 let cmd_iter = self.commands.iter().map(|c| Completion {
                     value: c.info.name.to_string(),
                     description: c.info.description.to_string(),
                 });
                 let arg_comp = if let Some(arg_obj) = self.args.first() {
+                    log::debug!("completion for args {:?}", arg_obj.id);
                     (arg_obj.comp_options)(history, &arg)
                 } else {
                     vec![]

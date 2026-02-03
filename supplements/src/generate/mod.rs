@@ -18,7 +18,7 @@ struct NameType(&'static str);
 impl NameType {
     const FLAG: Self = NameType("Flag");
     const ARG: Self = NameType("Arg");
-    const COMMAND: Self = NameType("get_cmd");
+    const COMMAND: Self = NameType("CMD");
 }
 impl std::fmt::Display for NameType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -135,18 +135,15 @@ fn generate_args_in_cmd(
             w,
             "\
 {indent}pub trait {rust_name} {{
+{indent}    const ID: id::Arg = id::Arg::new(line!(), \"{name}\");
+{indent}    const OBJ: Arg = Arg {{
+{indent}        id: Self::ID,
+{indent}        comp_options: Self::comp_options,
+{indent}        max_values: {max_values},
+{indent}    }};
+
 {indent}    fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {{
 {indent}        vec![]
-{indent}    }}
-{indent}    fn id() -> id::Arg {{
-{indent}        id::Arg::new(line!(), \"{name}\")
-{indent}    }}
-{indent}    fn generate() -> Arg {{
-{indent}        Arg {{
-{indent}            id: Self::id(),
-{indent}            comp_options: Self::comp_options,
-{indent}            max_values: {max_values}.try_into().unwrap(),
-{indent}        }}
 {indent}    }}
 {indent}}}"
         )?;
@@ -196,23 +193,20 @@ fn generate_flags_in_cmd(
                 w,
                 "\
 {indent}pub trait {rust_name} {{
+{indent}    const ID: id::Flag = id::Flag::new(line!(), \"{name}\");
+{indent}    const OBJ: Flag = Flag {{
+{indent}        id: Self::ID,
+{indent}        info: info::FlagInfo {{
+{indent}            short: &[{shorts}],
+{indent}            long: &[{longs}],
+{indent}            description: \"{description}\",
+{indent}        }},
+{indent}        comp_options: Some(Self::comp_options),
+{indent}        once: {once},
+{indent}    }};
+
 {indent}    fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {{
 {indent}        vec![]
-{indent}    }}
-{indent}    fn id() -> id::Flag {{
-{indent}        id::Flag::new(line!(), \"{name}\")
-{indent}    }}
-{indent}    fn generate() -> Flag {{
-{indent}        Flag {{
-{indent}            id: Self::id(),
-{indent}            info: info::FlagInfo {{
-{indent}                short: &[{shorts}],
-{indent}                long: &[{longs}],
-{indent}                description: \"{description}\",
-{indent}            }},
-{indent}            comp_options: Some(Self::comp_options),
-{indent}            once: {once},
-{indent}        }}
 {indent}    }}
 {indent}}}"
             )?;
@@ -272,8 +266,7 @@ fn generate_recur(
 
         let args = JoinQuotes(
             None,
-            args.iter()
-                .map(|a| format!("<Supplements as {a}>::generate()")),
+            args.iter().map(|a| format!("<Supplements as {a}>::OBJ")),
         );
         let flags = JoinQuotes(
             None,
@@ -281,7 +274,7 @@ fn generate_recur(
                 if *is_const {
                     Cow::Borrowed(f)
                 } else {
-                    Cow::Owned(format!("<Supplements as {f}>::generate()"))
+                    Cow::Owned(format!("<Supplements as {f}>::OBJ"))
                 }
             }),
         );
@@ -291,24 +284,22 @@ fn generate_recur(
             None,
             sub_cmds
                 .iter()
-                .map(|m| format!("{m}::{}()", NameType::COMMAND)),
+                .map(|m| format!("{m}::{}", NameType::COMMAND)),
         );
 
         writeln!(
             w,
             "\
-{indent}pub fn {rust_name}() -> Command {{
-{indent}    Command {{
-{indent}        id: id::Command::new(line!(), \"{name}\"),
-{indent}        info: info::CommandInfo {{
-{indent}            name: \"{name}\",
-{indent}            description: \"{description}\",
-{indent}        }},
-{indent}        all_flags: vec![{flags}],
-{indent}        args: vec![{args}],
-{indent}        commands: vec![{sub_cmds}],
-{indent}    }}
-{indent}}}"
+{indent}pub const {rust_name}: Command = Command {{
+{indent}    id: id::Command::new(line!(), \"{name}\"),
+{indent}    info: info::CommandInfo {{
+{indent}        name: \"{name}\",
+{indent}        description: \"{description}\",
+{indent}    }},
+{indent}    all_flags: &[{flags}],
+{indent}    args: &[{args}],
+{indent}    commands: &[{sub_cmds}],
+{indent}}};"
         )?;
 
         for sub_cmd in utils::non_help_subcmd(cmd) {

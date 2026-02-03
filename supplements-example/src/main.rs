@@ -46,6 +46,6 @@ fn main() {
         return;
     }
 
-    let res = def::get_cmd().supplement(args.into_iter(), false);
+    let res = def::CMD.supplement(args.into_iter(), false);
     println!("{:?}", res);
 }
