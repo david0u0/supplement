@@ -264,6 +264,7 @@ impl Command {
             ParsedFlag::Shorts => {
                 let resolved = self.resolve_shorts(history, &arg)?;
                 if let Some(comp_options) = resolved.last_flag.comp_options {
+                    raise_empty_err = false;
                     let value = resolved.value.unwrap_or("");
                     comp_options(history, value)
                         .into_iter()

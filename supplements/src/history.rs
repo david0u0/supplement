@@ -82,6 +82,15 @@ impl History {
             .push(SingleHistory::Command(SingleHistoryCommand(id)));
     }
 
+    pub fn find_last<I: ID>(&self, id: I) -> Option<&I::Ret> {
+        for h in self.0.iter().rev() {
+            let h = id.match_and_cast(h);
+            if h.is_some() {
+                return h;
+            }
+        }
+        None
+    }
     pub fn find<I: ID>(&self, id: I) -> Option<&I::Ret> {
         for h in self.0.iter() {
             let h = id.match_and_cast(h);

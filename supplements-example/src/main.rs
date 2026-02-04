@@ -8,7 +8,15 @@ mod def {
 
 use def::Supplements;
 
-impl def::FlagYetAnotherTest for Supplements {}
+impl def::FlagYetAnotherTest for Supplements {
+    fn comp_options(history: &History, _arg: &str) -> Vec<Completion> {
+        if let Some(last) = history.find_last(Self::ID) {
+            let last: u32 = last.value.parse().unwrap();
+            return vec![Completion::new(&(last + 1).to_string(), "")];
+        }
+        vec![]
+    }
+}
 impl def::sub2::ArgArgTestOpt for Supplements {
     fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
         vec![
@@ -57,6 +65,10 @@ fn main() {
         return;
     }
 
-    let res = def::CMD.supplement(args.into_iter(), false);
-    println!("{:?}", res);
+    let mut args = args.into_iter();
+    args.next();
+    let res = def::CMD.supplement(args, false).unwrap();
+    for c in res.iter() {
+        println!("{}\t{}", c.value, c.description);
+    }
 }

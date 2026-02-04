@@ -13,7 +13,7 @@ pub struct Root {
     pub this_test: Vec<ThisTest>,
     #[clap(short = 'a', long)]
     pub another_test: bool,
-    #[clap(short = 'y', long, overrides_with = "yet_another_test", /* TODO: global = true*/)]
+    #[clap(short = 'y', long, overrides_with = "yet_another_test", global = true)]
     pub yet_another_test: Option<u32>,
 
     #[clap(subcommand)]

@@ -1,5 +1,5 @@
 use clap::{
-    Command,
+    Command, Id,
     builder::{ArgAction, PossibleValue},
 };
 use std::borrow::Cow;
@@ -11,7 +11,13 @@ pub fn generate(cmd: &mut Command, w: &mut impl Write) -> std::io::Result<()> {
     cmd.build();
 
     writeln!(w, "pub struct Supplements;")?;
-    generate_recur(0, "", cmd, w)
+    generate_recur(0, "", cmd, &[], w)
+}
+
+#[derive(Clone)]
+struct GlobalFlags {
+    level: usize,
+    id: Id,
 }
 
 struct NameType(&'static str);
@@ -19,7 +25,7 @@ impl NameType {
     const FLAG: Self = NameType("Flag");
     const ARG: Self = NameType("Arg");
     const COMMAND: Self = NameType("CMD");
-    const External: Self = NameType("External");
+    const EXTERNAL: Self = NameType("External");
 }
 impl std::fmt::Display for NameType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -122,7 +128,7 @@ fn generate_args_in_cmd(
 
     let ext_sub = if cmd.is_allow_external_subcommands_set() {
         log::debug!("generating external subcommand");
-        let name = NameType::External.to_string();
+        let name = NameType::EXTERNAL.to_string();
         Some((name.clone(), name, std::usize::MAX))
     } else {
         None
@@ -165,39 +171,57 @@ fn generate_args_in_cmd(
 }
 
 fn generate_flags_in_cmd(
+    level: usize,
     indent: &str,
     cmd: &Command,
+    global_flags: &mut Vec<GlobalFlags>,
     w: &mut impl Write,
 ) -> std::io::Result<Vec<(bool, String)>> {
     let mut flag_names = vec![];
 
     for flag in utils::flags(cmd) {
-        let name = flag.get_id().to_string();
+        let id = flag.get_id();
+        let name = id.to_string();
         if name == "help" {
             log::debug!("skipping help flag");
             continue;
+        }
+
+        let num_args = flag.get_num_args().expect("built");
+        let possible_values = flag.get_possible_values();
+        let is_const = !num_args.takes_values() || !possible_values.is_empty();
+        let rust_name = gen_rust_name(NameType::FLAG, &name, is_const);
+        if flag.is_global_set() {
+            if let Some(prev_flag) = global_flags.iter().find(|f| &f.id == id) {
+                log::info!("get existing global flag {id}");
+                let mut name = "super::".repeat(level - prev_flag.level);
+                name += &rust_name;
+                flag_names.push((is_const, name));
+                continue;
+            } else {
+                log::info!("get new global flag {id}");
+                global_flags.push(GlobalFlags {
+                    level,
+                    id: id.clone(),
+                });
+            }
         }
 
         log::debug!("generating flag {}", name);
 
         let shorts = flag.get_short_and_visible_aliases().unwrap_or_default();
         let longs = flag.get_long_and_visible_aliases().unwrap_or_default();
-        let num_args = flag.get_num_args().expect("built");
-        let takes_values = num_args.takes_values();
 
         let once = match flag.get_action() {
             ArgAction::Count | ArgAction::Append => false,
+            _ if flag.is_global_set() => false,
             _ => true, // NOTE: should also check `flag.overrides`, but it's private :(
         };
         let description = utils::escape_help(flag.get_help().unwrap_or_default());
 
         let shorts = Join(shorts.iter().map(|s| format!("'{s}'")));
         let longs = Join(longs.iter().map(|s| format!("\"{s}\"")));
-        let possible_values = flag.get_possible_values();
-        let has_possible_values = !possible_values.is_empty();
 
-        let is_const = !takes_values || has_possible_values;
-        let rust_name = gen_rust_name(NameType::FLAG, &name, is_const);
         if !is_const {
             writeln!(
                 w,
@@ -250,8 +274,10 @@ fn generate_recur(
     level: usize,
     indent: &str,
     cmd: &Command,
+    global_flags: &[GlobalFlags],
     w: &mut impl Write,
 ) -> std::io::Result<()> {
+    let mut global_flags = global_flags.to_vec();
     let name = cmd.get_name();
     let description = utils::escape_help(cmd.get_about().unwrap_or_default());
     if level > 0 {
@@ -269,7 +295,7 @@ fn generate_recur(
         }
         writeln!(w, "{indent}use supplements::*;")?;
 
-        let flags = generate_flags_in_cmd(&indent, cmd, w)?;
+        let flags = generate_flags_in_cmd(level, &indent, cmd, &mut global_flags, w)?;
         let args = generate_args_in_cmd(&indent, cmd, w)?;
         let sub_cmds: Vec<_> = generate_subcmd_names(cmd).collect();
 
@@ -301,7 +327,7 @@ fn generate_recur(
         )?;
 
         for sub_cmd in utils::non_help_subcmd(cmd) {
-            generate_recur(level + 1, &indent, sub_cmd, w)?;
+            generate_recur(level + 1, &indent, sub_cmd, &global_flags, w)?;
         }
     }
     if level > 0 {
