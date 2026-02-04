@@ -17,6 +17,7 @@ impl<'a> ArgsContext<'a> {
         self.start_idx != 0 || self.cur_arg_values_count != 0
     }
     pub fn next_arg(&mut self) -> Option<&Arg> {
+        log::debug!("next arg called");
         let args = &self.args[self.start_idx..];
         let Some(next) = args.iter().next() else {
             return None;

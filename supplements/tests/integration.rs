@@ -1,3 +1,4 @@
+use error::Error;
 use history::*;
 use supplements::*;
 
@@ -69,17 +70,18 @@ mod def {
     };
 }
 
-fn try_run(args: &str, last_is_empty: bool) -> Result<(Vec<SingleHistory>, Vec<Completion>)> {
+fn try_run(args: &str, last_is_empty: bool) -> (Vec<SingleHistory>, Result<Vec<Completion>>) {
     let _ = env_logger::try_init();
 
     let args = args.split(' ').map(|s| s.to_owned());
     let args = std::iter::once("whatever".to_owned()).chain(args);
     let mut history = History::default();
-    let res = def::ROOT.supplement_with_history(&mut history, args, last_is_empty)?;
-    Ok((history.into_inner(), res))
+    let res = def::ROOT.supplement_with_history(&mut history, args, last_is_empty);
+    (history.into_inner(), res)
 }
 fn run(args: &str, last_is_empty: bool) -> (Vec<SingleHistory>, Vec<Completion>) {
-    try_run(args, last_is_empty).unwrap()
+    let (h, r) = try_run(args, last_is_empty);
+    (h, r.unwrap())
 }
 fn map_comp_values(arr: &[Completion]) -> Vec<&str> {
     let mut v: Vec<_> = arr.iter().map(|c| &*c.value).collect();
@@ -222,27 +224,57 @@ fn test_fall_back_and_var_len_arg() {
     assert_eq!(h, vec![arg!(A_ARG, "arg1"), arg!(D_ARG, "d1")]);
     assert_eq!(map_comp_values(&r), vec!["d-arg!"]);
 
-    let err = try_run("arg1 d1 d2", true).unwrap_err();
-    assert_eq!(err, error::Error::UnexpectedArg("".to_owned()));
+    let expected_h = vec![arg!(A_ARG, "arg1"), arg!(D_ARG, "d1"), arg!(D_ARG, "d2")];
 
-    let err = try_run("arg1 d1 d2 d3", true).unwrap_err();
-    assert_eq!(err, error::Error::UnexpectedArg("d3".to_owned()));
+    let (h, r) = try_run("arg1 d1 d2", true);
+    assert_eq!(h, expected_h);
+    assert_eq!(r.unwrap_err(), Error::UnexpectedArg("".to_owned()));
+
+    let (h, r) = try_run("arg1 d1 d2 d3", true);
+    assert_eq!(h, expected_h);
+    assert_eq!(r.unwrap_err(), Error::UnexpectedArg("d3".to_owned()));
 }
 
 #[test]
 fn test_flag_after_args() {
-    let (h, r) = run("arg1 --", false);
-    assert_eq!(h, vec![arg!(A_ARG, "arg1")]);
-    assert_eq!(
-        map_comp_values(&r),
-        vec!["--long-b", "--long-c", "--long-c-2"],
-    );
+    let (h, r) = run("sub arg1 --", false);
+    assert_eq!(h, vec![cmd!(SUB), arg!(A_ARG, "arg1")]);
+    assert_eq!(map_comp_values(&r), vec!["--long-b"],);
 
-    let (h, r) = run("arg1 --long-b flag1", false);
-    assert_eq!(h, vec![arg!(A_ARG, "arg1")]);
+    let (h, r) = run("sub arg1 --long-b flag1", false);
+    assert_eq!(h, vec![cmd!(SUB), arg!(A_ARG, "arg1")]);
     assert_eq!(map_comp_values(&r), vec!["flag1", "flag1!"],);
 
-    let (h, r) = run("arg1 --long-b flag1", true);
-    assert_eq!(h, vec![arg!(A_ARG, "arg1"), flag!(B_FLAG, "flag1")]);
-    assert_eq!(map_comp_values(&r), vec!["d-arg!"],);
+    let (h, r) = run("sub arg1 --long-b flag1", true);
+    assert_eq!(
+        h,
+        vec![cmd!(SUB), arg!(A_ARG, "arg1"), flag!(B_FLAG, "flag1")]
+    );
+    assert_eq!(map_comp_values(&r), vec!["arg-option1", "arg-option2"],);
+}
+
+#[test]
+fn test_flag_after_external_sub() {
+    let expected_r = vec!["d-arg!"];
+
+    let (h, r) = run("--long-b flag1 ext", true);
+    assert_eq!(h, vec![flag!(B_FLAG, "flag1"), arg!(A_ARG, "ext")]);
+    assert_eq!(map_comp_values(&r), expected_r);
+
+    let (h, r) = run("ext --", false);
+    assert_eq!(h, vec![arg!(A_ARG, "ext")]);
+    assert_eq!(map_comp_values(&r), expected_r);
+
+    let (h, r) = run("ext --long-b flag1", false);
+    assert_eq!(h, vec![arg!(A_ARG, "ext"), arg!(D_ARG, "--long-b")]);
+    assert_eq!(map_comp_values(&r), expected_r);
+
+    let expected_h = vec![
+        arg!(A_ARG, "ext"),
+        arg!(D_ARG, "--long-b"),
+        arg!(D_ARG, "flag1"),
+    ];
+    let (h, r) = try_run("ext --long-b flag1", true);
+    assert_eq!(h, expected_h);
+    assert_eq!(r.unwrap_err(), Error::UnexpectedArg("".to_owned()));
 }

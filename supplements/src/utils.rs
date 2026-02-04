@@ -62,12 +62,21 @@ impl Flag {
         None
     }
 }
+
 fn supplement_arg(history: &mut History, ctx: &mut ArgsContext, arg: String) -> Result {
     let Some(arg_obj) = ctx.next_arg() else {
         return Err(Error::UnexpectedArg(arg));
     };
     history.push_arg(arg_obj.id, arg);
     Ok(())
+}
+fn parse_flag(s: &str, disable_flag: bool) -> Result<ParsedFlag<'_>> {
+    if disable_flag {
+        log::info!("flag is disabled: {}", s);
+        Ok(ParsedFlag::NotFlag)
+    } else {
+        ParsedFlag::new(s).map_err(|e| e.into())
+    }
 }
 
 impl Command {
@@ -102,6 +111,10 @@ impl Command {
         self.supplement_recur(&mut None, history, &mut args)
     }
 
+    fn doing_external(&self, ctx: &ArgsContext) -> bool {
+        let has_subcmd = !self.commands.is_empty();
+        has_subcmd && ctx.has_seen_arg()
+    }
     fn flags(&self, history: &History) -> impl Iterator<Item = &Flag> {
         self.all_flags.iter().filter(|f| {
             if !f.once {
@@ -172,7 +185,7 @@ impl Command {
             };
         }
 
-        match ParsedFlag::new(&arg)? {
+        match parse_flag(&arg, self.doing_external(args_ctx))? {
             ParsedFlag::SingleDash | ParsedFlag::DoubleDash | ParsedFlag::Empty => {
                 supplement_arg(history, args_ctx, arg)?;
             }
@@ -213,7 +226,7 @@ impl Command {
         arg: String,
     ) -> Result<Vec<Completion>> {
         let mut raise_empty_err = true;
-        let ret: Vec<_> = match ParsedFlag::new(&arg)? {
+        let ret: Vec<_> = match parse_flag(&arg, self.doing_external(args_ctx))? {
             ParsedFlag::Empty | ParsedFlag::NotFlag => {
                 let cmd_slice = if args_ctx.has_seen_arg() {
                     log::info!("no completion for subcmd because we've already seen some args");
