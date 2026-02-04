@@ -6,11 +6,8 @@ pub enum Error {
     BoolFlagEqualsValue(String),
     FlagNotFound(String),
     NoPossibleCompletion,
-    NoSubcommandAtAll(String), // try to find subcommand where there isn't any
-    NoArgAtAll(String),        // try to provide arg where there isn't any
+    UnexpectedArg(String), // try to provide arg where there isn't any
     ArgsTooShort,
-    ArgsTooLong(String),
-    SubCommandNotFound(String),
 }
 
 impl From<ParsedFlagError> for Error {

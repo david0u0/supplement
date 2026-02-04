@@ -1,5 +1,6 @@
-use std::iter::{Peekable, once};
+use std::iter::Peekable;
 
+use crate::arg_context::ArgsContext;
 use crate::error::Error;
 use crate::id;
 use crate::info::*;
@@ -25,29 +26,6 @@ pub struct Command {
     pub all_flags: &'static [Flag],
     pub args: &'static [Arg],
     pub commands: &'static [Command],
-}
-
-impl Arg {
-    fn supplement(
-        &self,
-        history: &mut History,
-        args: &mut Peekable<impl Iterator<Item = String>>,
-    ) -> Option<Vec<Completion>> {
-        let mut seen = 0;
-        loop {
-            seen += 1;
-
-            let value = args.next().unwrap();
-            // TODO: use `ParsedFlag` to check if `value` is valid
-            if args.peek().is_none() {
-                return Some((self.comp_options)(history, &value));
-            }
-            history.push_arg(self.id, value);
-            if seen == self.max_values {
-                break None;
-            }
-        }
-    }
 }
 
 impl Flag {
@@ -84,6 +62,13 @@ impl Flag {
         None
     }
 }
+fn supplement_arg(history: &mut History, ctx: &mut ArgsContext, arg: String) -> Result {
+    let Some(arg_obj) = ctx.next_arg() else {
+        return Err(Error::UnexpectedArg(arg));
+    };
+    history.push_arg(arg_obj.id, arg);
+    Ok(())
+}
 
 impl Command {
     pub fn supplement(
@@ -114,7 +99,7 @@ impl Command {
             return Err(Error::ArgsTooShort);
         }
 
-        self.supplement_recur(true, history, &mut args)
+        self.supplement_recur(&mut None, history, &mut args)
     }
 
     fn flags(&self, history: &History) -> impl Iterator<Item = &Flag> {
@@ -154,17 +139,21 @@ impl Command {
 
     fn supplement_recur(
         &self,
-        is_first: bool,
+        args_ctx_opt: &mut Option<ArgsContext<'_>>,
         history: &mut History,
         args: &mut Peekable<impl Iterator<Item = String>>,
     ) -> Result<Vec<Completion>> {
         let arg = args.next().unwrap();
-        if is_first {
-            history.push_command(self.id);
-        }
+
+        let args_ctx = if let Some(ctx) = args_ctx_opt {
+            ctx
+        } else {
+            *args_ctx_opt = Some(ArgsContext::new(&self.args));
+            args_ctx_opt.as_mut().unwrap()
+        };
 
         if args.peek().is_none() {
-            return self.supplement_last(history, arg);
+            return self.supplement_last(args_ctx, history, arg);
         }
 
         macro_rules! handle_flag {
@@ -185,27 +174,24 @@ impl Command {
 
         match ParsedFlag::new(&arg)? {
             ParsedFlag::SingleDash | ParsedFlag::DoubleDash | ParsedFlag::Empty => {
-                if self.args.is_empty() {
-                    return Err(Error::NoArgAtAll(arg));
-                }
-                return self.supplement_args(history, args, arg);
+                supplement_arg(history, args_ctx, arg)?;
             }
             ParsedFlag::NotFlag => {
-                let command = self.commands.iter().find(|c| arg == c.info.name);
-                return match command {
-                    Some(command) => command.supplement_recur(true, history, args),
+                let command = if args_ctx.has_seen_arg() {
+                    None
+                } else {
+                    self.commands.iter().find(|c| arg == c.info.name)
+                };
+                match command {
+                    Some(command) => {
+                        history.push_command(command.id);
+                        return command.supplement_recur(&mut None, history, args);
+                    }
                     None => {
                         log::info!("No subcommand. Try fallback args.");
-                        if self.args.is_empty() {
-                            if self.commands.is_empty() {
-                                return Err(Error::NoSubcommandAtAll(arg));
-                            } else {
-                                return Err(Error::SubCommandNotFound(arg));
-                            }
-                        }
-                        self.supplement_args(history, args, arg)
+                        supplement_arg(history, args_ctx, arg)?;
                     }
-                };
+                }
             }
             ParsedFlag::Long { body, equal } => {
                 let flag = self.find_long_flag(body, history)?;
@@ -217,22 +203,36 @@ impl Command {
             }
         }
 
-        self.supplement_recur(false, history, args)
+        self.supplement_recur(args_ctx_opt, history, args)
     }
 
-    fn supplement_last(&self, history: &mut History, arg: String) -> Result<Vec<Completion>> {
+    fn supplement_last(
+        &self,
+        args_ctx: &mut ArgsContext,
+        history: &mut History,
+        arg: String,
+    ) -> Result<Vec<Completion>> {
         let mut raise_empty_err = true;
         let ret: Vec<_> = match ParsedFlag::new(&arg)? {
             ParsedFlag::Empty | ParsedFlag::NotFlag => {
-                log::debug!("completion for {} subcommands", self.commands.len());
-                let cmd_iter = self.commands.iter().map(|c| Completion {
+                let cmd_slice = if args_ctx.has_seen_arg() {
+                    log::info!("no completion for subcmd because we've already seen some args");
+                    &[]
+                } else {
+                    log::debug!("completion for {} subcommands", self.commands.len());
+                    self.commands
+                };
+                let cmd_iter = cmd_slice.iter().map(|c| Completion {
                     value: c.info.name.to_string(),
                     description: c.info.description.to_string(),
                 });
-                let arg_comp = if let Some(arg_obj) = self.args.first() {
+                let arg_comp = if let Some(arg_obj) = args_ctx.next_arg() {
                     log::debug!("completion for args {:?}", arg_obj.id);
                     (arg_obj.comp_options)(history, &arg)
                 } else {
+                    if cmd_slice.is_empty() {
+                        return Err(Error::UnexpectedArg(arg));
+                    }
                     vec![]
                 };
                 cmd_iter.chain(arg_comp.into_iter()).collect()
@@ -296,22 +296,6 @@ impl Command {
             return Err(Error::NoPossibleCompletion);
         }
         Ok(ret)
-    }
-    fn supplement_args(
-        &self,
-        history: &mut History,
-        args: &mut Peekable<impl Iterator<Item = String>>,
-        arg: String,
-    ) -> Result<Vec<Completion>> {
-        let mut args = once(arg).chain(args).peekable();
-        for arg_obj in self.args.iter() {
-            let res = arg_obj.supplement(history, &mut args);
-            if let Some(res) = res {
-                return Ok(res);
-            }
-        }
-
-        return Err(Error::ArgsTooLong(args.next().unwrap()));
     }
 
     fn resolve_shorts<'a, 'b>(

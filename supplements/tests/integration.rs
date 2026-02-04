@@ -76,8 +76,7 @@ fn try_run(args: &str, last_is_empty: bool) -> Result<(Vec<SingleHistory>, Vec<C
     let args = std::iter::once("whatever".to_owned()).chain(args);
     let mut history = History::default();
     let res = def::ROOT.supplement_with_history(&mut history, args, last_is_empty)?;
-    let history: Vec<_> = history.into_inner().into_iter().skip(1).collect();
-    Ok((history, res))
+    Ok((history.into_inner(), res))
 }
 fn run(args: &str, last_is_empty: bool) -> (Vec<SingleHistory>, Vec<Completion>) {
     try_run(args, last_is_empty).unwrap()
@@ -224,5 +223,26 @@ fn test_fall_back_and_var_len_arg() {
     assert_eq!(map_comp_values(&r), vec!["d-arg!"]);
 
     let err = try_run("arg1 d1 d2", true).unwrap_err();
-    assert_eq!(err, error::Error::ArgsTooLong("".to_owned()));
+    assert_eq!(err, error::Error::UnexpectedArg("".to_owned()));
+
+    let err = try_run("arg1 d1 d2 d3", true).unwrap_err();
+    assert_eq!(err, error::Error::UnexpectedArg("d3".to_owned()));
+}
+
+#[test]
+fn test_flag_after_args() {
+    let (h, r) = run("arg1 --", false);
+    assert_eq!(h, vec![arg!(A_ARG, "arg1")]);
+    assert_eq!(
+        map_comp_values(&r),
+        vec!["--long-b", "--long-c", "--long-c-2"],
+    );
+
+    let (h, r) = run("arg1 --long-b flag1", false);
+    assert_eq!(h, vec![arg!(A_ARG, "arg1")]);
+    assert_eq!(map_comp_values(&r), vec!["flag1", "flag1!"],);
+
+    let (h, r) = run("arg1 --long-b flag1", true);
+    assert_eq!(h, vec![arg!(A_ARG, "arg1"), flag!(B_FLAG, "flag1")]);
+    assert_eq!(map_comp_values(&r), vec!["d-arg!"],);
 }
