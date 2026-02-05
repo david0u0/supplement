@@ -159,8 +159,8 @@ fn generate_args_in_cmd(
 {indent}        max_values: {max_values},
 {indent}    }};
 
-{indent}    fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {{
-{indent}        Completion::files()
+{indent}    fn comp_options(_history: &History, arg: &str) -> Vec<Completion> {{
+{indent}        Completion::files(arg)
 {indent}    }}
 {indent}}}"
         )?;
@@ -241,8 +241,8 @@ fn generate_flags_in_cmd(
 {indent}        once: {once},
 {indent}    }};
 
-{indent}    fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {{
-{indent}        Completion::files()
+{indent}    fn comp_options(_history: &History, arg: &str) -> Vec<Completion> {{
+{indent}        Completion::files(arg)
 {indent}    }}
 {indent}}}"
             )?;
