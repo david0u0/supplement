@@ -8,12 +8,17 @@ Give it a [`clap`](https://github.com/clap-rs/clap) object, and instead of spitt
 ## Why `supplements`
 
 - **Shell-agnostic**
-- **Powerful** - Some features are not widely supported in every shell, and `supplement` comes to rescue
-- **Stop modifying generated files** - Instead, **extend** it with Rust's trait system
+- **Powerful** - Some features are not widely supported in every shell, and `supplements` comes to rescue
+- **Stop modifying generated files** - Instead, *extend* it with Rust's trait system
 - **It's Rust** 🦀
 
 ## Getting started
-Say you have this awesome clap definition. Let's use supplements to make it even more awsome.
+1. Have a `clap` definition
+2. Generate the `supplements` definition (preferably in `buuld.rs`)
+3. Compile the binary
+4. Put a simple shell script in place to tell the shell how to use your binary
+
+Let's break it down step by step. Say you have this awesome clap definition, and want to use supplements to make it even more awsome.
 
 ```rs
 use clap::{CommandFactory, Parser, ValueEnum};
@@ -45,16 +50,13 @@ You can now edit the `build.rs` to generate the definition file:
 #[path = "src/args.rs"]
 mod args;
 use clap::CommandFactory;
-use std::path::Path;
-use supplements::generate;
 
 fn main() {
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
-    let file = Path::new(&out_dir).join("definition.rs");
+    let file = std::path::Path::new(&out_dir).join("definition.rs");
     let mut f = std::fs::File::create(file).unwrap();
-    generate(&mut args::Git::command(), &mut f).unwrap();
+    supplements::generate(&mut args::Git::command(), &mut f).unwrap();
 }
-
 ```
 
 And use it in `main.rs`:
@@ -75,11 +77,12 @@ impl def::checkout::ArgFileOrCommit for Supplements {
 // Some more custom completion logic...
 
 fn main() {
-    // `args` looks like ["supplement-example", "git", "log", "--graph"]
+    // `args` looks like ["supplements-example", "git", "log", "--graph"]
     // so we should skip the first arg
     let args = std::env::args().skip(1);
     let comps = def::CMD.supplement(args).unwrap();
-    comps.print(supplements::Shell::Fish, &mut std:io::stdout).unwrap()
+    let shell = supplements::Shell::Fieh; // Assume we only use fish shell
+    comps.print(shell, &mut std:io::stdout).unwrap()
 }
 ```
 
