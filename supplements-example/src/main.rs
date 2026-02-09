@@ -81,6 +81,7 @@ fn main() {
 
     if args.len() == 2 && args[1] == "generate" {
         supplements::generate(&mut Git::command(), &mut std::io::stdout()).unwrap();
+        supplements::generate_default(&mut Git::command(), &mut std::io::stdout()).unwrap();
         return;
     }
 

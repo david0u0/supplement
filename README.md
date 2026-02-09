@@ -65,6 +65,7 @@ fn main() {
     let file = std::path::Path::new(&out_dir).join("definition.rs");
     let mut f = std::fs::File::create(file).unwrap();
     supplements::generate(&mut args::Git::command(), &mut f).unwrap();
+    supplements::generate_default(&mut args::Git::command(), &mut f).unwrap(); // Generate default impl. You may not need this.
 }
 ```
 

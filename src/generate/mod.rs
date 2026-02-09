@@ -2,8 +2,10 @@ use std::borrow::Cow;
 use std::io::Write;
 
 mod abstraction;
+pub mod gen_default_impl;
 mod utils;
 use abstraction::{ArgAction, Command, CommandMut, PossibleValue, clap};
+use utils::{gen_rust_name, to_screaming_snake_case, to_snake_case};
 
 #[cfg(feature = "clap-3")]
 pub fn generate(cmd: &mut clap::Command<'static>, w: &mut impl Write) -> std::io::Result<()> {
@@ -16,7 +18,7 @@ pub fn generate(cmd: &mut clap::Command, w: &mut impl Write) -> std::io::Result<
     generate_inner(cmd, w)
 }
 
-pub fn generate_inner(mut cmd: CommandMut, w: &mut impl Write) -> std::io::Result<()> {
+fn generate_inner(mut cmd: CommandMut, w: &mut impl Write) -> std::io::Result<()> {
     cmd.build();
     let cmd = cmd.to_const();
 
@@ -41,45 +43,6 @@ impl std::fmt::Display for NameType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
     }
-}
-
-fn to_pascal_case(s: &str) -> String {
-    let mut ret = String::new();
-    for s in to_snake_case(s).split('_') {
-        let mut chars = s.chars();
-        match chars.next() {
-            None => continue,
-            Some(first) => {
-                ret += &first.to_uppercase().to_string();
-                ret += &(chars.collect::<String>());
-            }
-        }
-    }
-    ret
-}
-
-fn to_snake_case(s: &str) -> String {
-    s.replace('-', "_") // TODO
-}
-
-fn to_screaming_snake_case(s: &str) -> String {
-    s.replace('-', "_").to_uppercase() // TODO
-}
-
-fn gen_rust_name(ty: NameType, name: &str, is_const: bool) -> String {
-    let mut ret = ty.to_string();
-    if is_const {
-        ret = ret.to_uppercase();
-    }
-
-    if is_const {
-        ret += "_";
-        ret += &to_screaming_snake_case(name);
-    } else {
-        ret += &to_pascal_case(name);
-    }
-
-    ret
 }
 
 struct Join<I>(I);
