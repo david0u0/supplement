@@ -3,18 +3,27 @@
 
 **supplements** is a Rust library that generates completion scaffold as Rust code.
 
-Give it a [`clap`](https://github.com/clap-rs/clap) object, and instead of spitting out shell files that you later have to manually edit, it spits out Rust!
-
-## Why `supplements`
-
+Give it a [`clap`](https://github.com/clap-rs/clap) object, and instead of spitting out shell files that you later have to manually edit, it spits out Rust! supplements is:
 - **Shell-agnostic**
 - **Powerful** - Some features are not widely supported in every shell, and `supplements` comes to rescue
 - **Stop modifying generated files** - Instead, *extend* it with Rust's trait system
-- **It's Rust** 🦀
+- **Minimum shell script reqiured**
+- **It's Rust 🦀**
 
-## Getting started
+## Install
+Add one line in Cargo.toml. By default, it uses `clap` 4, but you can make it use `clap` 3 with feature.
+```toml
+[dependencies]
+supplements = "0.1"
+# Or, to use clap 3
+supplements = { version = "0.1", default-features = false, features = ["clap-3"] }
+# Or, disable the code generate feature completely
+supplements = { version = "0.1", default-features = false }
+```
+
+## Get started
 1. Have a `clap` definition
-2. Generate the `supplements` definition (preferably in `buuld.rs`)
+2. Generate the `supplements` definition (preferably in `build.rs`)
 3. Compile the binary
 4. Put a simple shell script in place to tell the shell how to use your binary
 
@@ -98,9 +107,9 @@ function __do_completion
     set cmd_arr (string split ' ' $cmd)
     if [ -z "$cmd_arr[-1]" ]
         # preserve the last white space
-        eval "path/to/your/binary $cmd ''"
+        echo fish $cmd "''" | xargs path/to/your/binary
     else
-        eval path/to/your/binary $cmd
+        echo fish $cmd | xargs path/to/your/binary
     end
 end
 
