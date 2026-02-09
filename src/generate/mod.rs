@@ -6,12 +6,12 @@ mod utils;
 use abstraction::{ArgAction, Command, CommandMut, PossibleValue, clap};
 
 #[cfg(feature = "clap-3")]
-pub fn generate<'a>(cmd: &'a mut clap::Command<'a>, w: &mut impl Write) -> std::io::Result<()> {
+pub fn generate(cmd: &mut clap::Command<'static>, w: &mut impl Write) -> std::io::Result<()> {
     let cmd = CommandMut(cmd);
     generate_inner(cmd, w)
 }
 #[cfg(feature = "clap-4")]
-pub fn generate<'a>(cmd: &mut clap::Command, w: &mut impl Write) -> std::io::Result<()> {
+pub fn generate(cmd: &mut clap::Command, w: &mut impl Write) -> std::io::Result<()> {
     let cmd = CommandMut(cmd);
     generate_inner(cmd, w)
 }

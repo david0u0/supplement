@@ -9,20 +9,20 @@ pub use clap4 as clap;
 pub use clap::ArgAction;
 
 #[cfg(feature = "clap-3")]
-pub(crate) struct CommandMut<'a>(pub &'a mut clap::Command<'a>);
+pub(crate) struct CommandMut<'a>(pub &'a mut clap::Command<'static>);
 #[cfg(feature = "clap-4")]
 pub(crate) struct CommandMut<'a>(pub &'a mut clap::Command);
 
 #[cfg(feature = "clap-3")]
 #[derive(Clone, Copy)]
-pub(crate) struct Command<'a>(&'a clap::Command<'a>);
+pub(crate) struct Command<'a>(&'a clap::Command<'static>);
 #[cfg(feature = "clap-4")]
 #[derive(Clone, Copy)]
 pub(crate) struct Command<'a>(&'a clap::Command);
 
 #[cfg(feature = "clap-3")]
 #[derive(Clone, Copy)]
-pub(crate) struct Arg<'a>(&'a clap::Arg<'a>);
+pub(crate) struct Arg<'a>(&'a clap::Arg<'static>);
 #[cfg(feature = "clap-4")]
 #[derive(Clone, Copy)]
 pub(crate) struct Arg<'a>(&'a clap::Arg);
@@ -82,6 +82,12 @@ impl<'a> Arg<'a> {
         }
     }
     pub fn get_possible_values(&self) -> Vec<PossibleValue> {
+        #[cfg(feature = "clap-3")]
+        {
+            if let Some(pvs) = self.0.get_possible_values() {
+                return pvs.to_vec();
+            }
+        }
         self.0
             .get_value_parser()
             .possible_values()

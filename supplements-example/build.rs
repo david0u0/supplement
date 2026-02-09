@@ -1,5 +1,15 @@
+#[cfg(feature = "clap-4")]
 #[path = "src/args.rs"]
 mod args;
+
+#[cfg(feature = "clap-3")]
+#[path = "src/args_clap3.rs"]
+mod args;
+
+#[cfg(feature = "clap-3")]
+use clap3 as clap;
+#[cfg(feature = "clap-4")]
+use clap4 as clap;
 
 use args::Git;
 use clap::CommandFactory;

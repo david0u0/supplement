@@ -121,9 +121,6 @@ impl CompletionGroup {
             }
             Shell::Fish => {
                 for comp in self.comps.iter() {
-                    if !comp.value.starts_with(&self.arg) {
-                        continue;
-                    }
                     let desc = match (comp.description.as_str(), comp.group) {
                         ("", None) => "",
                         ("", Some(g)) => g,

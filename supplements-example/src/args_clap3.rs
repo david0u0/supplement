@@ -1,6 +1,6 @@
-use clap4 as clap;
+use clap3 as clap;
 
-use clap::{Parser, ValueEnum};
+use clap::Parser;
 
 #[derive(Parser, Debug)]
 pub struct Git {
@@ -19,17 +19,8 @@ pub enum SubCommand {
     Log {
         #[clap(long)]
         graph: bool,
-        #[clap(long)]
-        pretty: Option<Pretty>,
+        #[clap(long, possible_values(&["oneline", "short", "full"]))]
+        pretty: Option<String>,
         commit: Option<String>,
     },
-}
-#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
-pub enum Pretty {
-    #[clap(help = "<sha1> <title line>")]
-    Oneline,
-    #[clap(help = "<sha1> / <author> / <title line>)")]
-    Short,
-    #[clap(help = "<sha1> / <author> / <committer> / <title> / <commit msg>")]
-    Full,
 }

@@ -1,3 +1,8 @@
+#[cfg(feature = "clap-3")]
+use clap3 as clap;
+#[cfg(feature = "clap-4")]
+use clap4 as clap;
+
 use clap::{CommandFactory, Parser};
 use std::process::Command;
 use supplements::{Completion, History, Shell};
