@@ -1,7 +1,10 @@
 use crate::id;
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct HistoryUnitNoVal(pub id::NoVal);
+pub struct HistoryUnitNoVal {
+    pub id: id::NoVal,
+    pub count: u32,
+}
 #[derive(Debug, Eq, PartialEq)]
 pub struct HistoryUnitSingleVal {
     pub id: id::SingleVal,
@@ -10,7 +13,7 @@ pub struct HistoryUnitSingleVal {
 #[derive(Debug, Eq, PartialEq)]
 pub struct HistoryUnitMultiVal {
     pub id: id::MultiVal,
-    pub value: Vec<String>,
+    pub values: Vec<String>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
@@ -28,7 +31,7 @@ impl ID for id::NoVal {
     type Ret = HistoryUnitNoVal;
     fn match_and_cast(self, h: &HistoryUnit) -> Option<&Self::Ret> {
         match h {
-            HistoryUnit::No(h) if h.0 == self => Some(h),
+            HistoryUnit::No(h) if h.id == self => Some(h),
             _ => None,
         }
     }
@@ -63,7 +66,18 @@ impl History {
 
     pub(crate) fn push_no_val(&mut self, id: id::NoVal) {
         log::debug!("push no value {:?}", id);
-        self.0.push(HistoryUnit::No(HistoryUnitNoVal(id)));
+        for h in self.0.iter_mut() {
+            match h {
+                HistoryUnit::No(h) if h.id == id => {
+                    h.count += 1;
+                    return;
+                }
+                _ => (),
+            }
+        }
+
+        self.0
+            .push(HistoryUnit::No(HistoryUnitNoVal { id, count: 1 }));
     }
     pub(crate) fn push_single_val(&mut self, id: id::SingleVal, value: String) {
         log::debug!("push single val {:?} {}", id, value);
@@ -91,16 +105,16 @@ impl History {
         for h in self.0.iter_mut() {
             match h {
                 HistoryUnit::Multi(h) if h.id == id => {
-                    h.value.push(value);
+                    h.values.push(value);
                     return;
                 }
                 _ => (),
             }
         }
 
-        let value = vec![value];
+        let values = vec![value];
         self.0
-            .push(HistoryUnit::Multi(HistoryUnitMultiVal { id, value }));
+            .push(HistoryUnit::Multi(HistoryUnitMultiVal { id, values }));
     }
 
     pub(crate) fn push_arg(&mut self, id: id::Arg, value: String) {

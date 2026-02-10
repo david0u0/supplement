@@ -120,6 +120,11 @@ fn generate_args_in_cmd(
 
     for (name, rust_name, max_values, is_external) in args {
         let id_name = to_screaming_snake_case(&format!("id_{}_{name}", NameType::ARG));
+        let (id_type, id_enum) = if max_values == 1 {
+            ("id::SingleVal", "id::Arg::Single")
+        } else {
+            ("id::MultiVal", "id::Arg::Multi")
+        };
         let body = if is_external {
             "vec![]"
         } else {
@@ -128,10 +133,10 @@ fn generate_args_in_cmd(
         writeln!(
             w,
             "\
-{indent}pub const {id_name}: id::Arg = id::Arg::new(line!(), \"{name}\");
+{indent}pub const {id_name}: {id_type} = {id_type}::new(line!(), \"{name}\");
 {indent}pub trait {rust_name} {{
 {indent}    const OBJ: Arg = Arg {{
-{indent}        id: {id_name},
+{indent}        id: {id_enum}({id_name}),
 {indent}        comp_options: Self::comp_options,
 {indent}        max_values: {max_values},
 {indent}    }};
@@ -189,25 +194,32 @@ fn generate_flags_in_cmd(
         let shorts = flag.get_short_and_visible_aliases().unwrap_or_default();
         let longs = flag.get_long_and_visible_aliases().unwrap_or_default();
 
-        let once = match flag.get_action() {
-            ArgAction::Count | ArgAction::Append => false,
-            _ if flag.is_global_set() => false,
-            _ => true, // NOTE: should also check `flag.overrides`, but it's private :(
+        let (once, id_type, id_enum) = match flag.get_action() {
+            ArgAction::Count => (false, "id::NoVal", "id::Flag::No"),
+            ArgAction::Append => (false, "id::MultiVal", "id::Flag::Multi"),
+            _ => {
+                let once = !flag.is_global_set();
+                if takes_values {
+                    (once, "id::SingleVal", "id::Flag::Single")
+                } else {
+                    (once, "id::NoVal", "id::Flag::No")
+                }
+            }
         };
         let description = utils::escape_help(&flag.get_help());
 
         let shorts = Join(shorts.iter().map(|s| format!("'{s}'")));
         let longs = Join(longs.iter().map(|s| format!("\"{s}\"")));
+        let id_name = to_screaming_snake_case(&format!("id_{}_{name}", NameType::FLAG));
 
         if !is_const {
-            let id_name = to_screaming_snake_case(&format!("id_{}_{name}", NameType::FLAG));
             writeln!(
                 w,
                 "\
-{indent}pub const {id_name}: id::Flag = id::Flag::new(line!(), \"{name}\");
+{indent}pub const {id_name}: {id_type} = {id_type}::new(line!(), \"{name}\");
 {indent}pub trait {rust_name} {{
 {indent}    const OBJ: Flag = Flag {{
-{indent}        id: {id_name},
+{indent}        id: {id_enum}({id_name}),
 {indent}        info: info::FlagInfo {{
 {indent}            short: &[{shorts}],
 {indent}            long: &[{longs}],
@@ -227,8 +239,9 @@ fn generate_flags_in_cmd(
             writeln!(
                 w,
                 "\
+{indent}pub const {id_name}: {id_type} = {id_type}::new(line!(), \"{name}\");
 {indent}pub const {rust_name}: Flag = Flag {{
-{indent}    id: id::Flag::new(line!(), \"{name}\"),
+{indent}    id: {id_enum}({id_name}),
 {indent}    info: info::FlagInfo {{
 {indent}        short: &[{shorts}],
 {indent}        long: &[{longs}],
@@ -293,7 +306,7 @@ fn generate_recur(
             w,
             "\
 {indent}pub const {cmd_name}: Command = Command {{
-{indent}    id: id::Command::new(line!(), \"{name}\"),
+{indent}    id: id::NoVal::new(line!(), \"{name}\"),
 {indent}    info: info::CommandInfo {{
 {indent}        name: \"{name}\",
 {indent}        description: \"{description}\",

@@ -42,17 +42,19 @@ impl def::checkout::ArgFiles for Supplements {
     /// For the second and more arguments, it can only be file
     /// Let's also filter out those files we've already seen!
     fn comp_options(history: &History, _arg: &str) -> Vec<Completion> {
-        let prev: Vec<_> = history
-            .find_all(&[
-                def::checkout::ID_ARG_FILES,
-                def::checkout::ID_ARG_FILE_OR_COMMIT,
-            ])
-            .collect();
+        let prev1 = history
+            .find(def::checkout::ID_ARG_FILES)
+            .into_iter()
+            .flat_map(|x| x.values.iter());
+        let prev2 = history
+            .find(def::checkout::ID_ARG_FILE_OR_COMMIT)
+            .map(|x| &x.value);
+        let prev: Vec<_> = prev1.chain(prev2.into_iter()).collect();
         run_git("status --porcelain")
             .lines()
             .filter_map(|line| {
                 let (_, file) = line.rsplit_once(" ").unwrap();
-                if prev.iter().any(|p| p.value == file) {
+                if prev.iter().any(|p| *p == file) {
                     None
                 } else {
                     Some(Completion::new(file, "").group("Modified file"))

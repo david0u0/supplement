@@ -104,7 +104,10 @@ fn map_comp_values(arr: &[Completion]) -> Vec<&str> {
 
 macro_rules! no {
     ($id:ident) => {
-        HistoryUnit::No(HistoryUnitNoVal(def::$id))
+        HistoryUnit::No(HistoryUnitNoVal {
+            id: def::$id,
+            count: 1,
+        })
     };
 }
 macro_rules! single {
@@ -119,7 +122,7 @@ macro_rules! multi {
     ($id:ident, $value:expr) => {
         HistoryUnit::Multi(HistoryUnitMultiVal {
             id: def::$id,
-            value: $value.iter().map(|s| s.to_string()).collect(),
+            values: $value.iter().map(|s| s.to_string()).collect(),
         })
     };
 }
