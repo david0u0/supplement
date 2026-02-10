@@ -35,7 +35,7 @@ fn to_pascal_case(s: &str) -> String {
 }
 
 pub(crate) fn to_snake_case(s: &str) -> String {
-    s.replace('-', "_") // TODO
+    s.replace('-', "_").to_lowercase() // TODO
 }
 
 pub(crate) fn to_screaming_snake_case(s: &str) -> String {

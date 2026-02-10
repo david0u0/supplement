@@ -7,7 +7,7 @@ Give it a [`clap`](https://github.com/clap-rs/clap) object, and instead of spitt
 - **Shell-agnostic**
 - **Powerful** - Some features are not widely supported in every shell, and `supplements` comes to rescue
 - **Stop modifying generated files** - Instead, *extend* it with Rust's trait system
-- **Minimum shell script reqiured**
+- **Easy to test** - Functions and objects in a modern programming language, instead of some shell script black sorcery.
 - **It's Rust 🦀**
 
 ## Install
@@ -59,13 +59,16 @@ You can now edit the `build.rs` to generate the definition file:
 #[path = "src/args.rs"]
 mod args;
 use clap::CommandFactory;
+use supplements::{generate, generate_default};
 
 fn main() {
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let file = std::path::Path::new(&out_dir).join("definition.rs");
     let mut f = std::fs::File::create(file).unwrap();
-    supplements::generate(&mut args::Git::command(), &mut f).unwrap();
-    supplements::generate_default(&mut args::Git::command(), &mut f).unwrap(); // Generate default impl. You may not need this.
+    generate(&mut args::Git::command(), Default::default(), &mut f).unwrap();
+
+    // Generate default impl. You may not need this.
+    generate_default(&mut args::Git::command(), Default::default(), &mut f).unwrap();
 }
 ```
 

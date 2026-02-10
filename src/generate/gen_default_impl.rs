@@ -1,19 +1,26 @@
 use super::NameType;
+use super::Setting;
 use super::abstraction::{Command, CommandMut, clap};
+use super::generate_mod_name;
 use super::utils;
 use std::io::Write;
-use utils::{gen_rust_name, to_snake_case};
+use utils::gen_rust_name;
 
 #[cfg(feature = "clap-3")]
 pub fn generate_default(
     cmd: &mut clap::Command<'static>,
+    setting: Setting,
     w: &mut impl Write,
 ) -> std::io::Result<()> {
     let cmd = CommandMut(cmd);
     generate_inner(cmd, w)
 }
 #[cfg(feature = "clap-4")]
-pub fn generate_default(cmd: &mut clap::Command, w: &mut impl Write) -> std::io::Result<()> {
+pub fn generate_default(
+    cmd: &mut clap::Command,
+    setting: Setting,
+    w: &mut impl Write,
+) -> std::io::Result<()> {
     let cmd = CommandMut(cmd);
     generate_inner(cmd, w)
 }
@@ -69,7 +76,7 @@ fn generate_recur(
 
     for sub_cmd in utils::non_help_subcmd(cmd) {
         let mut prev = prev.to_vec();
-        let name = to_snake_case(sub_cmd.get_name());
+        let name = generate_mod_name(sub_cmd.get_name());
         prev.push(name);
         generate_recur(&prev, &global_flags, &sub_cmd, w)?
     }

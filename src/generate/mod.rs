@@ -2,18 +2,29 @@ use std::borrow::Cow;
 use std::io::Write;
 
 mod abstraction;
-pub mod gen_default_impl;
+mod gen_default_impl;
+mod setting;
 mod utils;
 use abstraction::{ArgAction, Command, CommandMut, PossibleValue, clap};
+pub use gen_default_impl::generate_default;
+pub use setting::Setting;
 use utils::{gen_rust_name, to_screaming_snake_case, to_snake_case};
 
 #[cfg(feature = "clap-3")]
-pub fn generate(cmd: &mut clap::Command<'static>, w: &mut impl Write) -> std::io::Result<()> {
+pub fn generate(
+    cmd: &mut clap::Command<'static>,
+    setting: Setting,
+    w: &mut impl Write,
+) -> std::io::Result<()> {
     let cmd = CommandMut(cmd);
     generate_inner(cmd, w)
 }
 #[cfg(feature = "clap-4")]
-pub fn generate(cmd: &mut clap::Command, w: &mut impl Write) -> std::io::Result<()> {
+pub fn generate(
+    cmd: &mut clap::Command,
+    setting: Setting,
+    w: &mut impl Write,
+) -> std::io::Result<()> {
     let cmd = CommandMut(cmd);
     generate_inner(cmd, w)
 }
@@ -257,8 +268,11 @@ fn generate_flags_in_cmd(
     Ok(flag_names)
 }
 
+fn generate_mod_name(name: &str) -> String {
+    to_snake_case(&format!("{}_{}", NameType::COMMAND, name))
+}
 fn generate_subcmd_names(cmd: &Command<'_>) -> impl Iterator<Item = String> {
-    utils::non_help_subcmd(cmd).map(|c| to_snake_case(c.get_name()))
+    utils::non_help_subcmd(cmd).map(|c| generate_mod_name(c.get_name()))
 }
 
 fn generate_recur(
@@ -272,7 +286,11 @@ fn generate_recur(
     let name = cmd.get_name();
     let description = utils::escape_help(&cmd.get_about().unwrap_or_default());
     if level > 0 {
-        writeln!(w, "{indent}pub mod {} {{", to_snake_case(cmd.get_name()))?;
+        writeln!(
+            w,
+            "{indent}pub mod {} {{",
+            generate_mod_name(cmd.get_name())
+        )?;
     } // else: it's the first time, don't need a mod
 
     {

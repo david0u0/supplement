@@ -4,8 +4,9 @@ use clap3 as clap;
 use clap4 as clap;
 
 use clap::{CommandFactory, Parser};
+use std::io::stdout;
 use std::process::Command;
-use supplements::{Completion, History, Shell};
+use supplements::{Completion, History, Shell, generate, generate_default};
 use supplements_example::args::Git;
 
 mod def {
@@ -23,7 +24,7 @@ fn run_git(args: &str) -> String {
     String::from_utf8(out).unwrap()
 }
 impl def::FlagGitDir for Supplements {} // default implementation
-impl def::checkout::ArgFileOrCommit for Supplements {
+impl def::cmd_checkout::ArgFileOrCommit for Supplements {
     /// For the first argument, it can either be a git commit or a file
     fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
         let mut ret = vec![];
@@ -38,16 +39,16 @@ impl def::checkout::ArgFileOrCommit for Supplements {
         ret
     }
 }
-impl def::checkout::ArgFiles for Supplements {
+impl def::cmd_checkout::ArgFiles for Supplements {
     /// For the second and more arguments, it can only be file
     /// Let's also filter out those files we've already seen!
     fn comp_options(history: &History, _arg: &str) -> Vec<Completion> {
         let prev1 = history
-            .find(def::checkout::ID_ARG_FILES)
+            .find(def::cmd_checkout::ID_ARG_FILES)
             .into_iter()
             .flat_map(|x| x.values.iter());
         let prev2 = history
-            .find(def::checkout::ID_ARG_FILE_OR_COMMIT)
+            .find(def::cmd_checkout::ID_ARG_FILE_OR_COMMIT)
             .map(|x| &x.value);
         let prev: Vec<_> = prev1.chain(prev2.into_iter()).collect();
         run_git("status --porcelain")
@@ -63,7 +64,7 @@ impl def::checkout::ArgFiles for Supplements {
             .collect()
     }
 }
-impl def::log::ArgCommit for Supplements {
+impl def::cmd_log::ArgCommit for Supplements {
     fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
         run_git("log --oneline -10")
             .lines()
@@ -82,8 +83,8 @@ fn main() {
     log::info!("args = {:?}", args);
 
     if args.len() == 2 && args[1] == "generate" {
-        supplements::generate(&mut Git::command(), &mut std::io::stdout()).unwrap();
-        supplements::generate_default(&mut Git::command(), &mut std::io::stdout()).unwrap();
+        generate(&mut Git::command(), Default::default(), &mut stdout()).unwrap();
+        generate_default(&mut Git::command(), Default::default(), &mut stdout()).unwrap();
         return;
     }
 
