@@ -55,16 +55,16 @@ fn generate_recur(
 
     for flag in utils::flags(cmd) {
         let name = flag.get_id().to_string();
-        if config.is_ignored(prev, &name) {
-            continue;
-        }
-
         if flag.is_global_set() {
             if global_flags.iter().any(|f| *f == name) {
                 continue;
             } else {
                 global_flags.push(name.clone());
             }
+        }
+
+        if config.is_ignored(prev, &name) {
+            continue;
         }
 
         let takes_values = flag.takes_values();

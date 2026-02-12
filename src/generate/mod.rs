@@ -52,9 +52,10 @@ fn generate_inner(
 }
 
 #[derive(Clone)]
-struct GlobalFlags {
+struct GlobalFlag {
     level: usize,
     id: String,
+    ignored: bool,
 }
 
 struct NameType(&'static str);
@@ -183,7 +184,7 @@ fn generate_flags_in_cmd(
     indent: &str,
     config: &mut Config,
     cmd: &Command<'_>,
-    global_flags: &mut Vec<GlobalFlags>,
+    global_flags: &mut Vec<GlobalFlag>,
     w: &mut impl Write,
 ) -> std::io::Result<Vec<(bool, String)>> {
     let mut flag_names = vec![];
@@ -191,10 +192,7 @@ fn generate_flags_in_cmd(
     for flag in utils::flags(cmd) {
         let name = flag.get_id().to_string();
 
-        // FIXME; what about global flags?
-        if config.is_ignored(prev, &name) {
-            continue;
-        }
+        let ignored = config.is_ignored(prev, &name);
 
         if name == "help" {
             log::debug!("skipping help flag");
@@ -209,17 +207,24 @@ fn generate_flags_in_cmd(
             let level = prev.len();
             if let Some(prev_flag) = global_flags.iter().find(|f| &f.id == &name) {
                 log::info!("get existing global flag {name}");
+                if prev_flag.ignored {
+                    continue;
+                }
                 let mut name = "super::".repeat(level - prev_flag.level);
                 name += &rust_name;
                 flag_names.push((is_const, name));
                 continue;
             } else {
                 log::info!("get new global flag {name}");
-                global_flags.push(GlobalFlags {
+                global_flags.push(GlobalFlag {
                     level,
+                    ignored,
                     id: name.clone(),
                 });
             }
+        }
+        if ignored {
+            continue;
         }
 
         log::debug!("generating flag {}", name);
@@ -312,7 +317,7 @@ fn generate_recur(
     indent: &str,
     config: &mut Config,
     cmd: &Command<'_>,
-    global_flags: &[GlobalFlags],
+    global_flags: &[GlobalFlag],
     w: &mut impl Write,
 ) -> std::io::Result<()> {
     let mut global_flags = global_flags.to_vec();

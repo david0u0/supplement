@@ -3,8 +3,10 @@ use clap::{Parser, ValueEnum};
 #[derive(Parser, Debug)]
 pub struct Arg {
     #[clap(long, global = true)]
+    pub flag3: Option<std::path::PathBuf>,
+
+    #[clap(long, global = true)]
     pub git_dir: Option<std::path::PathBuf>,
-    // TODO test an ignored global flag
     #[clap(subcommand)]
     pub sub: SubCommand,
 }
@@ -31,7 +33,7 @@ pub enum SubCommand {
     #[clap(about = "log")]
     IgnoredCmd { arg: Option<String> },
     #[clap(external_subcommand)]
-    Other(Vec<String>),
+    Other(#[allow(unused)] Vec<String>),
 }
 #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
 pub enum Pretty {

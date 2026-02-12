@@ -11,7 +11,8 @@ fn main() {
     let config = Config::default()
         .ignore(&["ignored-cmd"])
         .ignore(&["checkout", "flag1"])
-        .ignore(&["log", "flag2"]);
+        .ignore(&["log", "flag2"])
+        .ignore(&["flag3"]);
 
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let file = Path::new(&out_dir).join("definition.rs");
