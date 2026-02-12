@@ -2,12 +2,34 @@ use super::Trace;
 use crate::error::GenerateError;
 use std::collections::HashMap;
 
+/// An object to configure how the code-gen should work
+/// e.g. to ignore some certain flags or subcommands.
+/// ```no_run
+/// # use supplements::{Config, generate};
+/// # #[cfg(feature = "clap-3")]
+/// # use clap3 as clap;
+/// # #[cfg(feature = "clap-4")]
+/// # use clap4 as clap;
+///
+/// let mut cmd = clap::Command::new("git");
+/// generate(&mut cmd, Default::default(), &mut std::io::stdout()).unwrap();
+/// ```
 #[derive(Default, Clone)]
 pub struct Config {
     ignore: HashMap<Vec<String>, bool>,
 }
 
 impl Config {
+    /// Ignore a certain flag or subcommand during code-gen.
+    /// Note that if you want to ignore something that doesn't actually exist in the command definition,
+    /// The `generate` and `generate_default` function will raise an `UnprocessedConfigObj` error.
+    /// ```no_run
+    /// # use supplements::Config;
+    /// let config = Config::default()
+    ///     .ignore(&["log", "pretty"]) // ignore the `git log --pretty` flag
+    ///     .ignore(&["branch"]) // ignore the `git branch` command
+    ///     .ignore(&["unexpected-thing"]); // will cause error during code-gen
+    /// ```
     pub fn ignore(mut self, ids: &[&str]) -> Self {
         self.ignore
             .insert(ids.iter().map(|x| x.to_string()).collect(), false);

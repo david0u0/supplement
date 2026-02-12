@@ -83,7 +83,7 @@ use def::Supplements;
 impl def::FlagGitDir for Supplements {} // default completion (with files)
 impl def::checkout::ArgFileOrCommit for Supplements {
     fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
-        unimplemented!();
+        unimplemented!(); // your custom completion
     }
 }
 

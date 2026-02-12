@@ -6,6 +6,17 @@ use crate::error::GenerateError;
 use std::io::Write;
 use utils::gen_rust_name;
 
+/// Generate the default implementation for all traits.
+/// Use it to set things up faster especially if the clap definition is large.
+/// It prints out something like:
+/// ```ignore
+/// impl FlagGitDir for Supplements {}
+/// impl External for Supplements {}
+/// impl cmd_checkout::ArgFiles for Supplements {}
+/// ```
+///
+/// You probably only want to call it the first time when you adopt `supplements`,
+/// and it's not recommended to add this to your build flow
 pub fn generate_default(
     cmd: ClapCommand<'_>,
     mut config: Config,

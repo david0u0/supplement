@@ -56,7 +56,7 @@ impl ID for id::MultiVal {
 }
 
 /// A structures that records all seen args/flags/commands, along with their value if they have some
-/// You can search in the history by their IDs
+/// You can search in the history by their IDs using the `find` function
 #[derive(Default, Debug, Eq, PartialEq)]
 pub struct History(Vec<HistoryUnit>);
 impl History {

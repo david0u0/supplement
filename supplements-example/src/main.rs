@@ -101,5 +101,5 @@ fn main() {
 
     let args = args[2..].iter().map(String::from);
     let comps = def::CMD.supplement(args).unwrap();
-    comps.print(shell, &mut std::io::stdout()).unwrap();
+    comps.print(shell, &mut stdout()).unwrap();
 }

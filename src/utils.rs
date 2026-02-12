@@ -21,6 +21,10 @@ pub struct Arg {
     pub comp_options: CompOption,
     pub max_values: usize,
 }
+
+/// The object to represent a command.
+/// Usually this object is a constant created by code-gen,
+/// and user can just call `supplement` function for CLI completion
 pub struct Command {
     pub id: id::NoVal,
     pub info: CommandInfo,
@@ -115,6 +119,31 @@ fn parse_flag(s: &str, disable_flag: bool) -> Result<ParsedFlag<'_>> {
 }
 
 impl Command {
+    /// The main entry point of CLI completion.
+    ///
+    /// ```
+    /// # use supplements::*;
+    /// # use supplements::completion::CompletionGroup;
+    /// const fn create_cmd(name: &'static str, subcmd: &'static [Command]) -> Command {
+    ///     Command {
+    ///         id: id::NoVal::new(0, name),
+    ///         all_flags: &[],
+    ///         args: &[],
+    ///         commands: subcmd,
+    ///         info: info::CommandInfo { name, description: "" },
+    ///     }
+    /// }
+    ///
+    /// const cmd1: Command = create_cmd("cmd1", &[]);
+    /// const cmd2: Command = create_cmd("cmd2", &[]);
+    /// let root = create_cmd("root", &[cmd1, cmd2]);
+    ///
+    /// let args = ["root", ""].iter().map(|s| s.to_string());
+    /// let comps: CompletionGroup = root.supplement(args).unwrap();
+    /// let comps = comps.into_inner().0;
+    /// assert_eq!(comps[0], Completion::new("cmd1", "").group("command"));
+    /// assert_eq!(comps[1], Completion::new("cmd2", "").group("command"));
+    /// ```
     pub fn supplement(&self, args: impl Iterator<Item = String>) -> Result<CompletionGroup> {
         let mut history = History::default();
         self.supplement_with_history(&mut history, args)

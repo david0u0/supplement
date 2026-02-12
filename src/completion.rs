@@ -3,6 +3,17 @@ use std::io::Result as IoResult;
 use std::io::Write;
 use std::path::{MAIN_SEPARATOR_STR, Path};
 
+/// The object to represent a single completion result.
+/// For example, if you type "git <TAB>" in command-line, the result should be:
+/// ```no_run
+/// # use supplements::Completion;
+/// vec![
+///     Completion::new("checkout", "description...").group("command"),
+///     Completion::new("log", "description...").group("command"),
+///     Completion::new("branch", "description...").group("command"),
+///     // more subcommands here...
+/// ];
+/// ```
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub struct Completion {
     pub value: String,
@@ -25,6 +36,12 @@ impl Completion {
         self.group = Some(group);
         self
     }
+    /// Generate completion by file. e.g.
+    /// - ls <TAB> => everything under current directory
+    /// - ls xyz<TAB> => everything under current directory
+    /// - ls xyz/<TAB> => everything under `xyz` directory
+    /// - ls another/xyz<TAB> => everything under `another` directory
+    /// - ls /xyz<TAB> => everything under `/` directory
     pub fn files(arg: &str) -> Vec<Self> {
         let path = Path::new(arg);
         let (arg_dir, dir) = match arg {
@@ -76,7 +93,13 @@ impl Completion {
     }
 }
 
-#[derive(Clone, Copy)]
+/// Enum to represent different shell. Use `str::parse` to initialize it.
+/// ```rust
+/// use supplements::Shell;
+/// let shell: Shell = "fish".parse().unwrap();
+/// assert_eq!(shell, Shell::Fish);
+/// ```
+#[derive(Clone, Copy, Eq, PartialEq, Debug)]
 pub enum Shell {
     Zsh,
     Fish,
@@ -96,19 +119,36 @@ impl std::str::FromStr for Shell {
     }
 }
 
+/// The object to represent multiple completion results.
+/// It's not supposed to be created by user of this library, but instead should only be returned by
+/// `Command::supplements` function,
+/// and is solely used to print out those completion results.
+/// ```no_run
+/// use supplements::{Command, Shell};
+/// # use supplements::completion::CompletionGroup;
+/// # fn create_cmd() -> Command {
+/// #     unimplemented!()
+/// # }
+/// let cmd: Command = create_cmd();
+/// let grp: CompletionGroup = cmd
+///     .supplement(["git".to_owned(), "log".to_owned()].into_iter())
+///     .unwrap();
+/// grp.print(Shell::Fish, &mut std::io::stdout()).unwrap();
+/// ```
 #[derive(Debug)]
 pub struct CompletionGroup {
     arg: String,
     comps: Vec<Completion>,
 }
-
 impl CompletionGroup {
-    pub fn new(comps: Vec<Completion>, arg: String) -> Self {
+    pub(crate) fn new(comps: Vec<Completion>, arg: String) -> Self {
         CompletionGroup { arg, comps }
     }
+    #[doc(hidden)]
     pub fn inner(&self) -> (&[Completion], &str) {
         (&self.comps, &self.arg)
     }
+    #[doc(hidden)]
     pub fn into_inner(self) -> (Vec<Completion>, String) {
         (self.comps, self.arg)
     }
