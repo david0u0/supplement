@@ -2,7 +2,6 @@ pub mod completion;
 pub mod error;
 pub mod history;
 pub mod id;
-pub mod info;
 
 mod utils;
 pub use completion::{Completion, Shell};

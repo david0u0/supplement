@@ -1,10 +1,4 @@
 #[derive(Debug, Eq, PartialEq)]
-pub enum Error {
-    DashNotAllowed,
-    ConsecutiveDashes,
-}
-
-#[derive(Debug, Eq, PartialEq)]
 pub(crate) enum ParsedFlag<'a> {
     Empty,
     SingleDash,
@@ -17,42 +11,19 @@ pub(crate) enum ParsedFlag<'a> {
     NotFlag,
 }
 impl<'a> ParsedFlag<'a> {
-    fn validate(s: &str, allow_single_dash: bool) -> Result<(), Error> {
-        let s = &s[1..];
-        let mut last_is_dash = false;
-        for ch in s.chars() {
-            if ch == '-' {
-                if !allow_single_dash {
-                    return Err(Error::DashNotAllowed);
-                }
-                if last_is_dash {
-                    return Err(Error::ConsecutiveDashes);
-                }
-                last_is_dash = true;
-                continue;
-            }
-            last_is_dash = false;
-
-            // NOTE: we may want to check characters e.g. '/' or '#' shouldn't be allowed.
-            // But in practice, it will probably just cause a "flag not found" error, so no need to bother
-        }
-        Ok(())
-    }
-
-    pub fn new(s: &'a str) -> Result<Self, Error> {
+    pub fn new(s: &'a str) -> Self {
         if s.is_empty() {
-            return Ok(Self::Empty);
+            return Self::Empty;
         }
         if !s.starts_with('-') {
-            return Ok(Self::NotFlag);
+            return Self::NotFlag;
         }
-        let ret = match s.chars().nth(1) {
+        match s.chars().nth(1) {
             None => Self::SingleDash,
             Some('-') => {
                 if s.len() == 2 {
-                    return Ok(Self::DoubleDash);
+                    return Self::DoubleDash;
                 }
-                Self::validate(s, true)?;
                 let mut flag_part = &s[2..];
                 let equal = if let Some(equal_pos) = flag_part.chars().position(|c| c == '=') {
                     let equal = &flag_part[equal_pos + 1..];
@@ -67,12 +38,8 @@ impl<'a> ParsedFlag<'a> {
                     equal,
                 }
             }
-            _ => {
-                Self::validate(s, false)?;
-                Self::Shorts
-            }
-        };
-        Ok(ret)
+            _ => Self::Shorts,
+        }
     }
 }
 
@@ -82,21 +49,21 @@ mod test {
 
     #[test]
     fn test_simple() {
-        assert_eq!(ParsedFlag::new("").unwrap(), ParsedFlag::Empty);
-        assert_eq!(ParsedFlag::new("-").unwrap(), ParsedFlag::SingleDash);
-        assert_eq!(ParsedFlag::new("--").unwrap(), ParsedFlag::DoubleDash);
-        assert_eq!(ParsedFlag::new("-s").unwrap(), ParsedFlag::Shorts);
+        assert_eq!(ParsedFlag::new(""), ParsedFlag::Empty);
+        assert_eq!(ParsedFlag::new("-"), ParsedFlag::SingleDash);
+        assert_eq!(ParsedFlag::new("--"), ParsedFlag::DoubleDash);
+        assert_eq!(ParsedFlag::new("-s"), ParsedFlag::Shorts);
         assert_eq!(
-            ParsedFlag::new("--long").unwrap(),
+            ParsedFlag::new("--long"),
             ParsedFlag::Long {
                 body: "long",
                 equal: None
             }
         );
-        assert_eq!(ParsedFlag::new("-long").unwrap(), ParsedFlag::Shorts);
+        assert_eq!(ParsedFlag::new("-long"), ParsedFlag::Shorts);
 
         assert_eq!(
-            ParsedFlag::new("--l").unwrap(),
+            ParsedFlag::new("--l"),
             ParsedFlag::Long {
                 body: "l",
                 equal: None
@@ -107,32 +74,23 @@ mod test {
 
     #[test]
     fn test_equal() {
-        assert_eq!(ParsedFlag::new("-s=").unwrap(), ParsedFlag::Shorts);
+        assert_eq!(ParsedFlag::new("-s="), ParsedFlag::Shorts);
         assert_eq!(
-            ParsedFlag::new("--long=x").unwrap(),
+            ParsedFlag::new("--long=x"),
             ParsedFlag::Long {
                 body: "long",
                 equal: Some("x")
             }
         );
-        assert_eq!(ParsedFlag::new("-long=x=b").unwrap(), ParsedFlag::Shorts);
+        assert_eq!(ParsedFlag::new("-long=x=b"), ParsedFlag::Shorts);
 
         assert_eq!(
-            ParsedFlag::new("--l=x").unwrap(),
+            ParsedFlag::new("--l=x"),
             ParsedFlag::Long {
                 body: "l",
                 equal: Some("x")
             },
             "This may seem strange, but I don't want to be too strict. It probably will not find the flag anyways"
         );
-    }
-
-    #[test]
-    fn test_invalid() {
-        use Error::*;
-
-        assert_eq!(ParsedFlag::new("-s-b"), Err(DashNotAllowed));
-        assert_eq!(ParsedFlag::new("---long"), Err(ConsecutiveDashes));
-        assert_eq!(ParsedFlag::new("--long--and"), Err(ConsecutiveDashes));
     }
 }

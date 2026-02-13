@@ -16,7 +16,7 @@ use utils::gen_rust_name;
 /// ```
 ///
 /// You probably only want to call it the first time when you adopt `supplements`,
-/// and it's not recommended to add this to your build flow
+/// and it's not recommended to add this to your build flow.
 pub fn generate_default(
     cmd: ClapCommand<'_>,
     mut config: Config,

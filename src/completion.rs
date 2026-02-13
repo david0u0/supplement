@@ -4,7 +4,7 @@ use std::io::Write;
 use std::path::{MAIN_SEPARATOR_STR, Path};
 
 /// The object to represent a single completion result.
-/// For example, if you type "git <TAB>" in command-line, the result should be:
+/// For example, if you type `git <TAB>` in command-line, the result should be:
 /// ```no_run
 /// # use supplements::Completion;
 /// vec![
@@ -37,12 +37,12 @@ impl Completion {
         self
     }
     /// Generate completion by file. e.g.
-    /// - ls <TAB> => everything under current directory
-    /// - ls xyz<TAB> => everything under current directory
-    /// - ls xyz/<TAB> => everything under `xyz` directory
-    /// - ls another/xyz<TAB> => everything under `another` directory
-    /// - ls /xyz<TAB> => everything under `/` directory
-    pub fn files(arg: &str) -> Vec<Self> {
+    /// - `ls <TAB>` - everything under current directory
+    /// - `ls xyz<TAB>` - everything under current directory
+    /// - `ls xyz/<TAB>` - everything under `xyz` directory
+    /// - `ls another/xyz<TAB>` - everything under `another` directory
+    /// - `ls /xyz<TAB>` - everything under `/` directory
+    pub fn files(arg: &str) -> impl Iterator<Item = Completion> {
         let path = Path::new(arg);
         let (arg_dir, dir) = match arg {
             "" => (Path::new(""), Path::new("./")),
@@ -65,35 +65,33 @@ impl Completion {
         };
         log::debug!("arg_dir = {:?}, dir = {:?}", arg_dir, dir);
         let paths = match fs::read_dir(dir) {
-            Ok(paths) => paths,
+            Ok(paths) => Some(paths),
             Err(err) => {
                 log::warn!("error reading current directory: {:?}", err);
-                return vec![];
+                None
             }
         };
 
-        paths
-            .filter_map(|p| {
-                let p = match p {
-                    Ok(p) => p.path(),
-                    Err(err) => {
-                        log::warn!("error reading current directory: {:?}", err);
-                        return None;
-                    }
-                };
-                let Some(file_name) = p.file_name() else {
+        paths.into_iter().flatten().filter_map(|p| {
+            let p = match p {
+                Ok(p) => p.path(),
+                Err(err) => {
+                    log::warn!("error reading current directory: {:?}", err);
                     return None;
-                };
-                let file_name = arg_dir.join(file_name);
-                let trailing = if file_name.is_dir() { "/" } else { "" };
-                let file_name = format!("{}{}", file_name.to_string_lossy(), trailing);
-                Some(Completion::new(&file_name, ""))
-            })
-            .collect()
+                }
+            };
+            let Some(file_name) = p.file_name() else {
+                return None;
+            };
+            let file_name = arg_dir.join(file_name);
+            let trailing = if file_name.is_dir() { "/" } else { "" };
+            let file_name = format!("{}{}", file_name.to_string_lossy(), trailing);
+            Some(Completion::new(&file_name, ""))
+        })
     }
 }
 
-/// Enum to represent different shell. Use `str::parse` to initialize it.
+/// Enum to represent different shell. Use `str::parse` to create it.
 /// ```rust
 /// use supplements::Shell;
 /// let shell: Shell = "fish".parse().unwrap();

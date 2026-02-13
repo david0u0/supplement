@@ -4,27 +4,22 @@ use supplements::*;
 
 mod def {
     use super::*;
-    use supplements::info::*;
 
     pub const C_FLAG_ID: id::NoVal = id::NoVal::new(line!(), "");
     pub const C_FLAG: Flag = Flag {
         id: id::Flag::No(C_FLAG_ID),
-        info: FlagInfo {
-            short: &['c'],
-            long: &["long-c", "long-c-2"],
-            description: "test description for flag C",
-        },
+        short: &['c'],
+        long: &["long-c", "long-c-2"],
+        description: "test description for flag C",
         comp_options: None,
         once: true,
     };
     pub const B_FLAG_ID: id::SingleVal = id::SingleVal::new(line!(), "");
     pub const B_FLAG: Flag = Flag {
         id: id::Flag::Single(B_FLAG_ID),
-        info: FlagInfo {
-            short: &['b', 'x'],
-            long: &["long-b"],
-            description: "test description for flag B",
-        },
+        short: &['b', 'x'],
+        long: &["long-b"],
+        description: "test description for flag B",
         comp_options: Some(|_history, arg| {
             let mut ret = vec![];
             if arg != "" {
@@ -50,10 +45,8 @@ mod def {
     pub const ROOT: Command = Command {
         id: ROOT_ID,
         all_flags: &[B_FLAG, C_FLAG],
-        info: CommandInfo {
-            name: "root",
-            description: "",
-        },
+        name: "root",
+        description: "",
         args: &[A_ARG, D_ARG],
         commands: &[SUB],
     };
@@ -61,10 +54,8 @@ mod def {
     pub const SUB: Command = Command {
         id: SUB_ID,
         all_flags: &[B_FLAG],
-        info: CommandInfo {
-            name: "sub",
-            description: "test sub description",
-        },
+        name: "sub",
+        description: "test sub description",
         args: &[A_ARG, A_ARG],
         commands: &[],
     };
@@ -131,7 +122,7 @@ macro_rules! multi {
 fn test_args_last() {
     let (h, r) = run("sub a1", true);
     assert_eq!(h, vec![no!(SUB_ID), single!(A_ARG_ID, "a1")]);
-    assert_eq!(r, (def::A_ARG.comp_options)(&h.into(), ""));
+    assert_eq!(map_comp_values(&r), vec!["arg-option1", "arg-option2"]);
 }
 
 #[test]

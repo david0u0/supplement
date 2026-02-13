@@ -164,7 +164,7 @@ fn generate_args_in_cmd(
         let body = if is_external {
             "vec![]"
         } else {
-            "Completion::files(_arg)"
+            "Completion::files(_arg).collect()"
         };
         writeln!(
             w,
@@ -268,17 +268,15 @@ fn generate_flags_in_cmd(
 {indent}pub trait {rust_name} {{
 {indent}    const OBJ: Flag = Flag {{
 {indent}        id: {id_enum}({id_name}),
-{indent}        info: info::FlagInfo {{
-{indent}            short: &[{shorts}],
-{indent}            long: &[{longs}],
-{indent}            description: \"{description}\",
-{indent}        }},
+{indent}        short: &[{shorts}],
+{indent}        long: &[{longs}],
+{indent}        description: \"{description}\",
 {indent}        comp_options: Some(Self::comp_options),
 {indent}        once: {once},
 {indent}    }};
 
 {indent}    fn comp_options(_history: &History, arg: &str) -> Vec<Completion> {{
-{indent}        Completion::files(arg)
+{indent}        Completion::files(arg).collect()
 {indent}    }}
 {indent}}}"
             )?;
@@ -290,11 +288,9 @@ fn generate_flags_in_cmd(
 {indent}pub const {id_name}: {id_type} = {id_type}::new(line!(), \"{name}\");
 {indent}pub const {rust_name}: Flag = Flag {{
 {indent}    id: {id_enum}({id_name}),
-{indent}    info: info::FlagInfo {{
-{indent}        short: &[{shorts}],
-{indent}        long: &[{longs}],
-{indent}        description: \"{description}\",
-{indent}    }},
+{indent}    short: &[{shorts}],
+{indent}    long: &[{longs}],
+{indent}    description: \"{description}\",
 {indent}    comp_options: {comp_options},
 {indent}    once: {once},
 {indent}}};"
@@ -366,10 +362,8 @@ fn generate_recur(
             "\
 {indent}pub const {cmd_name}: Command = Command {{
 {indent}    id: id::NoVal::new(line!(), \"{name}\"),
-{indent}    info: info::CommandInfo {{
-{indent}        name: \"{name}\",
-{indent}        description: \"{description}\",
-{indent}    }},
+{indent}    name: \"{name}\",
+{indent}    description: \"{description}\",
 {indent}    all_flags: &[{flags}],
 {indent}    args: &[{args}],
 {indent}    commands: &[{sub_cmds}],

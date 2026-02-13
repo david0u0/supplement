@@ -55,15 +55,11 @@ impl ID for id::MultiVal {
     }
 }
 
-/// A structures that records all seen args/flags/commands, along with their value if they have some
-/// You can search in the history by their IDs using the `find` function
+/// A structures that records all seen args/flags/commands, along with their value if they have some.
+/// You can search in the history by their IDs using the `find` function.
 #[derive(Default, Debug, Eq, PartialEq)]
 pub struct History(Vec<HistoryUnit>);
 impl History {
-    pub fn into_inner(self) -> Vec<HistoryUnit> {
-        self.0
-    }
-
     pub(crate) fn push_no_val(&mut self, id: id::NoVal) {
         log::debug!("push no value {:?}", id);
         for h in self.0.iter_mut() {
@@ -124,6 +120,25 @@ impl History {
         }
     }
 
+    /// Find the history of flags/args/commands by their ID.
+    /// Based on the type of ID, the returned `HistoryUnit` will contain different types of value.
+    /// - `id::NoVal`: An integer that represents how many times it's seen in the CLI command
+    /// - `id::SingleVal`: A single string
+    /// - `id::MultiVal`: A vector of string
+    ///
+    /// ```no_run
+    /// use supplements::{History, id};
+    /// let history = History::default();
+    ///
+    /// let id: id::NoVal = id::NoVal::new(0, "");
+    /// let c: u32 = history.find(id).unwrap().count;
+    ///
+    /// let id: id::SingleVal = id::SingleVal::new(0, "");
+    /// let v: &String = &history.find(id).unwrap().value;
+    ///
+    /// let id: id::MultiVal = id::MultiVal::new(0, "");
+    /// let v: &[String] = &history.find(id).unwrap().values;
+    /// ```
     pub fn find<I: ID>(&self, id: I) -> Option<&I::Ret> {
         for h in self.0.iter() {
             let h = id.match_and_cast(h);
@@ -133,10 +148,13 @@ impl History {
         }
         None
     }
-}
 
-impl From<Vec<HistoryUnit>> for History {
-    fn from(value: Vec<HistoryUnit>) -> Self {
+    #[doc(hidden)]
+    pub fn from_vec(value: Vec<HistoryUnit>) -> Self {
         History(value)
+    }
+    #[doc(hidden)]
+    pub fn into_inner(self) -> Vec<HistoryUnit> {
+        self.0
     }
 }

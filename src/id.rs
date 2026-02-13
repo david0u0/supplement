@@ -2,12 +2,12 @@
 /// All subcommand belong to this, and flags can also have no value.
 ///
 /// When searching for it in `History`, it will still have an integer value `count`,
-/// which represents how many time it's seen in the CLI command
+/// which represents how many times it's seen in the CLI command
 /// ```no_run
 /// use supplements::{History, id};
 /// let history = History::default();
 /// let id: id::NoVal = id::NoVal::new(0, "");
-/// let c: u32 = history.find(id).unwrap().count; // Represents how many time it's seen in the CLI command
+/// let c: u32 = history.find(id).unwrap().count; // Represents how many times it's seen in the CLI command
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct NoVal(u32, &'static str);

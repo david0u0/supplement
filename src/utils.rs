@@ -4,7 +4,6 @@ use crate::arg_context::ArgsContext;
 use crate::completion::CompletionGroup;
 use crate::error::Error;
 use crate::id;
-use crate::info::*;
 use crate::parsed_flag::ParsedFlag;
 use crate::{Completion, History, Result};
 
@@ -12,7 +11,9 @@ type CompOption = fn(&History, &str) -> Vec<Completion>;
 
 pub struct Flag {
     pub id: id::Flag,
-    pub info: FlagInfo,
+    pub short: &'static [char],
+    pub long: &'static [&'static str],
+    pub description: &'static str,
     pub comp_options: Option<CompOption>,
     pub once: bool,
 }
@@ -24,10 +25,11 @@ pub struct Arg {
 
 /// The object to represent a command.
 /// Usually this object is a constant created by code-gen,
-/// and user can just call `supplement` function for CLI completion
+/// and user can just call `supplement` function for CLI completion.
 pub struct Command {
     pub id: id::NoVal,
-    pub info: CommandInfo,
+    pub name: &'static str,
+    pub description: &'static str,
     pub all_flags: &'static [Flag],
     pub args: &'static [Arg],
     pub commands: &'static [Command],
@@ -36,16 +38,16 @@ pub struct Command {
 impl Flag {
     fn gen_completion(&self, is_long: Option<bool>) -> impl Iterator<Item = Completion> {
         let (long, short) = match is_long {
-            None => (self.info.long, self.info.short),
-            Some(true) => (self.info.long, &[] as &[char]),
-            Some(false) => (&[] as &[&str], self.info.short),
+            None => (self.long, self.short),
+            Some(true) => (self.long, &[] as &[char]),
+            Some(false) => (&[] as &[&str], self.short),
         };
         long.iter()
-            .map(|l| Completion::new(&format!("--{l}"), self.info.description))
+            .map(|l| Completion::new(&format!("--{l}"), self.description))
             .chain(
                 short
                     .iter()
-                    .map(|s| Completion::new(&format!("-{s}"), self.info.description)),
+                    .map(|s| Completion::new(&format!("-{s}"), self.description)),
             )
     }
 
@@ -81,7 +83,7 @@ impl Flag {
         };
 
         let arg = args.next().unwrap();
-        match parse_flag(&arg, false)? {
+        match parse_flag(&arg, false) {
             ParsedFlag::NotFlag | ParsedFlag::Empty | ParsedFlag::SingleDash => (),
             ParsedFlag::DoubleDash | ParsedFlag::Long { .. } | ParsedFlag::Shorts => {
                 let name = self.id.name();
@@ -109,12 +111,12 @@ fn supplement_arg(history: &mut History, ctx: &mut ArgsContext, arg: String) -> 
     history.push_arg(arg_obj.id, arg);
     Ok(())
 }
-fn parse_flag(s: &str, disable_flag: bool) -> Result<ParsedFlag<'_>> {
+fn parse_flag(s: &str, disable_flag: bool) -> ParsedFlag<'_> {
     if disable_flag {
         log::info!("flag is disabled: {}", s);
-        Ok(ParsedFlag::NotFlag)
+        ParsedFlag::NotFlag
     } else {
-        ParsedFlag::new(s).map_err(|e| e.into())
+        ParsedFlag::new(s)
     }
 }
 
@@ -127,10 +129,11 @@ impl Command {
     /// const fn create_cmd(name: &'static str, subcmd: &'static [Command]) -> Command {
     ///     Command {
     ///         id: id::NoVal::new(0, name),
+    ///         name,
+    ///         description: "",
     ///         all_flags: &[],
     ///         args: &[],
     ///         commands: subcmd,
-    ///         info: info::CommandInfo { name, description: "" },
     ///     }
     /// }
     ///
@@ -195,11 +198,11 @@ impl Command {
     }
 
     fn find_long_flag(&self, flag: &str, history: &History) -> Result<&Flag> {
-        self.find_flag(flag, history, |f| f.info.long.iter().any(|l| *l == flag))
+        self.find_flag(flag, history, |f| f.long.iter().any(|l| *l == flag))
     }
     fn find_short_flag(&self, flag: char, history: &History) -> Result<&Flag> {
         self.find_flag(&flag.to_string(), history, |f| {
-            f.info.short.iter().any(|s| *s == flag)
+            f.short.iter().any(|s| *s == flag)
         })
     }
 
@@ -238,7 +241,7 @@ impl Command {
             };
         }
 
-        match parse_flag(&arg, self.doing_external(args_ctx))? {
+        match parse_flag(&arg, self.doing_external(args_ctx)) {
             ParsedFlag::SingleDash | ParsedFlag::DoubleDash | ParsedFlag::Empty => {
                 supplement_arg(history, args_ctx, arg)?;
             }
@@ -246,7 +249,7 @@ impl Command {
                 let command = if args_ctx.has_seen_arg() {
                     None
                 } else {
-                    self.commands.iter().find(|c| arg == c.info.name)
+                    self.commands.iter().find(|c| arg == c.name)
                 };
                 match command {
                     Some(command) => {
@@ -278,10 +281,15 @@ impl Command {
         history: &mut History,
         arg: String,
     ) -> Result<CompletionGroup> {
-        let mut raise_empty_err = true;
-        let ret: Vec<_> = match parse_flag(&arg, self.doing_external(args_ctx))? {
+        fn check_no_flag(v: Vec<Completion>) -> Result<Vec<Completion>> {
+            if v.is_empty() {
+                return Err(Error::UnexpectedFlag);
+            }
+            Ok(v)
+        }
+
+        let ret: Vec<_> = match parse_flag(&arg, self.doing_external(args_ctx)) {
             ParsedFlag::Empty | ParsedFlag::NotFlag => {
-                raise_empty_err = false;
                 let cmd_slice = if args_ctx.has_seen_arg() {
                     log::info!("no completion for subcmd because we've already seen some args");
                     &[]
@@ -291,7 +299,7 @@ impl Command {
                 };
                 let cmd_iter = cmd_slice
                     .iter()
-                    .map(|c| Completion::new(c.info.name, c.info.description).group("command"));
+                    .map(|c| Completion::new(c.name, c.description).group("command"));
                 let arg_comp = if let Some(arg_obj) = args_ctx.next_arg() {
                     log::debug!("completion for args {:?}", arg_obj.id);
                     (arg_obj.comp_options)(history, &arg)
@@ -303,21 +311,22 @@ impl Command {
                 };
                 cmd_iter.chain(arg_comp.into_iter()).collect()
             }
-            ParsedFlag::DoubleDash | ParsedFlag::Long { equal: None, .. } => self
-                .flags(history)
-                .map(|f| f.gen_completion(Some(true)))
-                .flatten()
-                .collect(),
-            ParsedFlag::SingleDash => self
-                .flags(history)
-                .map(|f| f.gen_completion(None))
-                .flatten()
-                .collect(),
+            ParsedFlag::DoubleDash | ParsedFlag::Long { equal: None, .. } => check_no_flag(
+                self.flags(history)
+                    .map(|f| f.gen_completion(Some(true)))
+                    .flatten()
+                    .collect(),
+            )?,
+            ParsedFlag::SingleDash => check_no_flag(
+                self.flags(history)
+                    .map(|f| f.gen_completion(None))
+                    .flatten()
+                    .collect(),
+            )?,
             ParsedFlag::Long {
                 equal: Some(value),
                 body,
             } => {
-                raise_empty_err = false;
                 let flag = self.find_long_flag(body, history)?;
                 let Some(comp_options) = flag.comp_options else {
                     return Err(Error::BoolFlagEqualsValue(arg));
@@ -330,7 +339,6 @@ impl Command {
             ParsedFlag::Shorts => {
                 let resolved = self.resolve_shorts(history, &arg)?;
                 if let Some(comp_options) = resolved.last_flag.comp_options {
-                    raise_empty_err = false;
                     let value = resolved.value.unwrap_or("");
                     comp_options(history, value)
                         .into_iter()
@@ -339,22 +347,21 @@ impl Command {
                 } else {
                     log::debug!("list short flags with history {:?}", history);
                     resolved.last_flag.push_pure_flag(history);
-                    self.flags(history)
-                        .map(|f| f.gen_completion(Some(false)))
-                        .flatten()
-                        .map(|c| {
-                            c.value(|v| {
-                                let flag = &v[1..]; // skip the first '-' character
-                                format!("{}{}", resolved.flag_part, flag)
+                    check_no_flag(
+                        self.flags(history)
+                            .map(|f| f.gen_completion(Some(false)))
+                            .flatten()
+                            .map(|c| {
+                                c.value(|v| {
+                                    let flag = &v[1..]; // skip the first '-' character
+                                    format!("{}{}", resolved.flag_part, flag)
+                                })
                             })
-                        })
-                        .collect()
+                            .collect(),
+                    )?
                 }
             }
         };
-        if ret.is_empty() && raise_empty_err {
-            return Err(Error::NoPossibleCompletion);
-        }
         Ok(CompletionGroup::new(ret, arg))
     }
 

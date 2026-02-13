@@ -11,8 +11,9 @@ use std::collections::HashMap;
 /// # #[cfg(feature = "clap-4")]
 /// # use clap4 as clap;
 ///
+/// let config: Config = Default::default();
 /// let mut cmd = clap::Command::new("git");
-/// generate(&mut cmd, Default::default(), &mut std::io::stdout()).unwrap();
+/// generate(&mut cmd, config, &mut std::io::stdout()).unwrap();
 /// ```
 #[derive(Default, Clone)]
 pub struct Config {
@@ -20,6 +21,9 @@ pub struct Config {
 }
 
 impl Config {
+    pub fn new() -> Self {
+        Self::default()
+    }
     /// Ignore a certain flag or subcommand during code-gen.
     /// Note that if you want to ignore something that doesn't actually exist in the command definition,
     /// The `generate` and `generate_default` function will raise an `UnprocessedConfigObj` error.
