@@ -24,12 +24,35 @@ pub enum Error {
     /// NOTE that the empty string is needed if that position is where user want the completion.
     /// i.e. `git ''` means `git <TAB>`, which will result in all git's subcommands.
     ArgsTooShort,
+    /// When a flags requires equal but there is none.
+    RequiresEqual(&'static str),
 }
 
 #[cfg(any(feature = "clap-3", feature = "clap-4"))]
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum GenerateError {
+    /// Error when the clap definition has some potential problem.
+    /// To suppress this, use `Config::strict(false)`.
+    /// ```no_run
+    /// # #[cfg(feature = "clap-3")]
+    /// # use clap3 as clap;
+    /// # #[cfg(feature = "clap-4")]
+    /// # use clap4 as clap;
+    /// # let cmd: clap::Command = unimplemented!();
+    ///
+    /// use std::io::stdout;
+    /// use supplements::{Config, generate};
+    ///
+    /// // this may raise `Strict` error
+    /// generate(&mut cmd, Config::new(), &mut stdout());
+    /// // this will not raise `Strict` error
+    /// generate(&mut cmd, Config::new().strict(false), &mut stdout());
+    /// ```
+    Strict {
+        msg: &'static str,
+        id: String,
+    },
     UnprocessedConfigObj(Vec<Vec<String>>),
     IO(std::io::Error),
 }

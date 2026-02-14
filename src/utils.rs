@@ -9,6 +9,20 @@ use crate::{Completion, History, Result};
 
 type CompOption = fn(&History, &str) -> Vec<Completion>;
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum CompleteWithEqual {
+    /// `ls --colo<TAB>` => `--color=`
+    Must,
+    /// `ls --colo<TAB>` => `--color=` and `--color`
+    /// NOTE: everything marked as `Optional` should be meaningful.
+    /// There should be a functional difference between `--color=always` and `--color always`
+    Optional,
+    /// `ls --colo<TAB>` => `--color`
+    /// NOTE: This doesn't mean it CAN'T have an equal (only pure boolean flags can't have equal).
+    /// It just means we're not going to give an equal sign when hitting completion
+    NoNeed,
+}
+
 pub struct Flag {
     pub id: id::Flag,
     pub short: &'static [char],
@@ -16,6 +30,7 @@ pub struct Flag {
     pub description: &'static str,
     pub comp_options: Option<CompOption>,
     pub once: bool,
+    pub complete_with_equal: CompleteWithEqual, // TODO: if comp_options.is_none(), this thing is useless
 }
 pub struct Arg {
     pub id: id::Arg,
@@ -36,19 +51,43 @@ pub struct Command {
 }
 
 impl Flag {
+    pub fn get_description(&self) -> &'static str {
+        if !self.description.is_empty() {
+            return self.description;
+        }
+        if let Some(long) = self.long.get(0) {
+            return *long;
+        }
+        ""
+    }
     fn gen_completion(&self, is_long: Option<bool>) -> impl Iterator<Item = Completion> {
         let (long, short) = match is_long {
             None => (self.long, self.short),
             Some(true) => (self.long, &[] as &[char]),
             Some(false) => (&[] as &[&str], self.short),
         };
-        long.iter()
-            .map(|l| Completion::new(&format!("--{l}"), self.description))
-            .chain(
-                short
-                    .iter()
-                    .map(|s| Completion::new(&format!("-{s}"), self.description)),
-            )
+
+        let long = long
+            .iter()
+            .map(|l| Completion::new(&format!("--{l}"), self.get_description()));
+        let short = short
+            .iter()
+            .map(|s| Completion::new(&format!("-{s}"), self.get_description()));
+        let iter = long.chain(short).take(1);
+        iter.flat_map(|mut comp| {
+            let mut more = None;
+            match self.complete_with_equal {
+                CompleteWithEqual::NoNeed => (),
+                CompleteWithEqual::Must => {
+                    comp.value += "=";
+                }
+                CompleteWithEqual::Optional => {
+                    more = Some(comp.clone());
+                    comp.value += "=";
+                }
+            }
+            std::iter::once(comp).chain(more.into_iter())
+        })
     }
 
     fn exists_in_history(&self, history: &History) -> bool {
@@ -81,12 +120,26 @@ impl Flag {
             self.push_pure_flag(history);
             return Ok(None);
         };
+        let name = self.id.name();
+
+        match self.complete_with_equal {
+            CompleteWithEqual::Must => return Err(Error::RequiresEqual(name)),
+            CompleteWithEqual::NoNeed => (),
+            CompleteWithEqual::Optional => {
+                // TODO: Maybe one day clap will tell us.
+                log::info!(
+                    "Optional flag {} doesn't have value. Push an empty string to history because we don't know its default value (clap wouldn't tell us).",
+                    name
+                );
+                self.push_flag(history, String::new());
+                return Ok(None);
+            }
+        }
 
         let arg = args.next().unwrap();
         match parse_flag(&arg, false) {
             ParsedFlag::NotFlag | ParsedFlag::Empty | ParsedFlag::SingleDash => (),
             ParsedFlag::DoubleDash | ParsedFlag::Long { .. } | ParsedFlag::Shorts => {
-                let name = self.id.name();
                 log::warn!(
                     "`--{name} {arg}` is invalid. Maybe you should write it like `--{name}={arg}",
                 );
@@ -338,15 +391,36 @@ impl Command {
             }
             ParsedFlag::Shorts => {
                 let resolved = self.resolve_shorts(history, &arg)?;
-                if let Some(comp_options) = resolved.last_flag.comp_options {
+                let flag = resolved.last_flag;
+                if let Some(comp_options) = flag.comp_options {
                     let value = resolved.value.unwrap_or("");
-                    comp_options(history, value)
+                    let mut eq = "";
+                    let mut more = None;
+                    if flag.complete_with_equal != CompleteWithEqual::NoNeed {
+                        if resolved.value.is_none() {
+                            // E.g. `cmd -af`
+                            eq = "=";
+                            if flag.complete_with_equal == CompleteWithEqual::Optional {
+                                // Want: `-af=opt1`, `-af=opt2`, `-af`
+                                // NOTE that we don't want `-afx`, `-afy` where x and y are other flags. That's too much.
+                                more = Some(Completion::new(
+                                    resolved.flag_part,
+                                    &flag.get_description(),
+                                ));
+                            }
+                        } else {
+                            // E.g. `cmd -af=xyz` or `cmd -af=`.
+                            // It's impossible to be `cmd -afxyz`, either it throw error or `f` won't be the last flag.
+                            // Want: `-af=opt1`, `-af=opt2`
+                        }
+                    }
+                    let iter = comp_options(history, value)
                         .into_iter()
-                        .map(|c| c.value(|v| format!("{}{}", resolved.flag_part, v)))
-                        .collect()
+                        .map(|c| c.value(|v| format!("{}{}{}", resolved.flag_part, eq, v)));
+                    more.into_iter().chain(iter).collect()
                 } else {
                     log::debug!("list short flags with history {:?}", history);
-                    resolved.last_flag.push_pure_flag(history);
+                    flag.push_pure_flag(history);
                     check_no_flag(
                         self.flags(history)
                             .map(|f| f.gen_completion(Some(false)))
@@ -397,15 +471,30 @@ impl Command {
                     });
                 }
                 _ => {
-                    if flag.comp_options.is_some() {
-                        return Ok(ResolvedMultiShort {
-                            flag_part: &shorts[..len],
-                            last_flag: flag,
-                            value: Some(&shorts[len..]),
-                        });
+                    if flag.comp_options.is_none() {
+                        flag.push_pure_flag(history);
+                        continue;
                     }
 
-                    flag.push_pure_flag(history);
+                    match flag.complete_with_equal {
+                        CompleteWithEqual::Must => {
+                            return Err(Error::RequiresEqual(flag.id.name()));
+                        }
+                        CompleteWithEqual::Optional => {
+                            log::info!(
+                                "Treating optional flag {:?} as boolean flag (without value)",
+                                flag.id
+                            );
+                            flag.push_flag(history, String::new());
+                        }
+                        CompleteWithEqual::NoNeed => {
+                            return Ok(ResolvedMultiShort {
+                                flag_part: &shorts[..len],
+                                last_flag: flag,
+                                value: Some(&shorts[len..]),
+                            });
+                        }
+                    }
                 }
             }
         }

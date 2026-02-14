@@ -15,12 +15,15 @@ pub enum SubCommand {
         file_or_commit: Option<String>,
         files: Vec<std::path::PathBuf>,
     },
+
     #[clap(about = "log")]
     Log {
-        #[clap(long)]
+        #[clap(short, long)]
         graph: bool,
-        #[clap(long)]
+        #[clap(short, long, num_args = 0..=1, default_value = None, default_missing_value = "full", require_equals = true)]
         pretty: Option<Pretty>,
+        #[clap(short, long, num_args = 0..=1, default_value = "auto", default_missing_value = "always", require_equals = true)]
+        color: Color,
         commit: Option<String>,
     },
 }
@@ -32,4 +35,10 @@ pub enum Pretty {
     Short,
     #[clap(help = "<sha1> / <author> / <committer> / <title> / <commit msg>")]
     Full,
+}
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+pub enum Color {
+    Always,
+    Never,
+    Auto,
 }

@@ -196,7 +196,7 @@ fn generate_flags_in_cmd(
     cmd: &Command<'_>,
     global_flags: &mut Vec<GlobalFlag>,
     w: &mut impl Write,
-) -> std::io::Result<Vec<(bool, String)>> {
+) -> Result<Vec<(bool, String)>, GenerateError> {
     let mut flag_names = vec![];
 
     for flag in utils::flags(cmd) {
@@ -210,7 +210,24 @@ fn generate_flags_in_cmd(
         }
 
         let takes_values = flag.takes_values();
-        let possible_values = flag.get_possible_values();
+        let complete_with_equal = utils::compute_flag_equal(
+            takes_values,
+            flag.get_min_num_args(),
+            flag.is_require_equals_set(),
+            config.is_strict(),
+        )
+        .map_err(|msg| GenerateError::Strict {
+            id: name.clone(),
+            msg,
+        })?;
+
+        let possible_values = if takes_values {
+            // For boolean flags, possible values is "true" & "false", but we should treat it as empty.
+            // Because "true" & "false" should never appear in CLI.
+            flag.get_possible_values()
+        } else {
+            vec![]
+        };
         let is_const = !takes_values || !possible_values.is_empty();
         let rust_name = gen_rust_name(NameType::FLAG, &name, is_const);
         if flag.is_global_set() {
@@ -273,6 +290,7 @@ fn generate_flags_in_cmd(
 {indent}        description: \"{description}\",
 {indent}        comp_options: Some(Self::comp_options),
 {indent}        once: {once},
+{indent}        complete_with_equal: {complete_with_equal},
 {indent}    }};
 
 {indent}    fn comp_options(_history: &History, arg: &str) -> Vec<Completion> {{
@@ -293,6 +311,7 @@ fn generate_flags_in_cmd(
 {indent}    description: \"{description}\",
 {indent}    comp_options: {comp_options},
 {indent}    once: {once},
+{indent}    complete_with_equal: {complete_with_equal},
 {indent}}};"
             )?;
         }
@@ -325,7 +344,7 @@ fn generate_recur(
     cmd: &Command<'_>,
     global_flags: &[GlobalFlag],
     w: &mut impl Write,
-) -> std::io::Result<()> {
+) -> Result<(), GenerateError> {
     let mut global_flags = global_flags.to_vec();
     let name = cmd.get_name();
     let description = utils::escape_help(&cmd.get_about().unwrap_or_default());

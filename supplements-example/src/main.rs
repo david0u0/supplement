@@ -97,9 +97,19 @@ fn main() {
         return;
     }
 
-    let shell: Shell = args.get(1).unwrap().parse().unwrap();
-
-    let args = args[2..].iter().map(String::from);
-    let comps = def::CMD.supplement(args).unwrap();
-    comps.print(shell, &mut stdout()).unwrap();
+    let shell: Result<Shell, _> = args.get(1).unwrap().parse();
+    match shell {
+        Err(_) => {
+            let res = Git::try_parse_from(args);
+            match res {
+                Ok(res) => println!("{:?}", res),
+                Err(err) => println!("{err}"),
+            }
+        }
+        Ok(shell) => {
+            let args = args[2..].iter().map(String::from);
+            let comps = def::CMD.supplement(args).unwrap();
+            comps.print(shell, &mut stdout()).unwrap();
+        }
+    }
 }

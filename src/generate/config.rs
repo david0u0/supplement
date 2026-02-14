@@ -15,14 +15,23 @@ use std::collections::HashMap;
 /// let mut cmd = clap::Command::new("git");
 /// generate(&mut cmd, config, &mut std::io::stdout()).unwrap();
 /// ```
-#[derive(Default, Clone)]
+#[derive(Clone)]
 pub struct Config {
     ignore: HashMap<Vec<String>, bool>,
+    strict: bool,
 }
 
+impl Default for Config {
+    fn default() -> Self {
+        Self::new()
+    }
+}
 impl Config {
     pub fn new() -> Self {
-        Self::default()
+        Config {
+            strict: true,
+            ignore: Default::default(),
+        }
     }
     /// Ignore a certain flag or subcommand during code-gen.
     /// Note that if you want to ignore something that doesn't actually exist in the command definition,
@@ -69,5 +78,12 @@ impl Config {
         Err(GenerateError::UnprocessedConfigObj(
             it.map(|x| x.to_vec()).collect(),
         ))
+    }
+    pub fn strict(mut self, yes: bool) -> Self {
+        self.strict = yes;
+        self
+    }
+    pub fn is_strict(&self) -> bool {
+        self.strict
     }
 }

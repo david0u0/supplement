@@ -107,6 +107,19 @@ impl<'a> Arg<'a> {
             self.0.get_num_args().expect("built").max_values()
         }
     }
+    pub fn get_min_num_args(&self) -> usize {
+        #[cfg(feature = "clap-3")]
+        {
+            if !self.takes_values() { 0 } else { 1 }
+        }
+        #[cfg(feature = "clap-4")]
+        {
+            self.0.get_num_args().expect("built").min_values()
+        }
+    }
+    pub fn is_require_equals_set(&self) -> bool {
+        self.0.is_require_equals_set()
+    }
     pub fn get_possible_values(&self) -> Vec<PossibleValue> {
         #[cfg(feature = "clap-3")]
         {

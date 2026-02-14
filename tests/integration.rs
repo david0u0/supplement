@@ -13,6 +13,7 @@ mod def {
         description: "test description for flag C",
         comp_options: None,
         once: true,
+        complete_with_equal: CompleteWithEqual::NoNeed,
     };
     pub const B_FLAG_ID: id::SingleVal = id::SingleVal::new(line!(), "");
     pub const B_FLAG: Flag = Flag {
@@ -29,6 +30,7 @@ mod def {
             ret
         }),
         once: true,
+        complete_with_equal: CompleteWithEqual::NoNeed,
     };
     pub const A_ARG_ID: id::SingleVal = id::SingleVal::new(line!(), "");
     pub const A_ARG: Arg = Arg {
@@ -44,7 +46,7 @@ mod def {
     pub const ROOT_ID: id::NoVal = id::NoVal::new(line!(), "");
     pub const ROOT: Command = Command {
         id: ROOT_ID,
-        all_flags: &[B_FLAG, C_FLAG],
+        all_flags: &[B_FLAG, C_FLAG, OPT_FLAG],
         name: "root",
         description: "",
         args: &[A_ARG, D_ARG],
@@ -64,6 +66,19 @@ mod def {
         id: id::Arg::Multi(D_ARG_ID),
         comp_options: |_, _| vec![Completion::new("d-arg!", "")],
         max_values: 2,
+    };
+
+    pub const OPT_FLAG_ID: id::SingleVal = id::SingleVal::new(line!(), "");
+    pub const OPT_FLAG: Flag = Flag {
+        id: id::Flag::Single(OPT_FLAG_ID),
+        short: &['o'],
+        long: &["opt"],
+        description: "test description for flag OPT",
+        comp_options: Some(|_history, _arg| {
+            vec![Completion::new("opt1", ""), Completion::new("opt2", "")]
+        }),
+        once: true,
+        complete_with_equal: CompleteWithEqual::Optional,
     };
 }
 
@@ -154,12 +169,12 @@ fn test_once_flag() {
     assert_eq!(h, vec![]);
     assert_eq!(
         map_comp_values(&r),
-        vec!["--long-b", "--long-c", "--long-c-2", "-b", "-c", "-x"],
+        vec!["--long-b", "--long-c", "--opt", "--opt="],
     );
 
     let (h, r) = run("-b option -", false);
     assert_eq!(h, vec![single!(B_FLAG_ID, "option")]);
-    assert_eq!(map_comp_values(&r), vec!["--long-c", "--long-c-2", "-c"],);
+    assert_eq!(map_comp_values(&r), vec!["--long-c", "--opt", "--opt="]);
 }
 
 #[test]
@@ -188,7 +203,7 @@ fn test_flags_last() {
 
     let (h, r) = run("-c", false);
     assert_eq!(expected_h, h);
-    assert_eq!(map_comp_values(&r), vec!["-cb", "-cx"]);
+    assert_eq!(map_comp_values(&r), vec!["-cb", "-co", "-co="]);
 }
 
 #[test]
@@ -285,4 +300,58 @@ fn test_flag_after_external_sub() {
     let (h, r) = try_run("ext --long-b flag1", true);
     assert_eq!(h, expected_h);
     assert_eq!(r.unwrap_err(), Error::UnexpectedArg("".to_owned()));
+}
+
+#[test]
+fn test_optional_flag() {
+    let (h, r) = run("--opt=", false);
+    assert_eq!(h, vec![]);
+    assert_eq!(map_comp_values(&r), vec!["--opt=opt1", "--opt=opt2"]);
+
+    let (h, r) = run("--opt=xxx", true);
+    assert_eq!(h, vec![single!(OPT_FLAG_ID, "xxx")]);
+    assert_eq!(
+        map_comp_values(&r),
+        vec!["arg-option1", "arg-option2", "sub"]
+    );
+
+    let (h, r) = run("--opt", true);
+    assert_eq!(h, vec![single!(OPT_FLAG_ID, "")]);
+    assert_eq!(
+        map_comp_values(&r),
+        vec!["arg-option1", "arg-option2", "sub"]
+    );
+
+    let (h, r) = run("--opt sub", true);
+    assert_eq!(h, vec![single!(OPT_FLAG_ID, ""), no!(SUB_ID)]);
+    assert_eq!(map_comp_values(&r), vec!["arg-option1", "arg-option2"]);
+
+    // test short flags
+
+    let (h, r) = run("-oba", false);
+    assert_eq!(h, vec![single!(OPT_FLAG_ID, "")]);
+    assert_eq!(map_comp_values(&r), vec!["-oba", "-oba!"]);
+
+    let (h, r) = run("-oba", true);
+    assert_eq!(h, vec![single!(OPT_FLAG_ID, ""), single!(B_FLAG_ID, "a")]);
+    assert_eq!(
+        map_comp_values(&r),
+        vec!["arg-option1", "arg-option2", "sub"]
+    );
+
+    let (h, r) = run("-ob a", false);
+    assert_eq!(h, vec![single!(OPT_FLAG_ID, "")]);
+    assert_eq!(map_comp_values(&r), vec!["a", "a!"]);
+
+    let (h, r) = run("-c", false);
+    assert_eq!(h, vec![no!(C_FLAG_ID)]);
+    assert_eq!(map_comp_values(&r), vec!["-cb", "-co", "-co="]);
+
+    let (h, r) = run("-co", false);
+    assert_eq!(h, vec![no!(C_FLAG_ID)]);
+    assert_eq!(map_comp_values(&r), vec!["-co", "-co=opt1", "-co=opt2"]);
+
+    let (h, r) = try_run("-oz", false);
+    assert_eq!(h, vec![single!(OPT_FLAG_ID, "")]);
+    assert_eq!(r.unwrap_err(), Error::FlagNotFound("z".to_owned()));
 }
