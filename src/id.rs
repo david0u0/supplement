@@ -10,7 +10,7 @@
 /// let c: u32 = history.find(id).unwrap().count; // Represents how many times it's seen in the CLI command
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct NoVal(u32, &'static str);
+pub struct NoVal(u32, pub(crate) &'static str);
 
 /// Id for things that have at most one value.
 /// When searching for it in `History`, it will have a single string `value`
@@ -21,7 +21,7 @@ pub struct NoVal(u32, &'static str);
 /// let v: &str = &history.find(id).unwrap().value;
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct SingleVal(u32, &'static str);
+pub struct SingleVal(u32, pub(crate) &'static str);
 
 /// Id for things that can have more than one value.
 /// When searching for it in `History`, it will have a vector of string `values`
@@ -32,17 +32,10 @@ pub struct SingleVal(u32, &'static str);
 /// let v: &[String] = &history.find(id).unwrap().values;
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct MultiVal(u32, &'static str);
+pub struct MultiVal(u32, pub(crate) &'static str);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Arg {
-    Single(SingleVal),
-    Multi(MultiVal),
-}
-
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Flag {
-    No(NoVal),
+pub enum Valued {
     Single(SingleVal),
     Multi(MultiVal),
 }
@@ -60,15 +53,5 @@ impl SingleVal {
 impl MultiVal {
     pub const fn new(id: u32, ident: &'static str) -> Self {
         MultiVal(id, ident)
-    }
-}
-
-impl Flag {
-    pub(crate) fn name(self) -> &'static str {
-        match self {
-            Flag::No(NoVal(_, name)) => name,
-            Flag::Single(SingleVal(_, name)) => name,
-            Flag::Multi(MultiVal(_, name)) => name,
-        }
     }
 }

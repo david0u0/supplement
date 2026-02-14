@@ -113,10 +113,10 @@ impl History {
             .push(HistoryUnit::Multi(HistoryUnitMultiVal { id, values }));
     }
 
-    pub(crate) fn push_arg(&mut self, id: id::Arg, value: String) {
+    pub(crate) fn push_arg(&mut self, id: id::Valued, value: String) {
         match id {
-            id::Arg::Single(id) => self.push_single_val(id, value),
-            id::Arg::Multi(id) => self.push_multi_val(id, value),
+            id::Valued::Single(id) => self.push_single_val(id, value),
+            id::Valued::Multi(id) => self.push_multi_val(id, value),
         }
     }
 

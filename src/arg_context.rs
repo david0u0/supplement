@@ -39,12 +39,12 @@ mod test {
     use crate::id;
 
     const ARG1: Arg = Arg {
-        id: id::Arg::Single(id::SingleVal::new(line!(), "")),
+        id: id::Valued::Single(id::SingleVal::new(line!(), "")),
         comp_options: |_, _| vec![],
         max_values: 1,
     };
     const ARG2: Arg = Arg {
-        id: id::Arg::Single(id::SingleVal::new(line!(), "")),
+        id: id::Valued::Single(id::SingleVal::new(line!(), "")),
         comp_options: |_, _| vec![],
         max_values: 1,
     };
@@ -66,12 +66,12 @@ mod test {
     }
 
     const ARG3: Arg = Arg {
-        id: id::Arg::Single(id::SingleVal::new(line!(), "")),
+        id: id::Valued::Single(id::SingleVal::new(line!(), "")),
         comp_options: |_, _| vec![],
         max_values: 2,
     };
     const ARG4: Arg = Arg {
-        id: id::Arg::Single(id::SingleVal::new(line!(), "")),
+        id: id::Valued::Single(id::SingleVal::new(line!(), "")),
         comp_options: |_, _| vec![],
         max_values: 3,
     };

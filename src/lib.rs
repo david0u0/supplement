@@ -3,10 +3,10 @@ pub mod error;
 pub mod history;
 pub mod id;
 
-mod utils;
+mod core;
 pub use completion::{Completion, Shell};
+pub use core::*;
 pub use history::History;
-pub use utils::*;
 
 pub(crate) mod arg_context;
 pub(crate) mod parsed_flag;

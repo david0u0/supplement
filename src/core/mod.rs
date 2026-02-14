@@ -1,3 +1,6 @@
+mod flag;
+pub use flag::{CompleteWithEqual, Flag, flag_type};
+
 use std::iter::Peekable;
 
 use crate::arg_context::ArgsContext;
@@ -9,31 +12,8 @@ use crate::{Completion, History, Result};
 
 type CompOption = fn(&History, &str) -> Vec<Completion>;
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum CompleteWithEqual {
-    /// `ls --colo<TAB>` => `--color=`
-    Must,
-    /// `ls --colo<TAB>` => `--color=` and `--color`
-    /// NOTE: everything marked as `Optional` should be meaningful.
-    /// There should be a functional difference between `--color=always` and `--color always`
-    Optional,
-    /// `ls --colo<TAB>` => `--color`
-    /// NOTE: This doesn't mean it CAN'T have an equal (only pure boolean flags can't have equal).
-    /// It just means we're not going to give an equal sign when hitting completion
-    NoNeed,
-}
-
-pub struct Flag {
-    pub id: id::Flag,
-    pub short: &'static [char],
-    pub long: &'static [&'static str],
-    pub description: &'static str,
-    pub comp_options: Option<CompOption>,
-    pub once: bool,
-    pub complete_with_equal: CompleteWithEqual, // TODO: if comp_options.is_none(), this thing is useless
-}
 pub struct Arg {
-    pub id: id::Arg,
+    pub id: id::Valued,
     pub comp_options: CompOption,
     pub max_values: usize,
 }
@@ -50,113 +30,6 @@ pub struct Command {
     pub commands: &'static [Command],
 }
 
-impl Flag {
-    pub fn get_description(&self) -> &'static str {
-        if !self.description.is_empty() {
-            return self.description;
-        }
-        if let Some(long) = self.long.get(0) {
-            return *long;
-        }
-        ""
-    }
-    fn gen_completion(&self, is_long: Option<bool>) -> impl Iterator<Item = Completion> {
-        let (long, short) = match is_long {
-            None => (self.long, self.short),
-            Some(true) => (self.long, &[] as &[char]),
-            Some(false) => (&[] as &[&str], self.short),
-        };
-
-        let long = long
-            .iter()
-            .map(|l| Completion::new(&format!("--{l}"), self.get_description()));
-        let short = short
-            .iter()
-            .map(|s| Completion::new(&format!("-{s}"), self.get_description()));
-        let iter = long.chain(short).take(1);
-        iter.flat_map(|mut comp| {
-            let mut more = None;
-            match self.complete_with_equal {
-                CompleteWithEqual::NoNeed => (),
-                CompleteWithEqual::Must => {
-                    comp.value += "=";
-                }
-                CompleteWithEqual::Optional => {
-                    more = Some(comp.clone());
-                    comp.value += "=";
-                }
-            }
-            std::iter::once(comp).chain(more.into_iter())
-        })
-    }
-
-    fn exists_in_history(&self, history: &History) -> bool {
-        match self.id {
-            id::Flag::No(id) => history.find(id).is_some(),
-            id::Flag::Single(id) => history.find(id).is_some(),
-            id::Flag::Multi(id) => history.find(id).is_some(),
-        }
-    }
-    fn push_pure_flag(&self, history: &mut History) {
-        match self.id {
-            id::Flag::No(id) => history.push_no_val(id),
-            _ => unreachable!(),
-        }
-    }
-    fn push_flag(&self, history: &mut History, arg: String) {
-        match self.id {
-            id::Flag::Single(id) => history.push_single_val(id, arg),
-            id::Flag::Multi(id) => history.push_multi_val(id, arg),
-            _ => unreachable!(),
-        }
-    }
-
-    fn supplement(
-        &self,
-        history: &mut History,
-        args: &mut Peekable<impl Iterator<Item = String>>,
-    ) -> Result<Option<CompletionGroup>> {
-        let Some(comp_options) = self.comp_options else {
-            self.push_pure_flag(history);
-            return Ok(None);
-        };
-        let name = self.id.name();
-
-        match self.complete_with_equal {
-            CompleteWithEqual::Must => return Err(Error::RequiresEqual(name)),
-            CompleteWithEqual::NoNeed => (),
-            CompleteWithEqual::Optional => {
-                // TODO: Maybe one day clap will tell us.
-                log::info!(
-                    "Optional flag {} doesn't have value. Push an empty string to history because we don't know its default value (clap wouldn't tell us).",
-                    name
-                );
-                self.push_flag(history, String::new());
-                return Ok(None);
-            }
-        }
-
-        let arg = args.next().unwrap();
-        match parse_flag(&arg, false) {
-            ParsedFlag::NotFlag | ParsedFlag::Empty | ParsedFlag::SingleDash => (),
-            ParsedFlag::DoubleDash | ParsedFlag::Long { .. } | ParsedFlag::Shorts => {
-                log::warn!(
-                    "`--{name} {arg}` is invalid. Maybe you should write it like `--{name}={arg}",
-                );
-                return Err(Error::FlagNoValue(name));
-            }
-        }
-
-        if args.peek().is_none() {
-            let group = CompletionGroup::new(comp_options(&history, &arg), arg);
-            return Ok(Some(group));
-        }
-
-        self.push_flag(history, arg);
-        Ok(None)
-    }
-}
-
 fn supplement_arg(history: &mut History, ctx: &mut ArgsContext, arg: String) -> Result {
     let Some(arg_obj) = ctx.next_arg() else {
         return Err(Error::UnexpectedArg(arg));
@@ -171,6 +44,13 @@ fn parse_flag(s: &str, disable_flag: bool) -> ParsedFlag<'_> {
     } else {
         ParsedFlag::new(s)
     }
+}
+
+fn check_no_flag(v: Vec<Completion>) -> Result<Vec<Completion>> {
+    if v.is_empty() {
+        return Err(Error::UnexpectedFlag);
+    }
+    Ok(v)
 }
 
 impl Command {
@@ -231,7 +111,7 @@ impl Command {
             } else {
                 let exists = f.exists_in_history(history);
                 if exists {
-                    log::debug!("flag {:?} already exists", f.id);
+                    log::debug!("flag {:?} already exists", f.id());
                 }
                 !exists
             }
@@ -281,10 +161,10 @@ impl Command {
         macro_rules! handle_flag {
             ($flag:expr, $equal:expr, $history:expr) => {
                 if let Some(equal) = $equal {
-                    if $flag.comp_options.is_none() {
-                        return Err(Error::BoolFlagEqualsValue(arg));
+                    match $flag.ty {
+                        flag_type::Type::Valued(flag) => flag.push($history, equal.to_string()),
+                        _ => return Err(Error::BoolFlagEqualsValue(arg)),
                     }
-                    $flag.push_flag($history, equal.to_string());
                 } else {
                     let res = $flag.supplement($history, args)?;
                     if let Some(res) = res {
@@ -334,13 +214,6 @@ impl Command {
         history: &mut History,
         arg: String,
     ) -> Result<CompletionGroup> {
-        fn check_no_flag(v: Vec<Completion>) -> Result<Vec<Completion>> {
-            if v.is_empty() {
-                return Err(Error::UnexpectedFlag);
-            }
-            Ok(v)
-        }
-
         let ret: Vec<_> = match parse_flag(&arg, self.doing_external(args_ctx)) {
             ParsedFlag::Empty | ParsedFlag::NotFlag => {
                 let cmd_slice = if args_ctx.has_seen_arg() {
@@ -381,60 +254,16 @@ impl Command {
                 body,
             } => {
                 let flag = self.find_long_flag(body, history)?;
-                let Some(comp_options) = flag.comp_options else {
-                    return Err(Error::BoolFlagEqualsValue(arg));
+                let comp_options = match flag.ty {
+                    flag_type::Type::Valued(flag) => flag.comp_options,
+                    _ => return Err(Error::BoolFlagEqualsValue(arg)),
                 };
                 comp_options(history, value)
                     .into_iter()
                     .map(|c| c.value(|v| format!("--{body}={v}")))
                     .collect()
             }
-            ParsedFlag::Shorts => {
-                let resolved = self.resolve_shorts(history, &arg)?;
-                let flag = resolved.last_flag;
-                if let Some(comp_options) = flag.comp_options {
-                    let value = resolved.value.unwrap_or("");
-                    let mut eq = "";
-                    let mut more = None;
-                    if flag.complete_with_equal != CompleteWithEqual::NoNeed {
-                        if resolved.value.is_none() {
-                            // E.g. `cmd -af`
-                            eq = "=";
-                            if flag.complete_with_equal == CompleteWithEqual::Optional {
-                                // Want: `-af=opt1`, `-af=opt2`, `-af`
-                                // NOTE that we don't want `-afx`, `-afy` where x and y are other flags. That's too much.
-                                more = Some(Completion::new(
-                                    resolved.flag_part,
-                                    &flag.get_description(),
-                                ));
-                            }
-                        } else {
-                            // E.g. `cmd -af=xyz` or `cmd -af=`.
-                            // It's impossible to be `cmd -afxyz`, either it throw error or `f` won't be the last flag.
-                            // Want: `-af=opt1`, `-af=opt2`
-                        }
-                    }
-                    let iter = comp_options(history, value)
-                        .into_iter()
-                        .map(|c| c.value(|v| format!("{}{}{}", resolved.flag_part, eq, v)));
-                    more.into_iter().chain(iter).collect()
-                } else {
-                    log::debug!("list short flags with history {:?}", history);
-                    flag.push_pure_flag(history);
-                    check_no_flag(
-                        self.flags(history)
-                            .map(|f| f.gen_completion(Some(false)))
-                            .flatten()
-                            .map(|c| {
-                                c.value(|v| {
-                                    let flag = &v[1..]; // skip the first '-' character
-                                    format!("{}{}", resolved.flag_part, flag)
-                                })
-                            })
-                            .collect(),
-                    )?
-                }
-            }
+            ParsedFlag::Shorts => self.supplement_last_short_flags(history, &arg)?,
         };
         Ok(CompletionGroup::new(ret, arg))
     }
@@ -460,7 +289,7 @@ impl Command {
                     });
                 }
                 Some('=') => {
-                    if flag.comp_options.is_none() {
+                    if matches!(flag.ty, flag_type::Type::Bool(_)) {
                         return Err(Error::BoolFlagEqualsValue(shorts.to_owned()));
                     };
                     len += 1;
@@ -471,21 +300,27 @@ impl Command {
                     });
                 }
                 _ => {
-                    if flag.comp_options.is_none() {
-                        flag.push_pure_flag(history);
-                        continue;
-                    }
+                    let valued = match flag.ty {
+                        flag_type::Type::Bool(inner) => {
+                            inner.push(history);
+                            continue;
+                        }
+                        flag_type::Type::Valued(valued) => {
+                            valued
+                        }
+                    };
 
-                    match flag.complete_with_equal {
+                    match valued.complete_with_equal {
                         CompleteWithEqual::Must => {
-                            return Err(Error::RequiresEqual(flag.id.name()));
+                            return Err(Error::RequiresEqual(flag.id()));
                         }
                         CompleteWithEqual::Optional => {
+                            // TODO: Maybe one day clap will tell us.
                             log::info!(
-                                "Treating optional flag {:?} as boolean flag (without value)",
-                                flag.id
+                                "Optional flag {} doesn't have value. Push an empty string to history because we don't know its default value (clap wouldn't tell us).",
+                                flag.id(),
                             );
-                            flag.push_flag(history, String::new());
+                            valued.push(history, String::new());
                         }
                         CompleteWithEqual::NoNeed => {
                             return Ok(ResolvedMultiShort {
@@ -499,8 +334,62 @@ impl Command {
             }
         }
     }
+
+    fn supplement_last_short_flags(
+        &self,
+        history: &mut History,
+        arg: &str,
+    ) -> Result<Vec<Completion>> {
+        let resolved = self.resolve_shorts(history, arg)?;
+        let flag = resolved.last_flag;
+        let ret = match flag.ty {
+            flag_type::Type::Valued(inner) => {
+                let value = resolved.value.unwrap_or("");
+                let mut eq = "";
+                let mut more = None;
+                if inner.complete_with_equal != CompleteWithEqual::NoNeed {
+                    if resolved.value.is_none() {
+                        // E.g. `cmd -af`
+                        eq = "=";
+                        if inner.complete_with_equal == CompleteWithEqual::Optional {
+                            // Want: `-af=opt1`, `-af=opt2`, `-af`
+                            // NOTE that we don't want `-afx`, `-afy` where x and y are other flags. That's too much.
+                            more =
+                                Some(Completion::new(resolved.flag_part, &flag.get_description()));
+                        }
+                    } else {
+                        // E.g. `cmd -af=xyz` or `cmd -af=`.
+                        // It's impossible to be `cmd -afxyz`, either it throw error or `f` won't be the last flag.
+                        // Want: `-af=opt1`, `-af=opt2`
+                    }
+                }
+                let iter = (inner.comp_options)(history, value)
+                    .into_iter()
+                    .map(|c| c.value(|v| format!("{}{}{}", resolved.flag_part, eq, v)));
+                more.into_iter().chain(iter).collect()
+            }
+            flag_type::Type::Bool(inner) => {
+                log::debug!("list short flags with history {:?}", history);
+                inner.push(history);
+                check_no_flag(
+                    self.flags(history)
+                        .map(|f| f.gen_completion(Some(false)))
+                        .flatten()
+                        .map(|c| {
+                            c.value(|v| {
+                                let flag = &v[1..]; // skip the first '-' character
+                                format!("{}{}", resolved.flag_part, flag)
+                            })
+                        })
+                        .collect(),
+                )?
+            }
+        };
+        Ok(ret)
+    }
 }
 
+#[derive(Clone, Copy)]
 struct ResolvedMultiShort<'a, 'b> {
     flag_part: &'a str,
     last_flag: &'b Flag,
