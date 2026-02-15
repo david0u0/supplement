@@ -22,9 +22,10 @@ pub enum SubCommand {
     Log {
         #[clap(long)]
         graph: bool,
-        #[clap(long)]
+        #[clap(long, num_args = 0..=1, default_value = None, default_missing_value = "full", require_equals = true)]
         pretty: Option<Pretty>,
         commit: Option<String>,
+
         #[clap(long)]
         flag1: Option<String>,
         #[clap(long)]

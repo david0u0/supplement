@@ -153,20 +153,21 @@ impl<'a> FlagDisplayHelper<'a> {
     fn type_str(&self) -> Result<String, GenerateError> {
         let id_name = self.id_name;
         let id = self.flag.get_id().to_string();
-        let id_type = match self.ty {
+        let s = match self.ty {
             FlagType::No => {
-                return Ok(format!("flag_type::Type::new_bool({id_name})"));
+                format!("flag_type::Type::new_bool({id_name})")
             }
-            FlagType::Single => "id::Valued::Single",
-            FlagType::Multi => "id::Valued::Multi",
+            _ => {
+                let complete_with_equal = utils::compute_flag_equal(self.flag, self.strict)
+                    .map_err(|msg| GenerateError::Strict { id, msg })?;
+                let possible_values = self.flag.get_possible_values();
+                let comp_option = CompOptionDisplay(&possible_values);
+                format!(
+                    "flag_type::Type::new_valued({id_name}.into(), {complete_with_equal}, {comp_option})"
+                )
+            }
         };
-        let complete_with_equal = utils::compute_flag_equal(self.flag, self.strict)
-            .map_err(|msg| GenerateError::Strict { id, msg })?;
-        let possible_values = self.flag.get_possible_values();
-        let comp_option = CompOptionDisplay(&possible_values);
-        Ok(format!(
-            "flag_type::Type::new_valued({id_type}({id_name}), {complete_with_equal}, {comp_option})"
-        ))
+        Ok(s)
     }
 }
 
@@ -198,10 +199,10 @@ fn generate_args_in_cmd(
 
     for (name, rust_name, max_values, is_external) in args {
         let id_name = to_screaming_snake_case(&format!("id_{}_{name}", NameType::ARG));
-        let (id_type, id_enum) = if max_values == 1 {
-            ("id::SingleVal", "id::Valued::Single")
+        let id_type = if max_values == 1 {
+            "id::SingleVal"
         } else {
-            ("id::MultiVal", "id::Valued::Multi")
+            "id::MultiVal"
         };
         let body = if is_external {
             "vec![]"
@@ -214,7 +215,7 @@ fn generate_args_in_cmd(
 {indent}pub const {id_name}: {id_type} = {id_type}::new(line!(), \"{name}\");
 {indent}pub trait {rust_name} {{
 {indent}    const OBJ: Arg = Arg {{
-{indent}        id: {id_enum}({id_name}),
+{indent}        id: {id_name}.into(),
 {indent}        comp_options: Self::comp_options,
 {indent}        max_values: {max_values},
 {indent}    }};

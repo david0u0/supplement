@@ -7,21 +7,15 @@ mod def {
 
     pub const C_FLAG_ID: id::NoVal = id::NoVal::new(line!(), "");
     pub const C_FLAG: Flag = Flag {
-        id: id::Flag::No(C_FLAG_ID),
+        ty: flag_type::Type::new_bool(C_FLAG_ID),
         short: &['c'],
         long: &["long-c", "long-c-2"],
         description: "test description for flag C",
-        comp_options: None,
         once: true,
-        complete_with_equal: CompleteWithEqual::NoNeed,
     };
     pub const B_FLAG_ID: id::SingleVal = id::SingleVal::new(line!(), "");
     pub const B_FLAG: Flag = Flag {
-        id: id::Flag::Single(B_FLAG_ID),
-        short: &['b', 'x'],
-        long: &["long-b"],
-        description: "test description for flag B",
-        comp_options: Some(|_history, arg| {
+        ty: flag_type::Type::new_valued(B_FLAG_ID.into(), CompleteWithEqual::NoNeed, |_, arg| {
             let mut ret = vec![];
             if arg != "" {
                 ret.push(Completion::new(arg, ""));
@@ -29,12 +23,14 @@ mod def {
             ret.push(Completion::new(&format!("{arg}!"), ""));
             ret
         }),
+        short: &['b', 'x'],
+        long: &["long-b"],
+        description: "test description for flag B",
         once: true,
-        complete_with_equal: CompleteWithEqual::NoNeed,
     };
     pub const A_ARG_ID: id::SingleVal = id::SingleVal::new(line!(), "");
     pub const A_ARG: Arg = Arg {
-        id: id::Arg::Single(A_ARG_ID),
+        id: A_ARG_ID.into(),
         comp_options: |_, _| {
             vec![
                 Completion::new("arg-option1", ""),
@@ -63,22 +59,20 @@ mod def {
     };
     pub const D_ARG_ID: id::MultiVal = id::MultiVal::new(line!(), "");
     pub const D_ARG: Arg = Arg {
-        id: id::Arg::Multi(D_ARG_ID),
+        id: D_ARG_ID.into(),
         comp_options: |_, _| vec![Completion::new("d-arg!", "")],
         max_values: 2,
     };
 
     pub const OPT_FLAG_ID: id::SingleVal = id::SingleVal::new(line!(), "");
     pub const OPT_FLAG: Flag = Flag {
-        id: id::Flag::Single(OPT_FLAG_ID),
+        ty: flag_type::Type::new_valued(OPT_FLAG_ID.into(), CompleteWithEqual::Optional, |_, _| {
+            vec![Completion::new("opt1", ""), Completion::new("opt2", "")]
+        }),
         short: &['o'],
         long: &["opt"],
         description: "test description for flag OPT",
-        comp_options: Some(|_history, _arg| {
-            vec![Completion::new("opt1", ""), Completion::new("opt2", "")]
-        }),
         once: true,
-        complete_with_equal: CompleteWithEqual::Optional,
     };
 }
 
@@ -210,7 +204,7 @@ fn test_flags_last() {
 fn test_flags_supplement() {
     let expected = (
         vec![no!(C_FLAG_ID)],
-        (def::B_FLAG.comp_options.unwrap())(&Default::default(), "x"),
+        vec![Completion::new("x", ""), Completion::new("x!", "")],
     );
 
     let res = run("-c --long-b x", false);

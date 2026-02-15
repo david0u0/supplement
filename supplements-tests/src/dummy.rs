@@ -29,7 +29,7 @@ mod test {
 
         let comps = run("git log -").unwrap();
         assert_eq!(
-            vec!["--flag1", "--git-dir", "--graph", "--pretty"],
+            vec!["--flag1", "--git-dir", "--graph", "--pretty", "--pretty="],
             map_comps(&comps)
         );
 

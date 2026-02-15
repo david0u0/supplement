@@ -49,9 +49,15 @@ impl SingleVal {
     pub const fn new(id: u32, ident: &'static str) -> Self {
         SingleVal(id, ident)
     }
+    pub const fn into(self) -> Valued {
+        Valued::Single(self)
+    }
 }
 impl MultiVal {
     pub const fn new(id: u32, ident: &'static str) -> Self {
         MultiVal(id, ident)
+    }
+    pub const fn into(self) -> Valued {
+        Valued::Multi(self)
     }
 }
