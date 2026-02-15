@@ -6,7 +6,7 @@ mod abstraction;
 mod config;
 mod gen_default_impl;
 mod utils;
-use abstraction::{ArgAction, ClapCommand, Command, CommandMut, PossibleValue};
+use abstraction::{Arg, ArgAction, ClapCommand, Command, CommandMut, PossibleValue};
 pub use config::Config;
 pub use gen_default_impl::generate_default;
 use utils::{gen_rust_name, to_screaming_snake_case, to_snake_case};
@@ -105,9 +105,9 @@ struct CompOptionDisplay<'a>(&'a [PossibleValue]);
 impl<'a> std::fmt::Display for CompOptionDisplay<'a> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         if self.0.is_empty() {
-            write!(f, "None")?;
+            write!(f, "Self::comp_options")?;
         } else {
-            write!(f, "Some(|_, _| vec![")?;
+            write!(f, "|_, _| vec![")?;
             let mut first = true;
             for p in self.0.iter() {
                 if first {
@@ -122,9 +122,51 @@ impl<'a> std::fmt::Display for CompOptionDisplay<'a> {
                     p.get_help().unwrap_or_default()
                 )?
             }
-            write!(f, "])")?;
+            write!(f, "]")?;
         }
         Ok(())
+    }
+}
+
+enum FlagType {
+    No,
+    Single,
+    Multi,
+}
+struct FlagDisplayHelper<'a> {
+    id_name: &'a str,
+    ty: FlagType,
+    flag: Arg<'a>,
+    strict: bool,
+}
+impl<'a> FlagDisplayHelper<'a> {
+    fn id_line_str(&self) -> String {
+        let id_name = self.id_name;
+        let id = self.flag.get_id().to_string();
+        let id_type = match self.ty {
+            FlagType::No => "NoVal",
+            FlagType::Single => "SingleVal",
+            FlagType::Multi => "MultiVal",
+        };
+        format!("pub const {id_name}: id::{id_type} = id::{id_type}::new(line!(), \"{id}\");")
+    }
+    fn type_str(&self) -> Result<String, GenerateError> {
+        let id_name = self.id_name;
+        let id = self.flag.get_id().to_string();
+        let id_type = match self.ty {
+            FlagType::No => {
+                return Ok(format!("flag_type::Type::new_bool({id_name})"));
+            }
+            FlagType::Single => "id::Valued::Single",
+            FlagType::Multi => "id::Valued::Multi",
+        };
+        let complete_with_equal = utils::compute_flag_equal(self.flag, self.strict)
+            .map_err(|msg| GenerateError::Strict { id, msg })?;
+        let possible_values = self.flag.get_possible_values();
+        let comp_option = CompOptionDisplay(&possible_values);
+        Ok(format!(
+            "flag_type::Type::new_valued({id_type}({id_name}), {complete_with_equal}, {comp_option})"
+        ))
     }
 }
 
@@ -157,9 +199,9 @@ fn generate_args_in_cmd(
     for (name, rust_name, max_values, is_external) in args {
         let id_name = to_screaming_snake_case(&format!("id_{}_{name}", NameType::ARG));
         let (id_type, id_enum) = if max_values == 1 {
-            ("id::SingleVal", "id::Arg::Single")
+            ("id::SingleVal", "id::Valued::Single")
         } else {
-            ("id::MultiVal", "id::Arg::Multi")
+            ("id::MultiVal", "id::Valued::Multi")
         };
         let body = if is_external {
             "vec![]"
@@ -210,24 +252,7 @@ fn generate_flags_in_cmd(
         }
 
         let takes_values = flag.takes_values();
-        let complete_with_equal = utils::compute_flag_equal(
-            takes_values,
-            flag.get_min_num_args(),
-            flag.is_require_equals_set(),
-            config.is_strict(),
-        )
-        .map_err(|msg| GenerateError::Strict {
-            id: name.clone(),
-            msg,
-        })?;
-
-        let possible_values = if takes_values {
-            // For boolean flags, possible values is "true" & "false", but we should treat it as empty.
-            // Because "true" & "false" should never appear in CLI.
-            flag.get_possible_values()
-        } else {
-            vec![]
-        };
+        let possible_values = flag.get_possible_values();
         let is_const = !takes_values || !possible_values.is_empty();
         let rust_name = gen_rust_name(NameType::FLAG, &name, is_const);
         if flag.is_global_set() {
@@ -259,15 +284,16 @@ fn generate_flags_in_cmd(
         let shorts = flag.get_short_and_visible_aliases().unwrap_or_default();
         let longs = flag.get_long_and_visible_aliases().unwrap_or_default();
 
-        let (once, id_type, id_enum) = match flag.get_action() {
-            ArgAction::Count => (false, "id::NoVal", "id::Flag::No"),
-            ArgAction::Append => (false, "id::MultiVal", "id::Flag::Multi"),
+        let (once, ty) = match flag.get_action() {
+            ArgAction::Count => (false, FlagType::No),
+            ArgAction::Append => (false, FlagType::Multi),
             _ => {
                 let once = !flag.is_global_set();
                 if takes_values {
-                    (once, "id::SingleVal", "id::Flag::Single")
+                    (once, FlagType::Single)
                 } else {
-                    (once, "id::NoVal", "id::Flag::No")
+                    // TODO: for `once`, should also check override self
+                    (once, FlagType::No)
                 }
             }
         };
@@ -276,21 +302,28 @@ fn generate_flags_in_cmd(
         let shorts = Join(shorts.iter().map(|s| format!("'{s}'")));
         let longs = Join(longs.iter().map(|s| format!("\"{s}\"")));
         let id_name = to_screaming_snake_case(&format!("id_{}_{name}", NameType::FLAG));
+        let flag_display_helper = FlagDisplayHelper {
+            ty,
+            flag,
+            id_name: &id_name,
+            strict: config.is_strict(),
+        };
+
+        let id_line = flag_display_helper.id_line_str();
+        let type_str = flag_display_helper.type_str()?;
 
         if !is_const {
             writeln!(
                 w,
                 "\
-{indent}pub const {id_name}: {id_type} = {id_type}::new(line!(), \"{name}\");
+{indent}{id_line}
 {indent}pub trait {rust_name} {{
 {indent}    const OBJ: Flag = Flag {{
-{indent}        id: {id_enum}({id_name}),
 {indent}        short: &[{shorts}],
 {indent}        long: &[{longs}],
 {indent}        description: \"{description}\",
-{indent}        comp_options: Some(Self::comp_options),
 {indent}        once: {once},
-{indent}        complete_with_equal: {complete_with_equal},
+{indent}        ty: {type_str},
 {indent}    }};
 
 {indent}    fn comp_options(_history: &History, arg: &str) -> Vec<Completion> {{
@@ -299,19 +332,16 @@ fn generate_flags_in_cmd(
 {indent}}}"
             )?;
         } else {
-            let comp_options = CompOptionDisplay(&possible_values);
             writeln!(
                 w,
                 "\
-{indent}pub const {id_name}: {id_type} = {id_type}::new(line!(), \"{name}\");
+{indent}{id_line}
 {indent}pub const {rust_name}: Flag = Flag {{
-{indent}    id: {id_enum}({id_name}),
 {indent}    short: &[{shorts}],
 {indent}    long: &[{longs}],
 {indent}    description: \"{description}\",
-{indent}    comp_options: {comp_options},
 {indent}    once: {once},
-{indent}    complete_with_equal: {complete_with_equal},
+{indent}    ty: {type_str},
 {indent}}};"
             )?;
         }
@@ -358,7 +388,7 @@ fn generate_recur(
             writeln!(w, "{indent}#[allow(unused)]")?;
             writeln!(w, "{indent}use {pre}Supplements;")?;
         }
-        writeln!(w, "{indent}use supplements::*;")?;
+        writeln!(w, "{indent}use supplements::*;\n")?;
 
         let flags = generate_flags_in_cmd(prev, &indent, config, cmd, &mut global_flags, w)?;
         let args = generate_args_in_cmd(&indent, cmd, w)?;

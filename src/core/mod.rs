@@ -305,9 +305,7 @@ impl Command {
                             inner.push(history);
                             continue;
                         }
-                        flag_type::Type::Valued(valued) => {
-                            valued
-                        }
+                        flag_type::Type::Valued(valued) => valued,
                     };
 
                     match valued.complete_with_equal {

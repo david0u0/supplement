@@ -59,31 +59,17 @@ pub(crate) fn gen_rust_name(ty: NameType, name: &str, is_const: bool) -> String 
     ret
 }
 
-pub fn compute_flag_equal(
-    takes_values: bool,
-    min_num_args: usize,
-    require_equals: bool,
-    strict: bool,
-) -> Result<&'static str, &'static str> {
-    let s = match compute_flag_equal_enum(takes_values, min_num_args, require_equals, strict)? {
+pub fn compute_flag_equal(arg: Arg<'_>, strict: bool) -> Result<&'static str, &'static str> {
+    let s = match compute_flag_equal_enum(arg, strict)? {
         CompleteWithEqual::Optional => "CompleteWithEqual::Optional",
         CompleteWithEqual::Must => "CompleteWithEqual::Must",
         CompleteWithEqual::NoNeed => "CompleteWithEqual::NoNeed",
     };
     Ok(s)
 }
-fn compute_flag_equal_enum(
-    takes_values: bool,
-    min_num_args: usize,
-    require_equals: bool,
-    strict: bool,
-) -> Result<CompleteWithEqual, &'static str> {
-    if !takes_values {
-        return Ok(CompleteWithEqual::NoNeed);
-    }
-
-    let optional = min_num_args == 0;
-    if !require_equals {
+fn compute_flag_equal_enum(arg: Arg<'_>, strict: bool) -> Result<CompleteWithEqual, &'static str> {
+    let optional = arg.get_min_num_args() == 0;
+    if !arg.is_require_equals_set() {
         if optional {
             const MSG: &str = "\
 Optional flags without require_equals is weird \
