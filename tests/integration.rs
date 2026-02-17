@@ -5,16 +5,24 @@ use supplements::*;
 mod def {
     use super::*;
 
-    pub const C_FLAG_ID: id::NoVal = id::NoVal::new(line!(), "");
-    pub const C_FLAG: Flag = Flag {
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub enum ID {
+        A,
+        B,
+        D,
+        OPT,
+    }
+
+    pub const C_FLAG_ID: id::NoVal = id::NoVal::new(line!());
+    pub const C_FLAG: Flag<ID> = Flag {
         ty: flag_type::Type::new_bool(C_FLAG_ID),
         short: &['c'],
         long: &["long-c", "long-c-2"],
         description: "test description for flag C",
         once: true,
     };
-    pub const B_FLAG_ID: id::SingleVal = id::SingleVal::new(line!(), "");
-    pub const B_FLAG: Flag = Flag {
+    pub const B_FLAG_ID: id::SingleVal<ID> = id::SingleVal::new(ID::B);
+    pub const B_FLAG: Flag<ID> = Flag {
         ty: flag_type::Type::new_valued(B_FLAG_ID.into(), CompleteWithEqual::NoNeed, |_, arg| {
             let mut ret = vec![];
             if arg != "" {
@@ -28,8 +36,8 @@ mod def {
         description: "test description for flag B",
         once: true,
     };
-    pub const A_ARG_ID: id::SingleVal = id::SingleVal::new(line!(), "");
-    pub const A_ARG: Arg = Arg {
+    pub const A_ARG_ID: id::SingleVal<ID> = id::SingleVal::new(ID::A);
+    pub const A_ARG: Arg<ID> = Arg {
         id: A_ARG_ID.into(),
         comp_options: |_, _| {
             vec![
@@ -39,33 +47,29 @@ mod def {
         },
         max_values: 1,
     };
-    pub const ROOT_ID: id::NoVal = id::NoVal::new(line!(), "");
-    pub const ROOT: Command = Command {
-        id: ROOT_ID,
+    pub const ROOT: Command<ID> = Command {
         all_flags: &[B_FLAG, C_FLAG, OPT_FLAG],
         name: "root",
         description: "",
         args: &[A_ARG, D_ARG],
         commands: &[SUB],
     };
-    pub const SUB_ID: id::NoVal = id::NoVal::new(line!(), "");
-    pub const SUB: Command = Command {
-        id: SUB_ID,
+    pub const SUB: Command<ID> = Command {
         all_flags: &[B_FLAG],
         name: "sub",
         description: "test sub description",
         args: &[A_ARG, A_ARG],
         commands: &[],
     };
-    pub const D_ARG_ID: id::MultiVal = id::MultiVal::new(line!(), "");
-    pub const D_ARG: Arg = Arg {
+    pub const D_ARG_ID: id::MultiVal<ID> = id::MultiVal::new(ID::D);
+    pub const D_ARG: Arg<ID> = Arg {
         id: D_ARG_ID.into(),
         comp_options: |_, _| vec![Completion::new("d-arg!", "")],
         max_values: 2,
     };
 
-    pub const OPT_FLAG_ID: id::SingleVal = id::SingleVal::new(line!(), "");
-    pub const OPT_FLAG: Flag = Flag {
+    pub const OPT_FLAG_ID: id::SingleVal<ID> = id::SingleVal::new(ID::OPT);
+    pub const OPT_FLAG: Flag<ID> = Flag {
         ty: flag_type::Type::new_valued(OPT_FLAG_ID.into(), CompleteWithEqual::Optional, |_, _| {
             vec![Completion::new("opt1", ""), Completion::new("opt2", "")]
         }),
@@ -75,8 +79,9 @@ mod def {
         once: true,
     };
 }
+use def::ID;
 
-fn try_run(args: &str, last_is_empty: bool) -> (Vec<HistoryUnit>, Result<Vec<Completion>>) {
+fn try_run(args: &str, last_is_empty: bool) -> (Vec<HistoryUnit<ID>>, Result<Vec<Completion>>) {
     let _ = env_logger::try_init();
 
     let args = args.split(' ').map(|s| s.to_owned());
@@ -87,12 +92,12 @@ fn try_run(args: &str, last_is_empty: bool) -> (Vec<HistoryUnit>, Result<Vec<Com
         None
     };
     let args = args.chain(last.into_iter());
-    let mut history = History::default();
+    let mut history = History::new();
     let res = def::ROOT.supplement_with_history(&mut history, args);
     let res = res.map(|r| r.into_inner().0);
     (history.into_inner(), res)
 }
-fn run(args: &str, last_is_empty: bool) -> (Vec<HistoryUnit>, Vec<Completion>) {
+fn run(args: &str, last_is_empty: bool) -> (Vec<HistoryUnit<ID>>, Vec<Completion>) {
     let (h, r) = try_run(args, last_is_empty);
     (h, r.unwrap())
 }
@@ -130,15 +135,18 @@ macro_rules! multi {
 #[test]
 fn test_args_last() {
     let (h, r) = run("sub a1", true);
-    assert_eq!(h, vec![no!(SUB_ID), single!(A_ARG_ID, "a1")]);
+    assert_eq!(h, vec![single!(A_ARG_ID, "a1")]);
     assert_eq!(map_comp_values(&r), vec!["arg-option1", "arg-option2"]);
 }
 
 #[test]
 fn test_flags_not_last() {
     let expected = (
-        vec![no!(C_FLAG_ID), single!(B_FLAG_ID, "option"), no!(SUB_ID)],
-        (def::A_ARG.comp_options)(&Default::default(), ""),
+        vec![no!(C_FLAG_ID), single!(B_FLAG_ID, "option")],
+        vec![
+            Completion::new("arg-option1", ""),
+            Completion::new("arg-option2", ""),
+        ],
     );
 
     let res = run("-c --long-b=option sub", true);
@@ -154,7 +162,7 @@ fn test_flags_not_last() {
 
     let (h, r) = run("-bc=option sub", true);
     assert_eq!(expected.1, r);
-    assert_eq!(h, vec![single!(B_FLAG_ID, "c=option"), no!(SUB_ID)]);
+    assert_eq!(h, vec![single!(B_FLAG_ID, "c=option")]);
 }
 
 #[test]
@@ -246,21 +254,17 @@ fn test_fall_back_and_var_len_arg() {
 #[test]
 fn test_flag_after_args() {
     let (h, r) = run("sub arg1 --", false);
-    assert_eq!(h, vec![no!(SUB_ID), single!(A_ARG_ID, "arg1")]);
+    assert_eq!(h, vec![single!(A_ARG_ID, "arg1")]);
     assert_eq!(map_comp_values(&r), vec!["--long-b"],);
 
     let (h, r) = run("sub arg1 --long-b flag1", false);
-    assert_eq!(h, vec![no!(SUB_ID), single!(A_ARG_ID, "arg1")]);
+    assert_eq!(h, vec![single!(A_ARG_ID, "arg1")]);
     assert_eq!(map_comp_values(&r), vec!["flag1", "flag1!"],);
 
     let (h, r) = run("sub arg1 --long-b flag1", true);
     assert_eq!(
         h,
-        vec![
-            no!(SUB_ID),
-            single!(A_ARG_ID, "arg1"),
-            single!(B_FLAG_ID, "flag1")
-        ]
+        vec![single!(A_ARG_ID, "arg1"), single!(B_FLAG_ID, "flag1")]
     );
     assert_eq!(map_comp_values(&r), vec!["arg-option1", "arg-option2"],);
 }
@@ -317,7 +321,7 @@ fn test_optional_flag() {
     );
 
     let (h, r) = run("--opt sub", true);
-    assert_eq!(h, vec![single!(OPT_FLAG_ID, ""), no!(SUB_ID)]);
+    assert_eq!(h, vec![single!(OPT_FLAG_ID, "")]);
     assert_eq!(map_comp_values(&r), vec!["arg-option1", "arg-option2"]);
 
     // test short flags

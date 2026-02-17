@@ -5,59 +5,59 @@
 /// which represents how many times it's seen in the CLI command
 /// ```no_run
 /// use supplements::{History, id};
-/// let history = History::default();
-/// let id: id::NoVal = id::NoVal::new(0, "");
-/// let c: u32 = history.find(id).unwrap().count; // Represents how many times it's seen in the CLI command
+/// let history = History::<()>::new();
+/// let id = id::NoVal::new(0);
+/// let c: u32 = history.find(&id).unwrap().count; // Represents how many times it's seen in the CLI command
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct NoVal(u32, pub(crate) &'static str);
+pub struct NoVal(u32);
 
 /// Id for things that have at most one value.
 /// When searching for it in `History`, it will have a single string `value`
 /// ```no_run
 /// use supplements::{History, id};
-/// let history = History::default();
-/// let id: id::SingleVal = id::SingleVal::new(0, "");
-/// let v: &str = &history.find(id).unwrap().value;
+/// let history = History::new();
+/// let id = id::SingleVal::new(());
+/// let v: &str = &history.find(&id).unwrap().value;
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct SingleVal(u32, pub(crate) &'static str);
+pub struct SingleVal<ID>(ID);
 
 /// Id for things that can have more than one value.
 /// When searching for it in `History`, it will have a vector of string `values`
 /// ```no_run
 /// use supplements::{History, id};
-/// let history = History::default();
-/// let id: id::MultiVal = id::MultiVal::new(0, "");
-/// let v: &[String] = &history.find(id).unwrap().values;
+/// let history = History::new();
+/// let id = id::MultiVal::new(());
+/// let v: &[String] = &history.find(&id).unwrap().values;
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct MultiVal(u32, pub(crate) &'static str);
+pub struct MultiVal<ID>(ID);
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Valued {
-    Single(SingleVal),
-    Multi(MultiVal),
+pub enum Valued<ID> {
+    Single(SingleVal<ID>),
+    Multi(MultiVal<ID>),
 }
 
 impl NoVal {
-    pub const fn new(id: u32, ident: &'static str) -> Self {
-        NoVal(id, ident)
+    pub const fn new(id: u32) -> Self {
+        NoVal(id)
     }
 }
-impl SingleVal {
-    pub const fn new(id: u32, ident: &'static str) -> Self {
-        SingleVal(id, ident)
+impl<ID> SingleVal<ID> {
+    pub const fn new(id: ID) -> Self {
+        SingleVal(id)
     }
-    pub const fn into(self) -> Valued {
+    pub const fn into(self) -> Valued<ID> {
         Valued::Single(self)
     }
 }
-impl MultiVal {
-    pub const fn new(id: u32, ident: &'static str) -> Self {
-        MultiVal(id, ident)
+impl<ID> MultiVal<ID> {
+    pub const fn new(id: ID) -> Self {
+        MultiVal(id)
     }
-    pub const fn into(self) -> Valued {
+    pub const fn into(self) -> Valued<ID> {
         Valued::Multi(self)
     }
 }

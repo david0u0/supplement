@@ -9,32 +9,36 @@ use crate::error::Error;
 use crate::id;
 use crate::parsed_flag::ParsedFlag;
 use crate::{Completion, History, Result};
+use std::fmt::Debug;
 
-type CompOption = fn(&History, &str) -> Vec<Completion>;
+type CompOption<ID> = fn(&History<ID>, &str) -> Vec<Completion>;
 
-pub struct Arg {
-    pub id: id::Valued,
-    pub comp_options: CompOption,
+pub struct Arg<ID> {
+    pub id: id::Valued<ID>,
+    pub comp_options: CompOption<ID>,
     pub max_values: usize,
 }
 
 /// The object to represent a command.
 /// Usually this object is a constant created by code-gen,
 /// and user can just call `supplement` function for CLI completion.
-pub struct Command {
-    pub id: id::NoVal,
+pub struct Command<ID: 'static> {
     pub name: &'static str,
     pub description: &'static str,
-    pub all_flags: &'static [Flag],
-    pub args: &'static [Arg],
-    pub commands: &'static [Command],
+    pub all_flags: &'static [Flag<ID>],
+    pub args: &'static [Arg<ID>],
+    pub commands: &'static [Command<ID>],
 }
 
-fn supplement_arg(history: &mut History, ctx: &mut ArgsContext, arg: String) -> Result {
+fn supplement_arg<ID: PartialEq + Copy + Debug>(
+    history: &mut History<ID>,
+    ctx: &mut ArgsContext<ID>,
+    arg: String,
+) -> Result {
     let Some(arg_obj) = ctx.next_arg() else {
         return Err(Error::UnexpectedArg(arg));
     };
-    history.push_arg(arg_obj.id, arg);
+    history.push_valued(arg_obj.id, arg);
     Ok(())
 }
 fn parse_flag(s: &str, disable_flag: bool) -> ParsedFlag<'_> {
@@ -53,15 +57,14 @@ fn check_no_flag(v: Vec<Completion>) -> Result<Vec<Completion>> {
     Ok(v)
 }
 
-impl Command {
+impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     /// The main entry point of CLI completion.
     ///
     /// ```
     /// # use supplements::*;
     /// # use supplements::completion::CompletionGroup;
-    /// const fn create_cmd(name: &'static str, subcmd: &'static [Command]) -> Command {
+    /// const fn create_cmd(name: &'static str, subcmd: &'static [Command<()>]) -> Command<()> {
     ///     Command {
-    ///         id: id::NoVal::new(0, name),
     ///         name,
     ///         description: "",
     ///         all_flags: &[],
@@ -70,9 +73,9 @@ impl Command {
     ///     }
     /// }
     ///
-    /// const cmd1: Command = create_cmd("cmd1", &[]);
-    /// const cmd2: Command = create_cmd("cmd2", &[]);
-    /// let root = create_cmd("root", &[cmd1, cmd2]);
+    /// const CMD1: Command<()> = create_cmd("cmd1", &[]);
+    /// const CMD2: Command<()> = create_cmd("cmd2", &[]);
+    /// let root = create_cmd("root", &[CMD1, CMD2]);
     ///
     /// let args = ["root", ""].iter().map(|s| s.to_string());
     /// let comps: CompletionGroup = root.supplement(args).unwrap();
@@ -81,13 +84,13 @@ impl Command {
     /// assert_eq!(comps[1], Completion::new("cmd2", "").group("command"));
     /// ```
     pub fn supplement(&self, args: impl Iterator<Item = String>) -> Result<CompletionGroup> {
-        let mut history = History::default();
+        let mut history = History::<ID>::new();
         self.supplement_with_history(&mut history, args)
     }
 
     pub fn supplement_with_history(
         &self,
-        history: &mut History,
+        history: &mut History<ID>,
         mut args: impl Iterator<Item = String>,
     ) -> Result<CompletionGroup> {
         args.next(); // ignore the first arg which is the program's name
@@ -100,40 +103,40 @@ impl Command {
         self.supplement_recur(&mut None, history, &mut args)
     }
 
-    fn doing_external(&self, ctx: &ArgsContext) -> bool {
+    fn doing_external(&self, ctx: &ArgsContext<'_, ID>) -> bool {
         let has_subcmd = !self.commands.is_empty();
         has_subcmd && ctx.has_seen_arg()
     }
-    fn flags(&self, history: &History) -> impl Iterator<Item = &Flag> {
+    fn flags(&self, history: &History<ID>) -> impl Iterator<Item = &Flag<ID>> {
         self.all_flags.iter().filter(|f| {
             if !f.once {
                 true
             } else {
                 let exists = f.exists_in_history(history);
                 if exists {
-                    log::debug!("flag {:?} already exists", f.id());
+                    log::debug!("flag {:?} already exists", f.name());
                 }
                 !exists
             }
         })
     }
 
-    fn find_flag<F: FnMut(&Flag) -> bool>(
+    fn find_flag<F: FnMut(&Flag<ID>) -> bool>(
         &self,
         arg: &str,
-        history: &History,
+        history: &History<ID>,
         mut filter: F,
-    ) -> Result<&Flag> {
+    ) -> Result<&Flag<ID>> {
         match self.flags(history).find(|f| filter(f)) {
             Some(flag) => Ok(flag),
             None => Err(Error::FlagNotFound(arg.to_owned())),
         }
     }
 
-    fn find_long_flag(&self, flag: &str, history: &History) -> Result<&Flag> {
+    fn find_long_flag(&self, flag: &str, history: &History<ID>) -> Result<&Flag<ID>> {
         self.find_flag(flag, history, |f| f.long.iter().any(|l| *l == flag))
     }
-    fn find_short_flag(&self, flag: char, history: &History) -> Result<&Flag> {
+    fn find_short_flag(&self, flag: char, history: &History<ID>) -> Result<&Flag<ID>> {
         self.find_flag(&flag.to_string(), history, |f| {
             f.short.iter().any(|s| *s == flag)
         })
@@ -141,8 +144,8 @@ impl Command {
 
     fn supplement_recur(
         &self,
-        args_ctx_opt: &mut Option<ArgsContext<'_>>,
-        history: &mut History,
+        args_ctx_opt: &mut Option<ArgsContext<'_, ID>>,
+        history: &mut History<ID>,
         args: &mut Peekable<impl Iterator<Item = String>>,
     ) -> Result<CompletionGroup> {
         let arg = args.next().unwrap();
@@ -186,7 +189,6 @@ impl Command {
                 };
                 match command {
                     Some(command) => {
-                        history.push_no_val(command.id);
                         return command.supplement_recur(&mut None, history, args);
                     }
                     None => {
@@ -210,8 +212,8 @@ impl Command {
 
     fn supplement_last(
         &self,
-        args_ctx: &mut ArgsContext,
-        history: &mut History,
+        args_ctx: &mut ArgsContext<'_, ID>,
+        history: &mut History<ID>,
         arg: String,
     ) -> Result<CompletionGroup> {
         let ret: Vec<_> = match parse_flag(&arg, self.doing_external(args_ctx)) {
@@ -270,9 +272,9 @@ impl Command {
 
     fn resolve_shorts<'a, 'b>(
         &'b self,
-        history: &mut History,
+        history: &mut History<ID>,
         shorts: &'a str,
-    ) -> Result<ResolvedMultiShort<'a, 'b>> {
+    ) -> Result<ResolvedMultiShort<'a, 'b, ID>> {
         let mut chars = shorts.chars().peekable();
         let mut len = 1; // ignore the first '-'
         chars.next(); // ignore the first '-'
@@ -310,13 +312,13 @@ impl Command {
 
                     match valued.complete_with_equal {
                         CompleteWithEqual::Must => {
-                            return Err(Error::RequiresEqual(flag.id()));
+                            return Err(Error::RequiresEqual(flag.name()));
                         }
                         CompleteWithEqual::Optional => {
                             // TODO: Maybe one day clap will tell us.
                             log::info!(
                                 "Optional flag {} doesn't have value. Push an empty string to history because we don't know its default value (clap wouldn't tell us).",
-                                flag.id(),
+                                flag.name(),
                             );
                             valued.push(history, String::new());
                         }
@@ -335,7 +337,7 @@ impl Command {
 
     fn supplement_last_short_flags(
         &self,
-        history: &mut History,
+        history: &mut History<ID>,
         arg: &str,
     ) -> Result<Vec<Completion>> {
         let resolved = self.resolve_shorts(history, arg)?;
@@ -388,8 +390,8 @@ impl Command {
 }
 
 #[derive(Clone, Copy)]
-struct ResolvedMultiShort<'a, 'b> {
+struct ResolvedMultiShort<'a, 'b, ID> {
     flag_part: &'a str,
-    last_flag: &'b Flag,
+    last_flag: &'b Flag<ID>,
     value: Option<&'a str>,
 }

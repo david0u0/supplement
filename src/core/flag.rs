@@ -3,6 +3,7 @@ use crate::completion::CompletionGroup;
 use crate::error::Error;
 use crate::parsed_flag::ParsedFlag;
 use crate::{Completion, History, Result, id};
+use std::fmt::Debug;
 use std::iter::Peekable;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -28,39 +29,36 @@ pub mod flag_type {
         pub(crate) id: id::NoVal,
     }
     impl Bool {
-        pub(crate) fn push(&self, history: &mut History) {
+        pub(crate) fn push<ID: PartialEq + Debug>(&self, history: &mut History<ID>) {
             history.push_no_val(self.id)
         }
     }
     #[doc(hidden)]
     #[derive(Clone, Copy)]
-    pub struct Valued {
-        pub(crate) id: id::Valued,
+    pub struct Valued<ID> {
+        pub(crate) id: id::Valued<ID>,
         pub(crate) complete_with_equal: CompleteWithEqual,
-        pub(crate) comp_options: CompOption,
+        pub(crate) comp_options: CompOption<ID>,
     }
-    impl Valued {
-        pub(crate) fn push(&self, history: &mut History, arg: String) {
-            match self.id {
-                id::Valued::Single(id) => history.push_single_val(id, arg),
-                id::Valued::Multi(id) => history.push_multi_val(id, arg),
-            }
+    impl<ID: PartialEq + Copy + Debug> Valued<ID> {
+        pub(crate) fn push(&self, history: &mut History<ID>, arg: String) {
+            history.push_valued(self.id, arg)
         }
     }
 
     #[derive(Clone, Copy)]
-    pub enum Type {
+    pub enum Type<ID> {
         Bool(Bool),
-        Valued(Valued),
+        Valued(Valued<ID>),
     }
-    impl Type {
+    impl<ID> Type<ID> {
         pub const fn new_bool(id: id::NoVal) -> Self {
             Type::Bool(Bool { id })
         }
         pub const fn new_valued(
-            id: id::Valued,
+            id: id::Valued<ID>,
             complete_with_equal: CompleteWithEqual,
-            comp_options: CompOption,
+            comp_options: CompOption<ID>,
         ) -> Self {
             Type::Valued(Valued {
                 id,
@@ -73,15 +71,15 @@ pub mod flag_type {
 
 use flag_type::*;
 
-pub struct Flag {
-    pub ty: Type,
+pub struct Flag<ID> {
+    pub ty: Type<ID>,
     pub short: &'static [char],
     pub long: &'static [&'static str],
     pub description: &'static str,
     pub once: bool,
 }
 
-impl Flag {
+impl<ID: PartialEq + Copy + Debug> Flag<ID> {
     pub fn get_description(&self) -> &'static str {
         if !self.description.is_empty() {
             return self.description;
@@ -127,23 +125,23 @@ impl Flag {
         })
     }
 
-    pub(super) fn exists_in_history(&self, history: &History) -> bool {
+    pub(super) fn exists_in_history(&self, history: &History<ID>) -> bool {
         match self.ty {
-            Type::Bool(Bool { id, .. }) => history.find(id).is_some(),
+            Type::Bool(Bool { id, .. }) => history.find(&id).is_some(),
             Type::Valued(Valued {
                 id: id::Valued::Single(id),
                 ..
-            }) => history.find(id).is_some(),
+            }) => history.find(&id).is_some(),
             Type::Valued(Valued {
                 id: id::Valued::Multi(id),
                 ..
-            }) => history.find(id).is_some(),
+            }) => history.find(&id).is_some(),
         }
     }
 
     pub(super) fn supplement(
         &self,
-        history: &mut History,
+        history: &mut History<ID>,
         args: &mut Peekable<impl Iterator<Item = String>>,
     ) -> Result<Option<CompletionGroup>> {
         let valued = match self.ty {
@@ -153,7 +151,7 @@ impl Flag {
             }
             Type::Valued(inner) => inner,
         };
-        let name = self.id();
+        let name = self.name();
 
         match valued.complete_with_equal {
             CompleteWithEqual::Must => return Err(Error::RequiresEqual(name)),
@@ -189,17 +187,7 @@ impl Flag {
         Ok(None)
     }
 
-    pub(crate) fn id(&self) -> &'static str {
-        match self.ty {
-            Type::Bool(Bool { id, .. }) => id.1,
-            Type::Valued(Valued {
-                id: id::Valued::Single(id),
-                ..
-            }) => id.1,
-            Type::Valued(Valued {
-                id: id::Valued::Multi(id),
-                ..
-            }) => id.1,
-        }
+    pub(crate) fn name(&self) -> &'static str {
+        self.long.first().map(|s| *s).unwrap_or_default()
     }
 }

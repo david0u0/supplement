@@ -124,10 +124,10 @@ impl std::str::FromStr for Shell {
 /// ```no_run
 /// use supplements::{Command, Shell};
 /// # use supplements::completion::CompletionGroup;
-/// # fn create_cmd() -> Command {
+/// # fn create_cmd() -> Command<()> {
 /// #     unimplemented!()
 /// # }
-/// let cmd: Command = create_cmd();
+/// let cmd: Command<()> = create_cmd();
 /// let grp: CompletionGroup = cmd
 ///     .supplement(["git".to_owned(), "log".to_owned()].into_iter())
 ///     .unwrap();

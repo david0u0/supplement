@@ -1,12 +1,12 @@
 use crate::Arg;
 
-pub(crate) struct ArgsContext<'a> {
-    args: &'a [Arg],
+pub(crate) struct ArgsContext<'a, ID> {
+    args: &'a [Arg<ID>],
     cur_arg_values_count: usize,
     start_idx: usize,
 }
-impl<'a> ArgsContext<'a> {
-    pub fn new(args: &'a [Arg]) -> Self {
+impl<'a, ID> ArgsContext<'a, ID> {
+    pub fn new(args: &'a [Arg<ID>]) -> Self {
         Self {
             args,
             start_idx: 0,
@@ -16,7 +16,7 @@ impl<'a> ArgsContext<'a> {
     pub fn has_seen_arg(&self) -> bool {
         self.start_idx != 0 || self.cur_arg_values_count != 0
     }
-    pub fn next_arg(&mut self) -> Option<&Arg> {
+    pub fn next_arg(&mut self) -> Option<&Arg<ID>> {
         log::debug!("next arg called");
         let args = &self.args[self.start_idx..];
         let Some(next) = args.iter().next() else {
@@ -38,19 +38,19 @@ mod test {
     use super::*;
     use crate::id;
 
-    const ARG1: Arg = Arg {
-        id: id::Valued::Single(id::SingleVal::new(line!(), "")),
+    const ARG1: Arg<()> = Arg {
+        id: id::Valued::Single(id::SingleVal::new(())),
         comp_options: |_, _| vec![],
         max_values: 1,
     };
-    const ARG2: Arg = Arg {
-        id: id::Valued::Single(id::SingleVal::new(line!(), "")),
+    const ARG2: Arg<()> = Arg {
+        id: id::Valued::Single(id::SingleVal::new(())),
         comp_options: |_, _| vec![],
         max_values: 1,
     };
     #[test]
     fn test_empty_arg_ctx() {
-        let mut ctx = ArgsContext::new(&[]);
+        let mut ctx = ArgsContext::<()>::new(&[]);
         assert_eq!(ctx.has_seen_arg(), false);
         assert!(ctx.next_arg().is_none());
         assert_eq!(ctx.has_seen_arg(), false);
@@ -65,13 +65,13 @@ mod test {
         assert!(ctx.next_arg().is_none());
     }
 
-    const ARG3: Arg = Arg {
-        id: id::Valued::Single(id::SingleVal::new(line!(), "")),
+    const ARG3: Arg<()> = Arg {
+        id: id::Valued::Single(id::SingleVal::new(())),
         comp_options: |_, _| vec![],
         max_values: 2,
     };
-    const ARG4: Arg = Arg {
-        id: id::Valued::Single(id::SingleVal::new(line!(), "")),
+    const ARG4: Arg<()> = Arg {
+        id: id::Valued::Single(id::SingleVal::new(())),
         comp_options: |_, _| vec![],
         max_values: 3,
     };
