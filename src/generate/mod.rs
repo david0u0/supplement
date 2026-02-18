@@ -191,7 +191,7 @@ fn generate_args_in_cmd(
     let args = args.chain(ext_sub.into_iter());
 
     for (name, rust_name, max_values) in args {
-        let id_name = to_screaming_snake_case(&format!("id_{}_{name}", NameType::ARG));
+        let id_name = to_screaming_snake_case(&format!("id_{name}"));
         let id_type = if max_values == 1 {
             "id::SingleVal"
         } else {
@@ -283,7 +283,7 @@ fn generate_flags_in_cmd(
 
         let shorts = Join(shorts.iter().map(|s| format!("'{s}'")));
         let longs = Join(longs.iter().map(|s| format!("\"{s}\"")));
-        let id_name = to_screaming_snake_case(&format!("id_{rust_name}"));
+        let id_name = to_screaming_snake_case(&format!("id_{name}"));
         let flag_display_helper = FlagDisplayHelper {
             ty,
             flag,
@@ -351,7 +351,7 @@ fn generate_recur(
 
         if level > 0 {
             let pre = "super::".repeat(level);
-            writeln!(w, "{indent}use {pre}ID as GlobalID;")?;
+            writeln!(w, "{indent}use {pre}GlobalID as GlobalID;")?;
         }
         writeln!(w, "{indent}use supplements::core::*;\n")?;
 
