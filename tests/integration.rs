@@ -12,7 +12,6 @@ mod def {
         A,
         B,
         D,
-        OPT,
     }
 
     pub const C_FLAG_ID: id::NoVal = id::NoVal::new(line!());
@@ -56,7 +55,7 @@ mod def {
         max_values: 2,
     };
 
-    pub const OPT_FLAG_ID: id::SingleVal<ID> = id::SingleVal::new(ID::OPT);
+    pub const OPT_FLAG_ID: id::SingleVal<ID> = id::SingleVal::new_certain(line!());
     pub const OPT_FLAG: Flag<ID> = Flag {
         ty: flag_type::Type::new_valued(
             OPT_FLAG_ID.into(),

@@ -54,12 +54,11 @@ fn main() {
         }
         Ok(shell) => {
             let args = args[2..].iter().map(String::from);
-            let mut h = History::new();
-            let grp = def::CMD.supplement_with_history(&mut h, args).unwrap();
+            let (history, grp) = def::CMD.supplement(args).unwrap();
             let ready = match grp {
                 CompletionGroup::Ready(r) => r,
                 CompletionGroup::Unready { unready, id, value } => {
-                    let comps = handle_comp(h, id, &value);
+                    let comps = handle_comp(history, id, &value);
                     unready.to_ready(comps)
                 }
             };
@@ -117,8 +116,5 @@ fn handle_comp(history: History<ID>, id: ID, value: &str) -> Vec<Completion> {
                 Completion::new(hash, description).group("Commits")
             })
             .collect(),
-        ID::Log(LogID::Color | LogID::Pretty) => {
-            unreachable!(); // TODO: don't need id for these
-        }
     }
 }

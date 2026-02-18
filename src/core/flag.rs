@@ -46,16 +46,11 @@ pub mod flag_type {
         pub(crate) fn push(&self, history: &mut History<ID>, arg: String) {
             history.push_valued(self.id, arg)
         }
-        pub(crate) fn comp_from_possible(&self) -> Option<Vec<Completion>> {
-            if self.possible_values.is_empty() {
-                return None;
-            }
-            let comps: Vec<_> = self
-                .possible_values
+        pub(crate) fn comp_from_possible(&self) -> Vec<Completion> {
+            self.possible_values
                 .iter()
                 .map(|(value, desc)| Completion::new(value, desc))
-                .collect();
-            Some(comps)
+                .collect()
         }
     }
 
@@ -192,12 +187,10 @@ impl<ID: PartialEq + Copy + Debug> Flag<ID> {
         }
 
         if args.peek().is_none() {
-            let group = if let Some(comps) = valued.comp_from_possible() {
-                CompletionGroup::new_ready(comps, arg)
-            } else {
-                CompletionGroup::new_unready(valued.id.id(), String::new(), arg, None)
+            let group = match valued.id.id() {
+                Some(id) => CompletionGroup::new_unready(id, String::new(), arg, None),
+                None => CompletionGroup::new_ready(valued.comp_from_possible(), arg),
             };
-
             return Ok(Some(group));
         }
 

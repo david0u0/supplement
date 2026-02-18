@@ -6,7 +6,7 @@
 Give it a [`clap`](https://github.com/clap-rs/clap) object, and instead of spitting out shell files that you later have to manually edit, it spits out Rust! supplements is:
 - **Shell-agnostic**
 - **Powerful** - Some features are not widely supported in every shell, and `supplements` comes to rescue
-- **Stop modifying generated files** - Instead, *extend* it with Rust's trait system
+- **Stop modifying generated files** - Instead, *extend* it with Rust's enum system
 - **Easy to test** - Functions and objects in a modern programming language, instead of some shell script black sorcery.
 - **It's Rust 🦀**
 
@@ -59,43 +59,49 @@ You can now edit the `build.rs` to generate the definition file:
 #[path = "src/args.rs"]
 mod args;
 use clap::CommandFactory;
-use supplements::{generate, generate_default};
+use supplements::generate;
 
 fn main() {
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let file = std::path::Path::new(&out_dir).join("definition.rs");
     let mut f = std::fs::File::create(file).unwrap();
     generate(&mut args::Git::command(), Default::default(), &mut f).unwrap();
-
-    // Generate default impl. You may not need this.
-    generate_default(&mut args::Git::command(), Default::default(), &mut f).unwrap();
 }
 ```
 
 And use it in `main.rs`:
 
 ```rs
+use supplements::*;
+
 mod def {
     include!(concat!(env!("OUT_DIR"), "/definition.rs"));
 }
-use def::Supplements;
-
-impl def::FlagGitDir for Supplements {} // default completion (with files)
-impl def::checkout::ArgFileOrCommit for Supplements {
-    fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
-        unimplemented!(); // your custom completion
-    }
-}
-
-// Some more custom completion logic...
 
 fn main() {
     // `args` looks like ["supplements-example", "git", "log", "--graph"]
     // so we should skip the first arg
     let args = std::env::args().skip(1);
-    let comps = def::CMD.supplement(args).unwrap();
-    let shell = supplements::Shell::Fieh; // Assume we only use fish shell
-    comps.print(shell, &mut std:io::stdout).unwrap()
+    let shell = supplements::Shell::Fish; // Assume we only use fish shell
+    let (history, grp) = def::CMD.supplement(args).unwrap();
+    let ready = match grp {
+        CompletionGroup::Ready(r) => {
+            // The easy path. No custom logic needed.
+            // e.g. Completing a subcommand or flag, like `git chec<TAB>`
+            // or completing something with candidate values, like `ls --color=<TAB>`
+            r
+        }
+        CompletionGroup::Unready { unready, id, value } => {
+            match id {
+                def::ID::GitDir => {
+                    let comps = my_custom_completion(history, value);
+                    unready.to_ready(comps)
+                }
+                _ => unimplemented!("Some more custom logic...")
+            }
+        }
+    };
+    ready.print(shell, &mut std::io::stdout()).unwrap()
 }
 ```
 

@@ -56,6 +56,7 @@ pub enum GenerateError {
     UnprocessedConfigObj(Vec<Vec<String>>),
     IO(std::io::Error),
 }
+#[cfg(any(feature = "clap-3", feature = "clap-4"))]
 impl From<std::io::Error> for GenerateError {
     fn from(value: std::io::Error) -> Self {
         GenerateError::IO(value)

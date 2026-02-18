@@ -1,11 +1,30 @@
+use std::fmt::Debug;
 pub mod args;
 pub mod dummy;
-use supplements::completion::CompletionGroup;
+use supplements::{Completion, CompletionGroup};
 
-pub fn map_comps(comps: &CompletionGroup) -> Vec<&str> {
-    let mut ret: Vec<_> = comps.inner().0.iter().map(|c| c.value.as_str()).collect();
-    ret.sort();
-    ret
+fn map_comps(comps: &[Completion]) -> Vec<&str> {
+    let mut v: Vec<_> = comps.iter().map(|c| c.value.as_str()).collect();
+    v.sort();
+    v
+}
+
+pub fn map_ready<ID: Debug>(grp: &CompletionGroup<ID>) -> Vec<&str> {
+    let v = match grp {
+        CompletionGroup::Ready(r) => r.inner().0,
+        _ => panic!("{:?} is unready", grp),
+    };
+    map_comps(v)
+}
+
+pub fn map_unready<ID: Debug + Copy>(grp: &CompletionGroup<ID>) -> (ID, &str, Vec<&str>, &str) {
+    match grp {
+        CompletionGroup::Unready { unready, id, value } => {
+            let preexist = map_comps(&unready.preexist);
+            (*id, value, preexist, &unready.prefix)
+        }
+        _ => panic!("{:?} is ready", grp),
+    }
 }
 
 #[cfg(test)]
@@ -15,7 +34,7 @@ mod test {
         use crate::args::Arg;
         use clap::CommandFactory;
         use supplements::error::GenerateError;
-        use supplements::{Config, generate, generate_default};
+        use supplements::{Config, generate};
 
         fn do_assrt(err: GenerateError) {
             let v = match err {
@@ -29,9 +48,6 @@ mod test {
         let cfg = Config::new().ignore(&["some-cmd", "pretty"]);
 
         let err = generate(&mut Arg::command(), cfg.clone(), &mut s).unwrap_err();
-        do_assrt(err);
-
-        let err = generate_default(&mut Arg::command(), cfg, &mut s).unwrap_err();
         do_assrt(err);
     }
 }

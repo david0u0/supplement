@@ -21,7 +21,10 @@ pub struct NoVal(u32);
 /// let v: &str = &history.find(&id).unwrap().value;
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct SingleVal<ID>(ID);
+pub enum SingleVal<ID> {
+    Uncertain(ID),
+    Certain(u32),
+}
 
 /// Id for things that can have more than one value.
 /// When searching for it in `History`, it will have a vector of string `values`
@@ -32,7 +35,10 @@ pub struct SingleVal<ID>(ID);
 /// let v: &[String] = &history.find(&id).unwrap().values;
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct MultiVal<ID>(ID);
+pub enum MultiVal<ID> {
+    Uncertain(ID),
+    Certain(u32),
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Valued<ID> {
@@ -44,10 +50,16 @@ impl NoVal {
     pub const fn new(id: u32) -> Self {
         NoVal(id)
     }
+    pub const fn new_certain(id: u32) -> Self {
+        NoVal(id)
+    }
 }
 impl<ID> SingleVal<ID> {
     pub const fn new(id: ID) -> Self {
-        SingleVal(id)
+        SingleVal::Uncertain(id)
+    }
+    pub const fn new_certain(id: u32) -> Self {
+        SingleVal::Certain(id)
     }
     pub const fn into(self) -> Valued<ID> {
         Valued::Single(self)
@@ -55,7 +67,10 @@ impl<ID> SingleVal<ID> {
 }
 impl<ID> MultiVal<ID> {
     pub const fn new(id: ID) -> Self {
-        MultiVal(id)
+        MultiVal::Uncertain(id)
+    }
+    pub const fn new_certain(id: u32) -> Self {
+        MultiVal::Certain(id)
     }
     pub const fn into(self) -> Valued<ID> {
         Valued::Multi(self)
@@ -63,10 +78,11 @@ impl<ID> MultiVal<ID> {
 }
 
 impl<ID> Valued<ID> {
-    pub fn id(self) -> ID {
+    pub fn id(self) -> Option<ID> {
         match self {
-            Valued::Single(id) => id.0,
-            Valued::Multi(id) => id.0,
+            Valued::Single(SingleVal::Uncertain(id)) => Some(id),
+            Valued::Multi(MultiVal::Uncertain(id)) => Some(id),
+            _ => None,
         }
     }
 }

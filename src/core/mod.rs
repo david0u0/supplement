@@ -61,7 +61,8 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     /// # use supplements::core::*;
     /// # use supplements::*;
     /// # use supplements::completion::CompletionGroup;
-    /// const fn create_cmd(name: &'static str, subcmd: &'static [Command<()>]) -> Command<()> {
+    /// # type ID = u32;
+    /// const fn create_cmd(name: &'static str, subcmd: &'static [Command<ID>]) -> Command<ID> {
     ///     Command {
     ///         name,
     ///         description: "",
@@ -71,12 +72,13 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     ///     }
     /// }
     ///
-    /// const CMD1: Command<()> = create_cmd("cmd1", &[]);
-    /// const CMD2: Command<()> = create_cmd("cmd2", &[]);
+    /// const CMD1: Command<ID> = create_cmd("cmd1", &[]);
+    /// const CMD2: Command<ID> = create_cmd("cmd2", &[]);
     /// let root = create_cmd("root", &[CMD1, CMD2]);
     ///
     /// let args = ["root", ""].iter().map(|s| s.to_string());
-    /// let ready = match root.supplement(args).unwrap() {
+    /// let (_history, grp) = root.supplement(args).unwrap();
+    /// let ready = match grp {
     ///     CompletionGroup::Ready(ready) => ready,
     ///     CompletionGroup::Unready{ .. } => unreachable!(),
     /// };
@@ -85,9 +87,13 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     /// assert_eq!(comps[0], Completion::new("cmd1", "").group("command"));
     /// assert_eq!(comps[1], Completion::new("cmd2", "").group("command"));
     /// ```
-    pub fn supplement(&self, args: impl Iterator<Item = String>) -> Result<CompletionGroup<ID>> {
+    pub fn supplement(
+        &self,
+        args: impl Iterator<Item = String>,
+    ) -> Result<(History<ID>, CompletionGroup<ID>)> {
         let mut history = History::<ID>::new();
-        self.supplement_with_history(&mut history, args)
+        let grp = self.supplement_with_history(&mut history, args)?;
+        Ok((history, grp))
     }
 
     pub fn supplement_with_history(
@@ -234,10 +240,13 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                 if let Some(arg_obj) = args_ctx.next_arg() {
                     log::debug!("completion for args {:?}", arg_obj.id);
                     let unready = Unready::new(String::new(), arg.clone()).preexist(cmd_comps);
-                    CompletionGroup::Unready {
-                        id: arg_obj.id.id(),
-                        unready,
-                        value: arg,
+                    match arg_obj.id.id() {
+                        Some(id) => CompletionGroup::Unready {
+                            id,
+                            unready,
+                            value: arg,
+                        },
+                        None => unready.to_ready_grp(vec![]), // TODO: arg can have possible value?
                     }
                 } else {
                     if cmd_comps.is_empty() {
@@ -271,12 +280,11 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                 };
                 let prefix = format!("--{body}=");
                 let value = value.to_string();
-                let id = valued.id.id();
                 let unready = Unready::new(prefix, arg);
-                if let Some(comps) = valued.comp_from_possible() {
-                    CompletionGroup::Ready(unready.to_ready(comps))
-                } else {
-                    CompletionGroup::Unready { unready, value, id }
+
+                match valued.id.id() {
+                    Some(id) => CompletionGroup::Unready { unready, value, id },
+                    None => unready.to_ready_grp(valued.comp_from_possible()),
                 }
             }
             ParsedFlag::Shorts => self.supplement_last_short_flags(history, arg)?,
@@ -377,14 +385,12 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                         // Want: `-af=opt1`, `-af=opt2`
                     }
                 }
-                let id = valued.id.id();
                 let prefix = format!("{}{}", resolved.flag_part, eq);
                 let unready = Unready::new(prefix, arg).preexist(more);
 
-                if let Some(comps) = valued.comp_from_possible() {
-                    CompletionGroup::Ready(unready.to_ready(comps))
-                } else {
-                    CompletionGroup::Unready { unready, value, id }
+                match valued.id.id() {
+                    Some(id) => CompletionGroup::Unready { unready, value, id },
+                    None => unready.to_ready_grp(valued.comp_from_possible()),
                 }
             }
             flag_type::Type::Bool(inner) => {
