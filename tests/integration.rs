@@ -5,6 +5,7 @@ use supplements::*;
 
 mod def {
     use super::*;
+    use supplements::core::*;
 
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub enum ID {

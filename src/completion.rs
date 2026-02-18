@@ -233,7 +233,7 @@ impl Unready {
 /// It's not supposed to be created by user of this library, but instead should only be returned by
 /// `Command::supplements` function.
 /// ```no_run
-/// use supplements::{Command, Shell};
+/// use supplements::{core::Command, Shell};
 /// # use supplements::completion::{CompletionGroup, Completion};
 /// # fn create_cmd() -> Command<()> {
 /// #     unimplemented!()

@@ -6,14 +6,13 @@ use clap4 as clap;
 use clap::{CommandFactory, Parser};
 use std::io::stdout;
 use std::process::Command;
-use supplements::{Completion, History, Shell, generate, generate_default};
+use supplements::{Completion, CompletionGroup, History, Shell, generate};
 use supplements_example::args::Git;
 
 mod def {
     include!(concat!(env!("OUT_DIR"), "/definition.rs"));
 }
-
-use def::Supplements;
+use def::ID;
 
 fn run_git(args: &str) -> String {
     let out = Command::new("git")
@@ -22,58 +21,6 @@ fn run_git(args: &str) -> String {
         .unwrap()
         .stdout;
     String::from_utf8(out).unwrap()
-}
-impl def::FlagGitDir for Supplements {} // default implementation
-impl def::cmd_checkout::ArgFileOrCommit for Supplements {
-    /// For the first argument, it can either be a git commit or a file
-    fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
-        let mut ret = vec![];
-        for line in run_git("log --oneline -10").lines() {
-            let (hash, description) = line.split_once(" ").unwrap();
-            ret.push(Completion::new(hash, description).group("Commits"));
-        }
-        for line in run_git("status --porcelain").lines() {
-            let (_, file) = line.rsplit_once(" ").unwrap();
-            ret.push(Completion::new(file, "").group("Modified file"));
-        }
-        ret
-    }
-}
-impl def::cmd_checkout::ArgFiles for Supplements {
-    /// For the second and more arguments, it can only be file
-    /// Let's also filter out those files we've already seen!
-    fn comp_options(history: &History, _arg: &str) -> Vec<Completion> {
-        let prev1 = history
-            .find(def::cmd_checkout::ID_ARG_FILES)
-            .into_iter()
-            .flat_map(|x| x.values.iter());
-        let prev2 = history
-            .find(def::cmd_checkout::ID_ARG_FILE_OR_COMMIT)
-            .map(|x| &x.value);
-        let prev: Vec<_> = prev1.chain(prev2.into_iter()).collect();
-        run_git("status --porcelain")
-            .lines()
-            .filter_map(|line| {
-                let (_, file) = line.rsplit_once(" ").unwrap();
-                if prev.iter().any(|p| *p == file) {
-                    None
-                } else {
-                    Some(Completion::new(file, "").group("Modified file"))
-                }
-            })
-            .collect()
-    }
-}
-impl def::cmd_log::ArgCommit for Supplements {
-    fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {
-        run_git("log --oneline -10")
-            .lines()
-            .map(|line| {
-                let (hash, description) = line.split_once(" ").unwrap();
-                Completion::new(hash, description).group("Commits")
-            })
-            .collect()
-    }
 }
 
 fn main() {
@@ -84,7 +31,6 @@ fn main() {
 
     if args.len() == 2 && args[1] == "generate" {
         generate(&mut Git::command(), Default::default(), &mut stdout()).unwrap();
-        generate_default(&mut Git::command(), Default::default(), &mut stdout()).unwrap();
         return;
     }
 
@@ -108,8 +54,71 @@ fn main() {
         }
         Ok(shell) => {
             let args = args[2..].iter().map(String::from);
-            let comps = def::CMD.supplement(args).unwrap();
-            comps.print(shell, &mut stdout()).unwrap();
+            let mut h = History::new();
+            let grp = def::CMD.supplement_with_history(&mut h, args).unwrap();
+            let ready = match grp {
+                CompletionGroup::Ready(r) => r,
+                CompletionGroup::Unready { unready, id, value } => {
+                    let comps = handle_comp(h, id, &value);
+                    unready.to_ready(comps)
+                }
+            };
+            ready.print(shell, &mut stdout()).unwrap();
+        }
+    }
+}
+
+fn handle_comp(history: History<ID>, id: ID, value: &str) -> Vec<Completion> {
+    use def::cmd_checkout::ID as CheckoutID;
+    use def::cmd_log::ID as LogID;
+
+    match id {
+        ID::GitDir => Completion::files(value).collect(),
+        ID::Checkout(CheckoutID::FileOrCommit) => {
+            // For the first argument, it can either be a git commit or a file
+            let mut comps = vec![];
+            for line in run_git("log --oneline -10").lines() {
+                let (hash, description) = line.split_once(" ").unwrap();
+                comps.push(Completion::new(hash, description).group("Commits"));
+            }
+            for line in run_git("status --porcelain").lines() {
+                let (_, file) = line.rsplit_once(" ").unwrap();
+                comps.push(Completion::new(file, "").group("Modified file"));
+            }
+            comps
+        }
+        ID::Checkout(CheckoutID::Files) => {
+            // For the second and more arguments, it can only be file
+            // Let's also filter out those files we've already seen!
+            let prev1 = history
+                .find(&def::cmd_checkout::ID_ARG_FILES)
+                .into_iter()
+                .flat_map(|x| x.values.iter());
+            let prev2 = history
+                .find(&def::cmd_checkout::ID_ARG_FILE_OR_COMMIT)
+                .map(|x| &x.value);
+            let prev: Vec<_> = prev1.chain(prev2.into_iter()).collect();
+            run_git("status --porcelain")
+                .lines()
+                .filter_map(|line| {
+                    let (_, file) = line.rsplit_once(" ").unwrap();
+                    if prev.iter().any(|p| *p == file) {
+                        None
+                    } else {
+                        Some(Completion::new(file, "").group("Modified file"))
+                    }
+                })
+                .collect()
+        }
+        ID::Log(LogID::Commit) => run_git("log --oneline -10")
+            .lines()
+            .map(|line| {
+                let (hash, description) = line.split_once(" ").unwrap();
+                Completion::new(hash, description).group("Commits")
+            })
+            .collect(),
+        ID::Log(LogID::Color | LogID::Pretty) => {
+            unreachable!(); // TODO: don't need id for these
         }
     }
 }

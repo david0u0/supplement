@@ -3,9 +3,8 @@ pub mod error;
 pub mod history;
 pub mod id;
 
-mod core;
-pub use completion::{Completion, Shell};
-pub use core::*;
+pub mod core;
+pub use completion::{Completion, CompletionGroup, Shell};
 pub use history::History;
 
 pub(crate) mod arg_context;
@@ -19,5 +18,3 @@ mod generate;
 pub use generate::Config;
 #[cfg(any(feature = "clap-3", feature = "clap-4"))]
 pub use generate::generate;
-#[cfg(any(feature = "clap-3", feature = "clap-4"))]
-pub use generate::generate_default;

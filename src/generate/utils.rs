@@ -1,6 +1,6 @@
-use super::NameType;
 use super::abstraction::{Arg, Command};
-use crate::CompleteWithEqual;
+use super::{NameType, Trace};
+use crate::core::CompleteWithEqual;
 
 pub(super) fn flags<'a>(p: &Command<'a>) -> impl Iterator<Item = Arg<'a>> {
     p.get_arguments()
@@ -20,7 +20,7 @@ pub(super) fn escape_help(help: &str) -> String {
     help.replace('\n', " ").replace('"', "\\\"")
 }
 
-fn to_pascal_case(s: &str) -> String {
+pub(crate) fn to_pascal_case(s: &str) -> String {
     let mut ret = String::new();
     for s in to_snake_case(s).split('_') {
         let mut chars = s.chars();
@@ -43,19 +43,11 @@ pub(crate) fn to_screaming_snake_case(s: &str) -> String {
     s.replace('-', "_").to_uppercase() // TODO
 }
 
-pub(crate) fn gen_rust_name(ty: NameType, name: &str, is_const: bool) -> String {
+pub(crate) fn gen_rust_name(ty: NameType, name: &str) -> String {
     let mut ret = ty.to_string();
-    if is_const {
-        ret = ret.to_uppercase();
-    }
-
-    if is_const {
-        ret += "_";
-        ret += &to_screaming_snake_case(name);
-    } else {
-        ret += &to_pascal_case(name);
-    }
-
+    ret = ret.to_uppercase();
+    ret += "_";
+    ret += &to_screaming_snake_case(name);
     ret
 }
 
@@ -90,4 +82,42 @@ i.e. `ls --color <TAB>` results in [always, auto, never], not the file completio
     } else {
         Ok(CompleteWithEqual::Must)
     }
+}
+
+pub fn get_id_value(prev: &[Trace], id: &str) -> String {
+    // pub enum ID {
+    //     A,
+    //     B,
+    //     C(cmd_c::ID)
+    //     D(cmd_d::ID)
+    // }
+    // mod cmd_d {
+    //     pub enum ID {
+    //         E,
+    //         F(cmd_f::ID)
+    //     }
+    //     mod cmd_f {
+    //         pub enum ID {
+    //             G
+    //         }
+    //     }
+    // }
+    //
+    // level = 0 => ID::A
+    // level = 1 => super::ID::C(ID::E)
+    // level = 2 => super::super::ID::C(super::ID::F(ID::G))
+
+    let mut ret = String::new();
+    let mut level = prev.len();
+    for trace in prev.iter() {
+        let super_str = "super::".repeat(level);
+        level -= 1;
+        let enum_name = to_pascal_case(&trace.cmd_id);
+        ret += &format!("{super_str}ID::{enum_name}(");
+    }
+
+    let enum_name = to_pascal_case(id);
+    ret += &format!("ID::{enum_name}");
+    ret += &")".repeat(prev.len());
+    ret
 }

@@ -1,4 +1,4 @@
-use crate::Arg;
+use crate::core::Arg;
 
 pub(crate) struct ArgsContext<'a, ID> {
     args: &'a [Arg<ID>],

@@ -1,4 +1,5 @@
 mod flag;
+pub use crate::id;
 pub use flag::{CompleteWithEqual, Flag, flag_type};
 
 use std::iter::Peekable;
@@ -6,7 +7,6 @@ use std::iter::Peekable;
 use crate::arg_context::ArgsContext;
 use crate::completion::{CompletionGroup, Unready};
 use crate::error::Error;
-use crate::id;
 use crate::parsed_flag::ParsedFlag;
 use crate::{Completion, History, Result};
 use std::fmt::Debug;
@@ -58,6 +58,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     /// The main entry point of CLI completion.
     ///
     /// ```
+    /// # use supplements::core::*;
     /// # use supplements::*;
     /// # use supplements::completion::CompletionGroup;
     /// const fn create_cmd(name: &'static str, subcmd: &'static [Command<()>]) -> Command<()> {

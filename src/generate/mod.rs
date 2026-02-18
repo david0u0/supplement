@@ -1,20 +1,16 @@
 use crate::error::GenerateError;
-use std::borrow::Cow;
 use std::io::Write;
 
 mod abstraction;
 mod config;
-mod gen_default_impl;
 mod utils;
-use abstraction::{Arg, ArgAction, ClapCommand, Command, CommandMut, PossibleValue};
+use abstraction::{Arg, ArgAction, ClapCommand, Command, CommandMut};
 pub use config::Config;
-pub use gen_default_impl::generate_default;
-use utils::{gen_rust_name, to_screaming_snake_case, to_snake_case};
+use utils::{gen_rust_name, to_pascal_case, to_screaming_snake_case, to_snake_case};
 
 #[derive(Clone)]
 pub(crate) struct Trace {
     cmd_id: String,
-    mod_name: String,
 }
 
 /// Generate the scaffold for your completion based on `clap` object.
@@ -56,7 +52,7 @@ pub fn generate(
     cmd.build();
     let cmd = cmd.to_const();
 
-    writeln!(w, "pub struct Supplements;")?;
+    writeln!(w, "type GlobalID = ID;")?;
     generate_recur(&[], "", &mut config, &cmd, &[], w)?;
     config.check_unprocessed_config()
 }
@@ -101,33 +97,6 @@ where
     }
 }
 
-struct CompOptionDisplay<'a>(&'a [PossibleValue]);
-impl<'a> std::fmt::Display for CompOptionDisplay<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        if self.0.is_empty() {
-            write!(f, "Self::comp_options")?;
-        } else {
-            write!(f, "|_, _| vec![")?;
-            let mut first = true;
-            for p in self.0.iter() {
-                if first {
-                    first = false;
-                } else {
-                    write!(f, ", ")?;
-                }
-                write!(
-                    f,
-                    "Completion::new(\"{}\", \"{}\")",
-                    p.get_name(),
-                    p.get_help().unwrap_or_default()
-                )?
-            }
-            write!(f, "]")?;
-        }
-        Ok(())
-    }
-}
-
 enum FlagType {
     No,
     Single,
@@ -138,6 +107,8 @@ struct FlagDisplayHelper<'a> {
     ty: FlagType,
     flag: Arg<'a>,
     strict: bool,
+
+    prev: &'a [Trace],
 }
 impl<'a> FlagDisplayHelper<'a> {
     fn id_line_str(&self) -> String {
@@ -148,7 +119,11 @@ impl<'a> FlagDisplayHelper<'a> {
             FlagType::Single => "SingleVal",
             FlagType::Multi => "MultiVal",
         };
-        format!("pub const {id_name}: id::{id_type} = id::{id_type}::new(line!(), \"{id}\");")
+        let (global_id, value) = match self.ty {
+            FlagType::No => ("", "line!()".to_owned()),
+            _ => ("<GlobalID>", utils::get_id_value(self.prev, &id)),
+        };
+        format!("pub const {id_name}: id::{id_type}{global_id} = id::{id_type}::new({value});")
     }
     fn type_str(&self) -> Result<String, GenerateError> {
         let id_name = self.id_name;
@@ -161,9 +136,13 @@ impl<'a> FlagDisplayHelper<'a> {
                 let complete_with_equal = utils::compute_flag_equal(self.flag, self.strict)
                     .map_err(|msg| GenerateError::Strict { id, msg })?;
                 let possible_values = self.flag.get_possible_values();
-                let comp_option = CompOptionDisplay(&possible_values);
+                let possible_values = Join(possible_values.iter().map(|p| {
+                    let name = p.get_name();
+                    let help = p.get_help().unwrap_or_default();
+                    format!("(\"{name}\", \"{help}\")")
+                }));
                 format!(
-                    "flag_type::Type::new_valued({id_name}.into(), {complete_with_equal}, {comp_option})"
+                    "flag_type::Type::new_valued({id_name}.into(), {complete_with_equal}, &[{possible_values}])"
                 )
             }
         };
@@ -174,14 +153,15 @@ impl<'a> FlagDisplayHelper<'a> {
 fn generate_args_in_cmd(
     indent: &str,
     cmd: &Command<'_>,
+    prev: &[Trace],
     w: &mut impl Write,
-) -> std::io::Result<Vec<String>> {
+) -> std::io::Result<Vec<(String, String)>> {
     let mut args_names = vec![];
 
     let ext_sub = if cmd.is_allow_external_subcommands_set() {
         log::debug!("generating external subcommand");
         let name = NameType::EXTERNAL.to_string();
-        Some((name.clone(), name, std::usize::MAX, true))
+        Some((name.clone(), name, std::usize::MAX))
     } else {
         None
     };
@@ -191,42 +171,31 @@ fn generate_args_in_cmd(
         log::debug!("generating arg {}", name);
 
         let max_values = arg.get_max_num_args();
-        let rust_name = gen_rust_name(NameType::ARG, &name, false);
+        let rust_name = gen_rust_name(NameType::ARG, &name);
 
-        (name, rust_name, max_values, false)
+        (name, rust_name, max_values)
     });
     let args = args.chain(ext_sub.into_iter());
 
-    for (name, rust_name, max_values, is_external) in args {
+    for (name, rust_name, max_values) in args {
         let id_name = to_screaming_snake_case(&format!("id_{}_{name}", NameType::ARG));
         let id_type = if max_values == 1 {
             "id::SingleVal"
         } else {
             "id::MultiVal"
         };
-        let body = if is_external {
-            "vec![]"
-        } else {
-            "Completion::files(_arg).collect()"
-        };
+        let id_value = utils::get_id_value(prev, &name);
         writeln!(
             w,
             "\
-{indent}pub const {id_name}: {id_type} = {id_type}::new(line!(), \"{name}\");
-{indent}pub trait {rust_name} {{
-{indent}    const OBJ: Arg = Arg {{
-{indent}        id: {id_name}.into(),
-{indent}        comp_options: Self::comp_options,
-{indent}        max_values: {max_values},
-{indent}    }};
-
-{indent}    fn comp_options(_history: &History, _arg: &str) -> Vec<Completion> {{
-{indent}        {body}
-{indent}    }}
-{indent}}}"
+{indent}pub const {id_name}: {id_type}<GlobalID> = {id_type}::new({id_value});
+{indent}const {rust_name}: Arg<GlobalID> = Arg {{
+{indent}    id: {id_name}.into(),
+{indent}    max_values: {max_values},
+{indent}}};"
         )?;
 
-        args_names.push(rust_name);
+        args_names.push((rust_name, name));
     }
 
     Ok(args_names)
@@ -239,7 +208,7 @@ fn generate_flags_in_cmd(
     cmd: &Command<'_>,
     global_flags: &mut Vec<GlobalFlag>,
     w: &mut impl Write,
-) -> Result<Vec<(bool, String)>, GenerateError> {
+) -> Result<Vec<(String, Option<String>)>, GenerateError> {
     let mut flag_names = vec![];
 
     for flag in utils::flags(cmd) {
@@ -253,9 +222,7 @@ fn generate_flags_in_cmd(
         }
 
         let takes_values = flag.takes_values();
-        let possible_values = flag.get_possible_values();
-        let is_const = !takes_values || !possible_values.is_empty();
-        let rust_name = gen_rust_name(NameType::FLAG, &name, is_const);
+        let rust_name = gen_rust_name(NameType::FLAG, &name);
         if flag.is_global_set() {
             let level = prev.len();
             if let Some(prev_flag) = global_flags.iter().find(|f| &f.id == &name) {
@@ -265,7 +232,7 @@ fn generate_flags_in_cmd(
                 }
                 let mut name = "super::".repeat(level - prev_flag.level);
                 name += &rust_name;
-                flag_names.push((is_const, name));
+                flag_names.push((name, None));
                 continue;
             } else {
                 log::info!("get new global flag {name}");
@@ -302,51 +269,33 @@ fn generate_flags_in_cmd(
 
         let shorts = Join(shorts.iter().map(|s| format!("'{s}'")));
         let longs = Join(longs.iter().map(|s| format!("\"{s}\"")));
-        let id_name = to_screaming_snake_case(&format!("id_{}_{name}", NameType::FLAG));
+        let id_name = to_screaming_snake_case(&format!("id_{rust_name}"));
         let flag_display_helper = FlagDisplayHelper {
             ty,
             flag,
+            prev,
             id_name: &id_name,
             strict: config.is_strict(),
         };
 
+        let id_for_enum = if takes_values { Some(name) } else { None };
+
         let id_line = flag_display_helper.id_line_str();
         let type_str = flag_display_helper.type_str()?;
 
-        if !is_const {
-            writeln!(
-                w,
-                "\
+        writeln!(
+            w,
+            "\
 {indent}{id_line}
-{indent}pub trait {rust_name} {{
-{indent}    const OBJ: Flag = Flag {{
-{indent}        short: &[{shorts}],
-{indent}        long: &[{longs}],
-{indent}        description: \"{description}\",
-{indent}        once: {once},
-{indent}        ty: {type_str},
-{indent}    }};
-
-{indent}    fn comp_options(_history: &History, arg: &str) -> Vec<Completion> {{
-{indent}        Completion::files(arg).collect()
-{indent}    }}
-{indent}}}"
-            )?;
-        } else {
-            writeln!(
-                w,
-                "\
-{indent}{id_line}
-{indent}pub const {rust_name}: Flag = Flag {{
+{indent}const {rust_name}: Flag<GlobalID> = Flag {{
 {indent}    short: &[{shorts}],
 {indent}    long: &[{longs}],
 {indent}    description: \"{description}\",
 {indent}    once: {once},
 {indent}    ty: {type_str},
 {indent}}};"
-            )?;
-        }
-        flag_names.push((is_const, rust_name));
+        )?;
+        flag_names.push((rust_name, id_for_enum));
     }
     Ok(flag_names)
 }
@@ -358,12 +307,13 @@ fn generate_subcmd_names(
     prev: &[Trace],
     config: &mut Config,
     cmd: &Command<'_>,
-) -> impl Iterator<Item = String> {
+) -> impl Iterator<Item = (String, String)> {
     utils::non_help_subcmd(cmd).filter_map(|c| {
         if config.is_ignored(prev, &c.get_name()) {
             None
         } else {
-            Some(generate_mod_name(c.get_name()))
+            let name = c.get_name().to_string();
+            Some((generate_mod_name(&name), name))
         }
     })
 }
@@ -386,32 +336,43 @@ fn generate_recur(
 
         if level > 0 {
             let pre = "super::".repeat(level);
-            writeln!(w, "{indent}#[allow(unused)]")?;
-            writeln!(w, "{indent}use {pre}Supplements;")?;
+            writeln!(w, "{indent}use {pre}ID as GlobalID;")?;
         }
-        writeln!(w, "{indent}use supplements::*;\n")?;
+        writeln!(w, "{indent}use supplements::core::*;\n")?;
 
         let flags = generate_flags_in_cmd(prev, &indent, config, cmd, &mut global_flags, w)?;
-        let args = generate_args_in_cmd(&indent, cmd, w)?;
+        let args = generate_args_in_cmd(&indent, cmd, prev, w)?;
         let sub_cmds: Vec<_> = generate_subcmd_names(prev, config, cmd).collect();
 
         let cmd_name = NameType::COMMAND;
 
-        let args = Join(args.iter().map(|a| format!("<Supplements as {a}>::OBJ")));
-        let flags = Join(flags.iter().map(|(is_const, f)| {
-            if *is_const {
-                Cow::Borrowed(f)
-            } else {
-                Cow::Owned(format!("<Supplements as {f}>::OBJ"))
+        writeln!(w, "{indent}#[derive(Clone, Copy, PartialEq, Eq, Debug)]")?;
+        writeln!(w, "{indent}pub enum ID {{")?;
+        for (_, name) in args.iter() {
+            let name = to_pascal_case(name);
+            writeln!(w, "{indent}    {name},")?;
+        }
+        for (_, name) in flags.iter() {
+            if let Some(name) = name {
+                let name = to_pascal_case(name);
+                writeln!(w, "{indent}    {name},")?;
             }
-        }));
-        let sub_cmds = Join(sub_cmds.iter().map(|m| format!("{m}::{cmd_name}")));
+        }
+        for (mod_name, name) in sub_cmds.iter() {
+            let name = to_pascal_case(name);
+            writeln!(w, "{indent}    {name}({mod_name}::ID),")?;
+        }
+        writeln!(w, "{indent}}}")?;
+
+        let args = Join(args.iter().map(|x| &x.0));
+        let flags = Join(flags.iter().map(|x| &x.0));
+        let sub_cmds = Join(sub_cmds.iter().map(|(m, _)| format!("{m}::{cmd_name}")));
+        let scope = if level == 0 { "" } else { "(super)" };
 
         writeln!(
             w,
             "\
-{indent}pub const {cmd_name}: Command = Command {{
-{indent}    id: id::NoVal::new(line!(), \"{name}\"),
+{indent}pub{scope} const {cmd_name}: Command<GlobalID> = Command {{
 {indent}    name: \"{name}\",
 {indent}    description: \"{description}\",
 {indent}    all_flags: &[{flags}],
@@ -428,8 +389,7 @@ fn generate_recur(
 
             writeln!(w, "{indent}pub mod {} {{", generate_mod_name(&cmd_id))?;
             let mut prev = prev.to_vec();
-            let mod_name = generate_mod_name(&cmd_id);
-            prev.push(Trace { cmd_id, mod_name });
+            prev.push(Trace { cmd_id });
             generate_recur(&prev, &indent, config, &sub_cmd, &global_flags, w)?;
             writeln!(w, "{indent}}}")?;
         }
