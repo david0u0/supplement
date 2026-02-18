@@ -316,7 +316,7 @@ fn generate_flags_in_cmd(
 }
 
 fn generate_mod_name(name: &str) -> String {
-    to_snake_case(&format!("{}_{}", NameType::COMMAND, name))
+    to_snake_case(&format!("{}", name))
 }
 fn generate_subcmd_names(
     prev: &[Trace],

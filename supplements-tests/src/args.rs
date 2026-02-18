@@ -33,6 +33,14 @@ pub enum SubCommand {
     },
     #[clap(about = "log")]
     IgnoredCmd { arg: Option<String> },
+
+
+    DeepSub{
+    #[clap(subcommand)]
+        sub: DeepSub
+    },
+
+
     #[clap(external_subcommand)]
     Other(#[allow(unused)] Vec<String>),
 }
@@ -44,4 +52,12 @@ pub enum Pretty {
     Short,
     #[clap(help = "<sha1> / <author> / <committer> / <title> / <commit msg>")]
     Full,
+}
+
+#[derive(Parser, Debug)]
+pub enum DeepSub {
+    Sub1{
+        arg: String
+    },
+    Sub2,
 }

@@ -68,8 +68,8 @@ fn main() {
 }
 
 fn handle_comp(history: History<ID>, id: ID, value: &str) -> Vec<Completion> {
-    use def::cmd_checkout::ID as CheckoutID;
-    use def::cmd_log::ID as LogID;
+    use def::checkout::ID as CheckoutID;
+    use def::log::ID as LogID;
 
     match id {
         ID::GitDir => Completion::files(value).collect(),
@@ -90,11 +90,11 @@ fn handle_comp(history: History<ID>, id: ID, value: &str) -> Vec<Completion> {
             // For the second and more arguments, it can only be file
             // Let's also filter out those files we've already seen!
             let prev1 = history
-                .find(&def::cmd_checkout::ID_FILES)
+                .find(&def::checkout::ID_FILES)
                 .into_iter()
                 .flat_map(|x| x.values.iter());
             let prev2 = history
-                .find(&def::cmd_checkout::ID_FILE_OR_COMMIT)
+                .find(&def::checkout::ID_FILE_OR_COMMIT)
                 .map(|x| &x.value);
             let prev: Vec<_> = prev1.chain(prev2.into_iter()).collect();
             run_git("status --porcelain")
