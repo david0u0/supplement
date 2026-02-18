@@ -1,10 +1,12 @@
-use super::{CompOption, parse_flag};
+use super::parse_flag;
 use crate::completion::CompletionGroup;
 use crate::error::Error;
 use crate::parsed_flag::ParsedFlag;
 use crate::{Completion, History, Result, id};
 use std::fmt::Debug;
 use std::iter::Peekable;
+
+type PossibleValues = &'static [(&'static str, &'static str)];
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CompleteWithEqual {
@@ -38,11 +40,22 @@ pub mod flag_type {
     pub struct Valued<ID> {
         pub(crate) id: id::Valued<ID>,
         pub(crate) complete_with_equal: CompleteWithEqual,
-        pub(crate) comp_options: CompOption<ID>,
+        possible_values: PossibleValues,
     }
     impl<ID: PartialEq + Copy + Debug> Valued<ID> {
         pub(crate) fn push(&self, history: &mut History<ID>, arg: String) {
             history.push_valued(self.id, arg)
+        }
+        pub(crate) fn comp_from_possible(&self) -> Option<Vec<Completion>> {
+            if self.possible_values.is_empty() {
+                return None;
+            }
+            let comps: Vec<_> = self
+                .possible_values
+                .iter()
+                .map(|(value, desc)| Completion::new(value, desc))
+                .collect();
+            Some(comps)
         }
     }
 
@@ -58,12 +71,12 @@ pub mod flag_type {
         pub const fn new_valued(
             id: id::Valued<ID>,
             complete_with_equal: CompleteWithEqual,
-            comp_options: CompOption<ID>,
+            possible_values: PossibleValues,
         ) -> Self {
             Type::Valued(Valued {
                 id,
                 complete_with_equal,
-                comp_options,
+                possible_values,
             })
         }
     }
@@ -143,7 +156,7 @@ impl<ID: PartialEq + Copy + Debug> Flag<ID> {
         &self,
         history: &mut History<ID>,
         args: &mut Peekable<impl Iterator<Item = String>>,
-    ) -> Result<Option<CompletionGroup>> {
+    ) -> Result<Option<CompletionGroup<ID>>> {
         let valued = match self.ty {
             Type::Bool(inner) => {
                 inner.push(history);
@@ -179,7 +192,12 @@ impl<ID: PartialEq + Copy + Debug> Flag<ID> {
         }
 
         if args.peek().is_none() {
-            let group = CompletionGroup::new((valued.comp_options)(&history, &arg), arg);
+            let group = if let Some(comps) = valued.comp_from_possible() {
+                CompletionGroup::new_ready(comps, arg)
+            } else {
+                CompletionGroup::new_unready(valued.id.id(), String::new(), arg, None)
+            };
+
             return Ok(Some(group));
         }
 

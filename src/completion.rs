@@ -121,27 +121,12 @@ impl std::str::FromStr for Shell {
 /// It's not supposed to be created by user of this library, but instead should only be returned by
 /// `Command::supplements` function,
 /// and is solely used to print out those completion results.
-/// ```no_run
-/// use supplements::{Command, Shell};
-/// # use supplements::completion::CompletionGroup;
-/// # fn create_cmd() -> Command<()> {
-/// #     unimplemented!()
-/// # }
-/// let cmd: Command<()> = create_cmd();
-/// let grp: CompletionGroup = cmd
-///     .supplement(["git".to_owned(), "log".to_owned()].into_iter())
-///     .unwrap();
-/// grp.print(Shell::Fish, &mut std::io::stdout()).unwrap();
-/// ```
-#[derive(Debug)]
-pub struct CompletionGroup {
+#[derive(PartialEq, Eq, Debug)]
+pub struct Ready {
     arg: String,
     comps: Vec<Completion>,
 }
-impl CompletionGroup {
-    pub(crate) fn new(comps: Vec<Completion>, arg: String) -> Self {
-        CompletionGroup { arg, comps }
-    }
+impl Ready {
     #[doc(hidden)]
     pub fn inner(&self) -> (&[Completion], &str) {
         (&self.comps, &self.arg)
@@ -206,5 +191,85 @@ impl CompletionGroup {
             }
         }
         Ok(())
+    }
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub struct Unready {
+    arg: String,
+    #[doc(hidden)]
+    pub preexist: Vec<Completion>,
+    #[doc(hidden)]
+    pub prefix: String,
+}
+impl Unready {
+    pub(crate) fn new(prefix: String, arg: String) -> Self {
+        Unready {
+            prefix,
+            arg,
+            preexist: vec![],
+        }
+    }
+    pub(crate) fn preexist(mut self, preexist: Vec<Completion>) -> Self {
+        self.preexist = preexist;
+        self
+    }
+    pub fn to_ready(mut self, comps: Vec<Completion>) -> Ready {
+        log::info!("to_ready: {:?} with {:?}", self, comps);
+        let prefix = self.prefix;
+        self.preexist.extend(
+            comps
+                .into_iter()
+                .map(|c| c.value(|c| format!("{prefix}{c}"))),
+        );
+        Ready {
+            arg: self.arg,
+            comps: self.preexist,
+        }
+    }
+}
+
+/// The object to represent completion results.
+/// It's not supposed to be created by user of this library, but instead should only be returned by
+/// `Command::supplements` function.
+/// ```no_run
+/// use supplements::{Command, Shell};
+/// # use supplements::completion::{CompletionGroup, Completion};
+/// # fn create_cmd() -> Command<()> {
+/// #     unimplemented!()
+/// # }
+/// let cmd: Command<()> = create_cmd();
+/// let grp: CompletionGroup<()> = cmd
+///     .supplement(["git".to_owned(), "log".to_owned()].into_iter())
+///     .unwrap();
+/// let ready = match grp {
+///     CompletionGroup::Ready(ready) => ready,
+///     CompletionGroup::Unready { id, value, unready } => {
+///         unready
+///             .to_ready(vec![Completion::new("value", "description")])
+///     }
+/// };
+/// ready.print(Shell::Fish, &mut std::io::stdout()).unwrap();
+/// ```
+#[derive(PartialEq, Eq, Debug)]
+pub enum CompletionGroup<ID> {
+    Ready(Ready),
+    Unready {
+        unready: Unready,
+        id: ID,
+        value: String,
+    },
+}
+impl<ID> CompletionGroup<ID> {
+    pub(crate) fn new_ready(comps: Vec<Completion>, arg: String) -> Self {
+        CompletionGroup::Ready(Ready { comps, arg })
+    }
+    pub(crate) fn new_unready(id: ID, prefix: String, arg: String, value: Option<String>) -> Self {
+        let value = value.unwrap_or_else(|| arg.clone());
+        CompletionGroup::Unready {
+            unready: Unready::new(prefix, arg),
+            id,
+            value,
+        }
     }
 }

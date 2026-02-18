@@ -40,12 +40,10 @@ mod test {
 
     const ARG1: Arg<()> = Arg {
         id: id::Valued::Single(id::SingleVal::new(())),
-        comp_options: |_, _| vec![],
         max_values: 1,
     };
     const ARG2: Arg<()> = Arg {
         id: id::Valued::Single(id::SingleVal::new(())),
-        comp_options: |_, _| vec![],
         max_values: 1,
     };
     #[test]
@@ -67,12 +65,10 @@ mod test {
 
     const ARG3: Arg<()> = Arg {
         id: id::Valued::Single(id::SingleVal::new(())),
-        comp_options: |_, _| vec![],
         max_values: 2,
     };
     const ARG4: Arg<()> = Arg {
         id: id::Valued::Single(id::SingleVal::new(())),
-        comp_options: |_, _| vec![],
         max_values: 3,
     };
     #[test]

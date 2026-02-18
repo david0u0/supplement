@@ -4,18 +4,15 @@ pub use flag::{CompleteWithEqual, Flag, flag_type};
 use std::iter::Peekable;
 
 use crate::arg_context::ArgsContext;
-use crate::completion::CompletionGroup;
+use crate::completion::{CompletionGroup, Unready};
 use crate::error::Error;
 use crate::id;
 use crate::parsed_flag::ParsedFlag;
 use crate::{Completion, History, Result};
 use std::fmt::Debug;
 
-type CompOption<ID> = fn(&History<ID>, &str) -> Vec<Completion>;
-
 pub struct Arg<ID> {
     pub id: id::Valued<ID>,
-    pub comp_options: CompOption<ID>,
     pub max_values: usize,
 }
 
@@ -50,11 +47,11 @@ fn parse_flag(s: &str, disable_flag: bool) -> ParsedFlag<'_> {
     }
 }
 
-fn check_no_flag(v: Vec<Completion>) -> Result<Vec<Completion>> {
+fn check_no_flag<ID>(arg: String, v: Vec<Completion>) -> Result<CompletionGroup<ID>> {
     if v.is_empty() {
         return Err(Error::UnexpectedFlag);
     }
-    Ok(v)
+    Ok(CompletionGroup::new_ready(v, arg))
 }
 
 impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
@@ -78,12 +75,16 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     /// let root = create_cmd("root", &[CMD1, CMD2]);
     ///
     /// let args = ["root", ""].iter().map(|s| s.to_string());
-    /// let comps: CompletionGroup = root.supplement(args).unwrap();
-    /// let comps = comps.into_inner().0;
+    /// let ready = match root.supplement(args).unwrap() {
+    ///     CompletionGroup::Ready(ready) => ready,
+    ///     CompletionGroup::Unready{ .. } => unreachable!(),
+    /// };
+    ///
+    /// let comps = ready.into_inner().0;
     /// assert_eq!(comps[0], Completion::new("cmd1", "").group("command"));
     /// assert_eq!(comps[1], Completion::new("cmd2", "").group("command"));
     /// ```
-    pub fn supplement(&self, args: impl Iterator<Item = String>) -> Result<CompletionGroup> {
+    pub fn supplement(&self, args: impl Iterator<Item = String>) -> Result<CompletionGroup<ID>> {
         let mut history = History::<ID>::new();
         self.supplement_with_history(&mut history, args)
     }
@@ -92,7 +93,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
         &self,
         history: &mut History<ID>,
         mut args: impl Iterator<Item = String>,
-    ) -> Result<CompletionGroup> {
+    ) -> Result<CompletionGroup<ID>> {
         args.next(); // ignore the first arg which is the program's name
 
         let mut args = args.peekable();
@@ -147,7 +148,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
         args_ctx_opt: &mut Option<ArgsContext<'_, ID>>,
         history: &mut History<ID>,
         args: &mut Peekable<impl Iterator<Item = String>>,
-    ) -> Result<CompletionGroup> {
+    ) -> Result<CompletionGroup<ID>> {
         let arg = args.next().unwrap();
 
         let args_ctx = if let Some(ctx) = args_ctx_opt {
@@ -215,8 +216,8 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
         args_ctx: &mut ArgsContext<'_, ID>,
         history: &mut History<ID>,
         arg: String,
-    ) -> Result<CompletionGroup> {
-        let ret: Vec<_> = match parse_flag(&arg, self.doing_external(args_ctx)) {
+    ) -> Result<CompletionGroup<ID>> {
+        let ret: CompletionGroup<ID> = match parse_flag(&arg, self.doing_external(args_ctx)) {
             ParsedFlag::Empty | ParsedFlag::NotFlag => {
                 let cmd_slice = if args_ctx.has_seen_arg() {
                     log::info!("no completion for subcmd because we've already seen some args");
@@ -225,27 +226,34 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                     log::debug!("completion for {} subcommands", self.commands.len());
                     self.commands
                 };
-                let cmd_iter = cmd_slice
+                let cmd_comps: Vec<_> = cmd_slice
                     .iter()
-                    .map(|c| Completion::new(c.name, c.description).group("command"));
-                let arg_comp = if let Some(arg_obj) = args_ctx.next_arg() {
+                    .map(|c| Completion::new(c.name, c.description).group("command"))
+                    .collect();
+                if let Some(arg_obj) = args_ctx.next_arg() {
                     log::debug!("completion for args {:?}", arg_obj.id);
-                    (arg_obj.comp_options)(history, &arg)
+                    let unready = Unready::new(String::new(), arg.clone()).preexist(cmd_comps);
+                    CompletionGroup::Unready {
+                        id: arg_obj.id.id(),
+                        unready,
+                        value: arg,
+                    }
                 } else {
-                    if cmd_slice.is_empty() {
+                    if cmd_comps.is_empty() {
                         return Err(Error::UnexpectedArg(arg));
                     }
-                    vec![]
-                };
-                cmd_iter.chain(arg_comp.into_iter()).collect()
+                    CompletionGroup::new_ready(cmd_comps, arg)
+                }
             }
             ParsedFlag::DoubleDash | ParsedFlag::Long { equal: None, .. } => check_no_flag(
+                arg,
                 self.flags(history)
                     .map(|f| f.gen_completion(Some(true)))
                     .flatten()
                     .collect(),
             )?,
             ParsedFlag::SingleDash => check_no_flag(
+                arg,
                 self.flags(history)
                     .map(|f| f.gen_completion(None))
                     .flatten()
@@ -256,18 +264,23 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                 body,
             } => {
                 let flag = self.find_long_flag(body, history)?;
-                let comp_options = match flag.ty {
-                    flag_type::Type::Valued(flag) => flag.comp_options,
+                let valued = match flag.ty {
+                    flag_type::Type::Valued(valued) => valued,
                     _ => return Err(Error::BoolFlagEqualsValue(arg)),
                 };
-                comp_options(history, value)
-                    .into_iter()
-                    .map(|c| c.value(|v| format!("--{body}={v}")))
-                    .collect()
+                let prefix = format!("--{body}=");
+                let value = value.to_string();
+                let id = valued.id.id();
+                let unready = Unready::new(prefix, arg);
+                if let Some(comps) = valued.comp_from_possible() {
+                    CompletionGroup::Ready(unready.to_ready(comps))
+                } else {
+                    CompletionGroup::Unready { unready, value, id }
+                }
             }
-            ParsedFlag::Shorts => self.supplement_last_short_flags(history, &arg)?,
+            ParsedFlag::Shorts => self.supplement_last_short_flags(history, arg)?,
         };
-        Ok(CompletionGroup::new(ret, arg))
+        Ok(ret)
     }
 
     fn resolve_shorts<'a, 'b>(
@@ -338,24 +351,24 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     fn supplement_last_short_flags(
         &self,
         history: &mut History<ID>,
-        arg: &str,
-    ) -> Result<Vec<Completion>> {
-        let resolved = self.resolve_shorts(history, arg)?;
+        arg: String,
+    ) -> Result<CompletionGroup<ID>> {
+        let resolved = self.resolve_shorts(history, &arg)?;
         let flag = resolved.last_flag;
         let ret = match flag.ty {
-            flag_type::Type::Valued(inner) => {
-                let value = resolved.value.unwrap_or("");
+            flag_type::Type::Valued(valued) => {
+                let value = resolved.value.unwrap_or_default().to_string();
                 let mut eq = "";
-                let mut more = None;
-                if inner.complete_with_equal != CompleteWithEqual::NoNeed {
+                let mut more = vec![];
+                if valued.complete_with_equal != CompleteWithEqual::NoNeed {
                     if resolved.value.is_none() {
                         // E.g. `cmd -af`
                         eq = "=";
-                        if inner.complete_with_equal == CompleteWithEqual::Optional {
+                        if valued.complete_with_equal == CompleteWithEqual::Optional {
                             // Want: `-af=opt1`, `-af=opt2`, `-af`
                             // NOTE that we don't want `-afx`, `-afy` where x and y are other flags. That's too much.
                             more =
-                                Some(Completion::new(resolved.flag_part, &flag.get_description()));
+                                vec![Completion::new(resolved.flag_part, &flag.get_description())];
                         }
                     } else {
                         // E.g. `cmd -af=xyz` or `cmd -af=`.
@@ -363,26 +376,31 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                         // Want: `-af=opt1`, `-af=opt2`
                     }
                 }
-                let iter = (inner.comp_options)(history, value)
-                    .into_iter()
-                    .map(|c| c.value(|v| format!("{}{}{}", resolved.flag_part, eq, v)));
-                more.into_iter().chain(iter).collect()
+                let id = valued.id.id();
+                let prefix = format!("{}{}", resolved.flag_part, eq);
+                let unready = Unready::new(prefix, arg).preexist(more);
+
+                if let Some(comps) = valued.comp_from_possible() {
+                    CompletionGroup::Ready(unready.to_ready(comps))
+                } else {
+                    CompletionGroup::Unready { unready, value, id }
+                }
             }
             flag_type::Type::Bool(inner) => {
                 log::debug!("list short flags with history {:?}", history);
                 inner.push(history);
-                check_no_flag(
-                    self.flags(history)
-                        .map(|f| f.gen_completion(Some(false)))
-                        .flatten()
-                        .map(|c| {
-                            c.value(|v| {
-                                let flag = &v[1..]; // skip the first '-' character
-                                format!("{}{}", resolved.flag_part, flag)
-                            })
+                let comps = self
+                    .flags(history)
+                    .map(|f| f.gen_completion(Some(false)))
+                    .flatten()
+                    .map(|c| {
+                        c.value(|v| {
+                            let flag = &v[1..]; // skip the first '-' character
+                            format!("{}{}", resolved.flag_part, flag)
                         })
-                        .collect(),
-                )?
+                    })
+                    .collect();
+                check_no_flag(arg, comps)?
             }
         };
         Ok(ret)

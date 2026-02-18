@@ -61,3 +61,12 @@ impl<ID> MultiVal<ID> {
         Valued::Multi(self)
     }
 }
+
+impl<ID> Valued<ID> {
+    pub fn id(self) -> ID {
+        match self {
+            Valued::Single(id) => id.0,
+            Valued::Multi(id) => id.0,
+        }
+    }
+}
