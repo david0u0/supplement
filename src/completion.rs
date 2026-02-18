@@ -121,7 +121,7 @@ impl std::str::FromStr for Shell {
 /// It's not supposed to be created by user of this library, but instead should only be returned by
 /// `Command::supplements` function,
 /// and is solely used to print out those completion results.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub struct Ready {
     arg: String,
     comps: Vec<Completion>,
@@ -195,9 +195,9 @@ impl Ready {
 }
 
 /// The object to represent an unready completion results.
-/// You can't use it to print out completion directly,
+/// You can't use it to print completion directly,
 /// but instead should convert it to `Ready` (by `to_ready`) first.
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub struct Unready {
     arg: String,
     #[doc(hidden)]
@@ -218,7 +218,7 @@ impl Unready {
         self
     }
 
-    /// Building a `Ready` completion based on the `Unready` one.
+    /// Building a `Ready` completion based on an `Unready` one.
     /// You have to provide a vector of `Completion`, which represents you're custom completion logic.
     ///
     /// ```no_run
@@ -284,7 +284,7 @@ impl Unready {
 /// };
 /// ready.print(Shell::Fish, &mut std::io::stdout()).unwrap();
 /// ```
-#[derive(PartialEq, Eq, Debug)]
+#[derive(Debug)]
 pub enum CompletionGroup<ID> {
     Ready(Ready),
     Unready {

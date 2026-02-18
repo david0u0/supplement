@@ -4,7 +4,7 @@ use clap::{Parser, ValueEnum};
 
 #[derive(Parser, Debug)]
 pub struct Git {
-    #[clap(long)]
+    #[clap(long, global = true)]
     pub git_dir: Option<std::path::PathBuf>,
     #[clap(subcommand)]
     pub sub: SubCommand,
@@ -20,9 +20,9 @@ pub enum SubCommand {
     Log {
         #[clap(short, long)]
         graph: bool,
-        #[clap(short, long, num_args = 0..=1, default_value = None, default_missing_value = "full", require_equals = true)]
+        #[clap(short, long, num_args = 0..=1, default_value = "short", default_missing_value = "full", require_equals = true)]
         pretty: Option<Pretty>,
-        #[clap(short, long, num_args = 0..=1, default_value = "auto", default_missing_value = "always", require_equals = true)]
+        #[clap(short, long, default_value = "auto")]
         color: Color,
         commit: Option<String>,
     },

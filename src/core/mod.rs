@@ -72,11 +72,11 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     ///     }
     /// }
     ///
-    /// const CMD1: Command<ID> = create_cmd("cmd1", &[]);
-    /// const CMD2: Command<ID> = create_cmd("cmd2", &[]);
-    /// let root = create_cmd("root", &[CMD1, CMD2]);
+    /// const CHECKOUT: Command<ID> = create_cmd("checkout", &[]);
+    /// const LOG: Command<ID> = create_cmd("log", &[]);
+    /// let root = create_cmd("qit", &[CHECKOUT, LOG]);
     ///
-    /// let args = ["root", ""].iter().map(|s| s.to_string());
+    /// let args = ["qit", ""].iter().map(|s| s.to_string());
     /// let (_history, grp) = root.supplement(args).unwrap();
     /// let ready = match grp {
     ///     CompletionGroup::Ready(ready) => ready,
@@ -84,8 +84,8 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     /// };
     ///
     /// let comps = ready.into_inner().0;
-    /// assert_eq!(comps[0], Completion::new("cmd1", "").group("command"));
-    /// assert_eq!(comps[1], Completion::new("cmd2", "").group("command"));
+    /// assert_eq!(comps[0], Completion::new("checkout", "").group("command"));
+    /// assert_eq!(comps[1], Completion::new("log", "").group("command"));
     /// ```
     pub fn supplement(
         &self,

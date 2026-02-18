@@ -24,8 +24,9 @@ supplements = { version = "0.1", default-features = false }
 ## Get started
 1. Have a `clap` definition
 2. Generate the `supplements` definition (preferably in `build.rs`)
-3. Compile the binary
-4. Put a simple shell script in place to tell the shell how to use your binary
+3. Import and use the generated code
+4. Compile the binary
+5. Put a simple shell script in place to tell the shell how to use your binary
 
 Let's break it down step by step. Say you have this awesome clap definition, and want to use supplements to make it even more awsome.
 
@@ -125,5 +126,7 @@ end
 
 complete -k -c git -x -a "(__do_completion)"
 ```
+
+The scripts for other shells can be found in [supplements-example/shell](supplements-example/shell)
 
 A complete example can be found in [supplements-example](supplements-example)

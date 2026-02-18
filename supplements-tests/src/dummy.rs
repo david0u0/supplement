@@ -24,7 +24,12 @@ mod test {
         let comps = run("git g").unwrap();
         assert_eq!(
             map_unready(&comps),
-            (def::ID::External, "g", vec!["checkout", "deep-sub", "log"], "")
+            (
+                def::ID::External,
+                "g",
+                vec!["checkout", "deep-sub", "log"],
+                ""
+            )
         );
 
         let comps = run("git log -").unwrap();

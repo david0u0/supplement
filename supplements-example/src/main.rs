@@ -30,39 +30,38 @@ fn main() {
     log::info!("args = {:?}", args);
 
     if args.len() == 2 && args[1] == "generate" {
+        log::info!("Mode #2: generate");
         generate(&mut Git::command(), Default::default(), &mut stdout()).unwrap();
-        return;
-    }
-
-    if args.get(1).map(|s| s.as_str()) == Some("parse") {
-        let res = Git::try_parse_from(args[1..].iter());
-        match res {
-            Ok(res) => println!("{:?}", res),
-            Err(err) => println!("{err}"),
-        }
         return;
     }
 
     let shell: Result<Shell, _> = args.get(1).unwrap().parse();
     match shell {
-        Err(_) => {
-            let res = Git::try_parse_from(args);
-            match res {
-                Ok(res) => println!("{:?}", res),
-                Err(err) => println!("{err}"),
-            }
-        }
         Ok(shell) => {
+            log::info!("Mode #1: completion");
             let args = args[2..].iter().map(String::from);
             let (history, grp) = def::CMD.supplement(args).unwrap();
             let ready = match grp {
-                CompletionGroup::Ready(r) => r,
+                CompletionGroup::Ready(r) => {
+                    // The easy path. No custom logic needed.
+                    // e.g. Completing a subcommand or flag, like `git chec<TAB>`
+                    // or completing something with candidate values, like `ls --color=<TAB>`
+                    r
+                }
                 CompletionGroup::Unready { unready, id, value } => {
                     let comps = handle_comp(history, id, &value);
                     unready.to_ready(comps)
                 }
             };
             ready.print(shell, &mut stdout()).unwrap();
+        }
+        Err(_) => {
+            log::info!("Mode #3: parse");
+            let res = Git::try_parse_from(args);
+            match res {
+                Ok(res) => println!("{:?}", res),
+                Err(err) => println!("{err}"),
+            }
         }
     }
 }
