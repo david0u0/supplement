@@ -9,7 +9,7 @@ if [[ ! -v USR_PATH ]]; then
 fi
 
 USR_PATH=$(eval realpath $USR_PATH)
-BIN=../target/debug/supplements-example
+BIN=../target/debug/supplement-example
 
 echo Building binary
 set +e

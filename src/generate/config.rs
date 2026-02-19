@@ -5,7 +5,7 @@ use std::collections::HashMap;
 /// An object to configure how the code-gen should work
 /// e.g. to ignore some certain flags or subcommands.
 /// ```no_run
-/// # use supplements::{Config, generate};
+/// # use supplement::{Config, generate};
 /// # #[cfg(feature = "clap-3")]
 /// # use clap3 as clap;
 /// # #[cfg(feature = "clap-4")]
@@ -35,9 +35,9 @@ impl Config {
     }
     /// Ignore a certain flag or subcommand during code-gen.
     /// Note that if you want to ignore something that doesn't actually exist in the command definition,
-    /// The `generate` and `generate_default` function will raise an `UnprocessedConfigObj` error.
+    /// The `generate` function will raise an `UnprocessedConfigObj` error.
     /// ```no_run
-    /// # use supplements::Config;
+    /// # use supplement::Config;
     /// let config = Config::default()
     ///     .ignore(&["log", "pretty"]) // ignore the `git log --pretty` flag
     ///     .ignore(&["branch"]) // ignore the `git branch` command

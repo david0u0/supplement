@@ -14,7 +14,7 @@ use clap4 as clap;
 use args::Git;
 use clap::CommandFactory;
 use std::path::Path;
-use supplements::generate;
+use supplement::generate;
 
 fn main() {
     let out_dir = std::env::var_os("OUT_DIR").unwrap();

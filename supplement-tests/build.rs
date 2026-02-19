@@ -4,7 +4,7 @@ use args::Arg;
 
 use clap::CommandFactory;
 use std::path::Path;
-use supplements::{Config, generate};
+use supplement::{Config, generate};
 
 fn main() {
     let config = Config::default()

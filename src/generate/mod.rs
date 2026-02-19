@@ -14,8 +14,7 @@ pub(crate) struct Trace {
 }
 
 /// Generate the scaffold for your completion based on `clap` object.
-/// After implementing everything (or generating dummy implementation using `generate_default`),
-/// You cann call `CMD.supplement(args)` to get the completion result.
+/// After importing the generated code, you can call `CMD.supplement(args)` to get the completion result.
 /// The end product looks like this:
 ///
 /// ```ignore
@@ -24,10 +23,10 @@ pub(crate) struct Trace {
 /// }
 ///
 /// fn main() {
-///    // `args` looks like ["supplements-example", "git", "log", "--graph"]
+///    // `args` looks like ["supplement-example", "git", "log", "--graph"]
 ///    // so we should skip the first arg
 ///    let args = std::env::args().skip(1);
-///    let shell = supplements::Shell::Fish; // Assume we only use fish shell
+///    let shell = supplement::Shell::Fish; // Assume we only use fish shell
 ///    let grp = def::CMD.supplement(args).unwrap();
 ///    let ready = match grp {
 ///        CompletionGroup::Ready(r) => {
@@ -49,7 +48,7 @@ pub(crate) struct Trace {
 ///    ready.print(shell, &mut std::io::stdout()).unwrap()
 /// }
 /// ```
-///full example can be found in `supplements-example/src/main.rs`
+///full example can be found in `supplement-example/src/main.rs`
 pub fn generate(
     cmd: ClapCommand<'_>,
     mut config: Config,
@@ -353,7 +352,7 @@ fn generate_recur(
             let pre = "super::".repeat(level);
             writeln!(w, "{indent}use {pre}GlobalID as GlobalID;")?;
         }
-        writeln!(w, "{indent}use supplements::core::*;\n")?;
+        writeln!(w, "{indent}use supplement::core::*;\n")?;
 
         let flags = generate_flags_in_cmd(prev, &indent, config, cmd, &mut global_flags, w)?;
         let args = generate_args_in_cmd(&indent, cmd, prev, w)?;

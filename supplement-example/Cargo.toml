@@ -1,21 +1,21 @@
 [package]
-name = "supplements-example"
+name = "supplement-example"
 version = "0.1.1"
 edition = "2024"
 
 [dependencies]
 clap3 = { package = "clap", version = "3", optional = true , features = ["derive"] }
 clap4 = { package = "clap", version = "4", optional = true , features = ["derive"] }
-supplements = { path = "..", default-features = false }
+supplement = { path = "..", default-features = false }
 env_logger = '*'
 log = '*'
 
 [build-dependencies]
-supplements = { path = "..", default-features = false }
+supplement = { path = "..", default-features = false }
 clap3 = { package = "clap", version = "3", optional = true , features = ["derive"] }
 clap4 = { package = "clap", version = "4", optional = true , features = ["derive"] }
 
 [features]
 default = ["clap-4"]
-clap-3 = ["clap3", "supplements/clap-3"]
-clap-4 = ["clap4", "supplements/clap-4"]
+clap-3 = ["clap3", "supplement/clap-3"]
+clap-4 = ["clap4", "supplement/clap-4"]

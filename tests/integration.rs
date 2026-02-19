@@ -1,11 +1,11 @@
 use error::Error;
 use history::*;
-use supplements::completion::CompletionGroup;
-use supplements::*;
+use supplement::completion::CompletionGroup;
+use supplement::*;
 
 mod def {
     use super::*;
-    use supplements::core::*;
+    use supplement::core::*;
 
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub enum ID {

@@ -1,9 +1,9 @@
 [workspace]
 resolver = "3"
-members = ["supplements-example", "supplements-tests"]
+members = ["supplement-example", "supplement-tests"]
 
 [package]
-name = "supplements"
+name = "supplement"
 version = "0.1.5"
 authors = ["why8ther <lturtsamuel@gmail.com>"]
 edition = "2024"

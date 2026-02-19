@@ -66,7 +66,7 @@ fn compute_flag_equal_enum(arg: Arg<'_>, strict: bool) -> Result<CompleteWithEqu
             const MSG: &str = "\
 Optional flags without require_equals is weird \
 e.g. `ls --color some/dir` will supply `some/dir` to `color` flag.
-supplements will just treat the next completion as if it's not optional \
+supplement will just treat the next completion as if it's not optional \
 i.e. `ls --color <TAB>` results in [always, auto, never], not the file completion.";
             if strict {
                 return Err(MSG);

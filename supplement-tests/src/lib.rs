@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 pub mod args;
 pub mod dummy;
-use supplements::{Completion, CompletionGroup};
+use supplement::{Completion, CompletionGroup};
 
 fn map_comps(comps: &[Completion]) -> Vec<&str> {
     let mut v: Vec<_> = comps.iter().map(|c| c.value.as_str()).collect();
@@ -33,8 +33,8 @@ mod test {
     fn test_unprocessed_conf() {
         use crate::args::Arg;
         use clap::CommandFactory;
-        use supplements::error::GenerateError;
-        use supplements::{Config, generate};
+        use supplement::error::GenerateError;
+        use supplement::{Config, generate};
 
         fn do_assrt(err: GenerateError) {
             let v = match err {

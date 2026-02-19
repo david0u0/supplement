@@ -12,7 +12,7 @@ pub enum Error {
     FlagNoValue(&'static str),
     /// When a flag in CLI command is not found, e.g. `git --xx=<TAB>`.
     /// Or `git --xx lo<TAB>`, though technically the `<TAB>` is not asking for that flag.
-    /// `supplements` still needs to know the information about the flag to decide if the
+    /// `supplement` still needs to know the information about the flag to decide if the
     /// `lo<TAB>` is asking for a subcommand/arg or the flag's value.
     FlagNotFound(String),
     /// Attempt to complete an arg/subcommand, when there is none.
@@ -42,7 +42,7 @@ pub enum GenerateError {
     /// # let cmd: clap::Command = unimplemented!();
     ///
     /// use std::io::stdout;
-    /// use supplements::{Config, generate};
+    /// use supplement::{Config, generate};
     ///
     /// // this may raise `Strict` error
     /// generate(&mut cmd, Config::new(), &mut stdout());

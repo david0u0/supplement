@@ -1,14 +1,14 @@
 [package]
-name = "supplements-tests"
+name = "supplement-tests"
 version = "0.1.1"
 edition = "2024"
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }
-supplements = { path = ".." }
+supplement = { path = ".." }
 env_logger = '*'
 log = '*'
 
 [build-dependencies]
-supplements = { path = ".." }
+supplement = { path = ".." }
 clap = { version = "4", features = ["derive"] }

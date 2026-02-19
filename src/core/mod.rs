@@ -58,9 +58,9 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     /// The main entry point of CLI completion.
     ///
     /// ```
-    /// # use supplements::core::*;
-    /// # use supplements::*;
-    /// # use supplements::completion::CompletionGroup;
+    /// # use supplement::core::*;
+    /// # use supplement::*;
+    /// # use supplement::completion::CompletionGroup;
     /// # type ID = u32;
     /// const fn create_cmd(name: &'static str, subcmd: &'static [Command<ID>]) -> Command<ID> {
     ///     Command {

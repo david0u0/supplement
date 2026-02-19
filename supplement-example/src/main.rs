@@ -6,8 +6,8 @@ use clap4 as clap;
 use clap::{CommandFactory, Parser};
 use std::io::stdout;
 use std::process::Command;
-use supplements::{Completion, CompletionGroup, History, Shell, generate};
-use supplements_example::args::Git;
+use supplement::{Completion, CompletionGroup, History, Shell, generate};
+use supplement_example::args::Git;
 
 mod def {
     include!(concat!(env!("OUT_DIR"), "/definition.rs"));
@@ -35,7 +35,7 @@ fn main() {
         return;
     }
 
-    let shell: Result<Shell, _> = args.get(1).unwrap().parse();
+    let shell: Result<Shell, _> = args.get(1).map(String::as_str).unwrap_or_default().parse();
     match shell {
         Ok(shell) => {
             log::info!("Mode #1: completion");

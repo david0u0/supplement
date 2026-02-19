@@ -6,7 +6,7 @@ use std::path::{MAIN_SEPARATOR_STR, Path};
 /// The object to represent a single completion result.
 /// For example, if you type `git <TAB>` in command-line, the result should be:
 /// ```no_run
-/// # use supplements::Completion;
+/// # use supplement::Completion;
 /// vec![
 ///     Completion::new("checkout", "description...").group("command"),
 ///     Completion::new("log", "description...").group("command"),
@@ -93,7 +93,7 @@ impl Completion {
 
 /// Enum to represent different shell. Use `str::parse` to create it.
 /// ```rust
-/// use supplements::Shell;
+/// use supplement::Shell;
 /// let shell: Shell = "fish".parse().unwrap();
 /// assert_eq!(shell, Shell::Fish);
 /// ```
@@ -119,7 +119,7 @@ impl std::str::FromStr for Shell {
 
 /// The object to represent multiple completion results.
 /// It's not supposed to be created by user of this library, but instead should only be returned by
-/// `Command::supplements` function,
+/// `Command::supplement` function,
 /// and is solely used to print out those completion results.
 #[derive(Debug)]
 pub struct Ready {
@@ -222,8 +222,7 @@ impl Unready {
     /// You have to provide a vector of `Completion`, which represents you're custom completion logic.
     ///
     /// ```no_run
-    /// use supplements::completion::{Ready, Unready, Completion, Shell};
-    /// # type ID = u32;
+    /// use supplement::completion::{Ready, Unready, Completion, Shell};
     /// # fn create_unready() -> Unready {
     /// #     unimplemented!()
     /// # }
@@ -263,11 +262,11 @@ impl Unready {
 
 /// The object to represent completion results.
 /// It's not supposed to be created by user of this library, but instead should only be returned by
-/// `Command::supplements` function.
+/// `Command::supplement` function.
 /// ```no_run
-/// use supplements::{core::Command, Shell};
+/// use supplement::{core::Command, Shell};
 /// # type ID = u32;
-/// # use supplements::completion::{CompletionGroup, Completion};
+/// # use supplement::completion::{CompletionGroup, Completion};
 /// # fn create_cmd() -> Command<ID> {
 /// #     unimplemented!()
 /// # }

@@ -131,7 +131,7 @@ impl<ID: PartialEq + std::fmt::Debug> History<ID> {
     /// - `id::MultiVal`: A vector of string
     ///
     /// ```no_run
-    /// use supplements::{History, id};
+    /// use supplement::{History, id};
     /// let history = History::<()>::new();
     ///
     /// let id = id::NoVal::new(0);

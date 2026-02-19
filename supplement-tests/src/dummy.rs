@@ -1,5 +1,5 @@
-use supplements::Result;
-use supplements::completion::CompletionGroup;
+use supplement::Result;
+use supplement::completion::CompletionGroup;
 
 mod def {
     include!(concat!(env!("OUT_DIR"), "/definition.rs"));

@@ -1,10 +1,10 @@
-# supplements\_example
+# supplement-example
 
-This example will demonstrate the steps to use `supplements` in your CLI app:
+This example will demonstrate the steps to use `supplement` in your CLI app:
 
 1. Have a `clap` definition
     - [src/args.rs](src/args.rs)
-2. Generate the `supplements` definition (preferably in `build.rs`)
+2. Generate the `supplement` definition (preferably in `build.rs`)
     - [build.rd](build.rs) and [Cargo.toml](Cargo.toml)
 3. Import and use the generated code
     - [srd/main.rd](src/main.rs)
@@ -16,8 +16,8 @@ This example will demonstrate the steps to use `supplements` in your CLI app:
 ## The clap definition
 In [src/args.rs](src/args.rs) you can find a small clap definition which mimics our beloved version control tool `git`. Let's call our toy app `qit`. It contains two subcommand: `checkout` and `log`, and some arguments and flags.
 
-Here I list some not-so-trivial stuff in the definition, and they're all supported by `supplements`.
-- `--gir-dir` is global
+Here I list some not-so-trivial stuff in the definition, and they're all supported by `supplement`.
+- `--git-dir` is global
 - `files` in `checkout` can be infinitely long
 - `--color` and `--pretty` in `log` have *possible values*. For example, `color` should be one of `auto` `always` or `never`
 - `--pretty` in `log` has `num_args = 0..=1, default_value = "short, default_missing_value = "full", require_equals = true`... which just means it behaves differently with or without the equal sign
@@ -25,22 +25,22 @@ Here I list some not-so-trivial stuff in the definition, and they're all support
     + `qit log --pretty` is the same as `qit log --pretty=full`
     + `qit log --pretty full` will not supply the argument `full` to `--pretty`
 
-## Generate the `supplements` definition
+## Generate the `supplement` definition
 In theory you can call the generate function anywhere you like. In this example we call it in [build.rd](build.rs), which generates a file `$OUT_DIR/definition.rs`.
 
 NOTE that you should also add the dependency in the `build-dependencies` section of [Cargo.toml](Cargo.toml), because `build.rs` doesn't use the normal dependencies.
 ```toml
 [build-dependencies]
-supplements = "0.1"
+supplement = "0.1"
 ```
 
-The generated file should look like something along the line of `target/debug/build/supplements-example-15e87e4a170fb654/out/definition.rs`
+The generated file should look like something along the line of `target/debug/build/supplement-example-15e87e4a170fb654/out/definition.rs`
 
 ## Import and use the generated code
 In [src/main.rs](src/main.rs), import the generated file as a module. The program has three modes:
 - **Completion mode** - `cargo run -- [zsh/bash/fish] qit ...`. Run the completion function for specific shell.
     + Note that the whitespace is significant: `cargo run -- fish check` means `qit check<TAB>`, while `cargo run -- fish check ''` means `qit check <TAB>`
-- **Generate mode** - `cargo run -- generate`. Generate the supplements definition and print to stdout.
+- **Generate mode** - `cargo run -- generate`. Generate the supplement definition and print to stdout.
 - **Parse mode** - `cargo run -- [anything else]`. Parse the comment line argument into clap object and print it.
 
 Obviously the `Completion mode` is our main focus, so let's look into it deeper.
@@ -77,11 +77,12 @@ This can happen when e.g. Completing a subcommand or flag, like `git chec<TAB>`,
 
 For example, if you do `cargo run -- fish checkout file1 file2 ''`, the history will contain `file1` and `file2`, the id will be `ID::Checkout(def::checkout::ID::File)`, and the value will be `''`.
 
-You have to convert it to `Ready` object to print it, hence the `to_ready` function, whose input is a vector of `Completion`.
-The vector should be computed by *YOU* based on the history, id, value, and anything else you're intrested in.
+You have to convert it to `Ready` object to print it, hence the `to_ready` function, and the input is a vector of `Completion`.
+This is when `supplement` hand over the control to *YOU*. You're the only one who knows the invariants and needs of your app.
+Only *YOU* can compute the vector based on the history, id, value, and anything else you're intrested in.
 
 In [src/main.rs](src/main.rs) I wrote a function `handle_comp` to collect these custom logic.
-For example, the `--gir-dir` should simply be complete with files, and `checkout <FILES>` should be completed with modified files in git status.
+For example, the `--git-dir` should simply be completed with files, and `checkout <FILES>` should be completed with modified files in git status.
 
 ### Ready::print
 The final step. Tell it which shell you're using and fire!
@@ -100,5 +101,5 @@ qit checkout <TAB> # some commit hash & files
 ```
 
 The shell completion scripts can be found in [shell](shell).
-They're tiny because the goal of `supplements` is to let you write as little shell as possible.
-So it should be easy to tweak them to fit your need -- but don't overdo it and defeat the purpose of `supplements` 😞
+They're tiny because the goal of `supplement` is to let you write as little shell as possible.
+So it should be easy to tweak them to fit your need -- but don't overdo it and defeat the purpose of `supplement` 😞
