@@ -27,7 +27,7 @@ mod test {
             (
                 def::ID::External,
                 "g",
-                vec!["checkout", "deep-sub", "log"],
+                vec!["checkout", "log", "remote"],
                 ""
             )
         );
@@ -40,5 +40,11 @@ mod test {
 
         let comps = run("git checkout -").unwrap();
         assert_eq!(vec!["--git-dir"], map_ready(&comps));
+
+        let comps = run("git log --pretty=").unwrap();
+        assert_eq!(
+            vec!["--pretty=full", "--pretty=oneline", "--pretty=short"],
+            map_ready(&comps)
+        );
     }
 }

@@ -1,6 +1,14 @@
-use clap4 as clap;
+// Here list some not-so-trivial stuff in the definition, and they're all supported by `supplement`.
+// - `--git-dir` is global
+// - `files` in `checkout` can be infinitely long
+// - `--color` and `--pretty` in `log` have *possible values*. For example, `color` should be one of `auto` `always` or `never`
+// - `--pretty` in `log` has `num_args = 0..=1, default_value = "short, default_missing_value = "full", require_equals = true`... which just means it behaves differently with or without the equal sign
+//     + `qit log` is the same as `qit log --pretty=short`
+//     + `qit log --pretty` is the same as `qit log --pretty=full`
+//     + `qit log --pretty full` will not supply the argument `full` to `--pretty`
 
 use clap::{Parser, ValueEnum};
+use clap4 as clap;
 
 #[derive(Parser, Debug)]
 pub struct Git {

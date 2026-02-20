@@ -136,6 +136,8 @@ impl Ready {
         (self.comps, self.arg)
     }
 
+    /// Print the completion.
+    /// Normally this is used to print the completion to stdout in a shell completion script.
     pub fn print(&self, shell: Shell, w: &mut impl Write) -> IoResult<()> {
         match shell {
             Shell::Bash => {
@@ -241,17 +243,18 @@ impl Unready {
     /// the vector provided here should be `[auto, never, always]`.
     /// But due to the nature of completion, the `Ready` object created by this function actually contains
     /// `[--color=auto, --color=never, --color=always]`
-    pub fn to_ready(mut self, comps: Vec<Completion>) -> Ready {
+    pub fn to_ready(self, comps: Vec<Completion>) -> Ready {
         log::info!("to_ready: {:?} with {:?}", self, comps);
         let prefix = self.prefix;
-        self.preexist.extend(
+        let mut final_comps = self.preexist;
+        final_comps.extend(
             comps
                 .into_iter()
                 .map(|c| c.value(|c| format!("{prefix}{c}"))),
         );
         Ready {
             arg: self.arg,
-            comps: self.preexist,
+            comps: final_comps,
         }
     }
     pub(crate) fn to_ready_grp<ID>(self, comps: Vec<Completion>) -> CompletionGroup<ID> {

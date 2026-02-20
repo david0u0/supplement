@@ -95,7 +95,8 @@ fn handle_comp(history: History<ID>, id: ID, value: &str) -> Vec<Completion> {
             let prev2 = history
                 .find(&def::checkout::ID_FILE_OR_COMMIT)
                 .map(|x| &x.value);
-            let prev: Vec<_> = prev1.chain(prev2.into_iter()).collect();
+            let prev: Vec<&String> = prev1.chain(prev2.into_iter()).collect();
+
             run_git("status --porcelain")
                 .lines()
                 .filter_map(|line| {

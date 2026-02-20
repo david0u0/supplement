@@ -1,34 +1,28 @@
 # Supplement
 > Shell-agnostic, extensible CLI completion for Rust 💊
 
-**supplement** is a Rust library that generates completion scaffold as Rust code.
+**supplement** is a Rust library that generates completion scaffolds as Rust code.
 
 Give it a [`clap`](https://github.com/clap-rs/clap) object, and instead of spitting out shell files that you later have to manually edit, it spits out Rust! supplement is:
 - **Shell-agnostic**
-- **Powerful** - Some features are not widely supported in every shell, and `supplement` comes to rescue
-- **Stop modifying generated files** - Instead, *extend* it with Rust's enum system
-- **Easy to test** - Functions and objects in a modern programming language, instead of some shell script black sorcery.
+- **Powerful** - Some features are not widely supported in every shell, and `supplement` comes to the rescue.
+- **Stop modifying generated files** - Instead, *extend* it with Rust's enum system.
+- **Easy to test and debug** - Functions and objects in a modern programming language, instead of some shell script black sorcery.
 - **It's Rust 🦀**
 
 ## Install
-Add one line in Cargo.toml. By default, it uses `clap` 4, but you can make it use `clap` 3 with feature.
+Add one line in Cargo.toml. By default, it uses `clap` 4, but you can make it use `clap` 3 with features.
 ```toml
 [dependencies]
 supplement = "0.1"
 # Or, to use clap 3
 supplement = { version = "0.1", default-features = false, features = ["clap-3"] }
-# Or, disable the code generate feature completely
+# Or, disable the code-gen feature completely
 supplement = { version = "0.1", default-features = false }
 ```
 
-## Get started
-1. Have a `clap` definition
-2. Generate the `supplement` definition (preferably in `build.rs`)
-3. Import and use the generated code
-4. Compile the binary
-5. Put a simple shell script in place to tell the shell how to use your binary
-
-Let's break it down step by step. Say you have this awesome clap definition, and want to use supplement to make it even more awsome.
+## Quick start
+Say you have this awesome clap definition, and want to use supplement to make it even more awesome.
 
 ```rs
 use clap::{CommandFactory, Parser, ValueEnum};
@@ -40,69 +34,44 @@ pub struct Git {
     #[clap(subcommand)]
     pub sub: SubCommand,
 }
-#[derive(Parser, Debug)]
-pub enum SubCommand {
-    Checkout {
-        file_or_commit: Option<String>,
-        files: Vec<std::path::PathBuf>,
-    },
-    Log {
-        #[clap(long)]
-        graph: bool,
-        commit: Option<String>,
-    },
-}
+// more definition...
 ```
 
-You can now edit the `build.rs` to generate the definition file:
-
-```rs
-#[path = "src/args.rs"]
-mod args;
-use clap::CommandFactory;
-use supplement::generate;
-
-fn main() {
-    let out_dir = std::env::var_os("OUT_DIR").unwrap();
-    let file = std::path::Path::new(&out_dir).join("definition.rs");
-    let mut f = std::fs::File::create(file).unwrap();
-    generate(&mut args::Git::command(), Default::default(), &mut f).unwrap();
-}
-```
-
-And use it in `main.rs`:
+You can now edit `build.rs` to generate the scaffold code (see [supplement-example/build.rs](supplement-example/build.rs)), and in `main.rs`, utilize the generated code like this:
 
 ```rs
 use supplement::*;
 
 mod def {
-    include!(concat!(env!("OUT_DIR"), "/definition.rs"));
+    include!(concat!(env!("OUT_DIR"), "/definition.rs")); // This is generated
 }
 
 fn main() {
-    // `args` looks like ["supplement-example", "git", "log", "--graph"]
+    // `args` looks like ["the-binary-name", "git", "log", "--graph"]
     // so we should skip the first arg
     let args = std::env::args().skip(1);
-    let shell = supplement::Shell::Fish; // Assume we only use fish shell
     let (history, grp) = def::CMD.supplement(args).unwrap();
     let ready = match grp {
-        CompletionGroup::Ready(r) => {
+        CompletionGroup::Ready(ready) => {
             // The easy path. No custom logic needed.
             // e.g. Completing a subcommand or flag, like `git chec<TAB>`
             // or completing something with candidate values, like `ls --color=<TAB>`
-            r
+            ready
         }
         CompletionGroup::Unready { unready, id, value } => {
+            // The hard path. You should write completion logic for each possible variant.
             match id {
                 def::ID::GitDir => {
-                    let comps = my_custom_completion(history, value);
+                    let comps: Vec<Completion> = complete_git_dir(history, value);
                     unready.to_ready(comps)
                 }
                 _ => unimplemented!("Some more custom logic...")
             }
         }
     };
-    ready.print(shell, &mut std::io::stdout()).unwrap()
+
+    // Print fish-style completion to stdout.
+    ready.print(Shell::Fish, &mut std::io::stdout()).unwrap()
 }
 ```
 
@@ -118,15 +87,15 @@ function __do_completion
     set cmd_arr (string split ' ' $cmd)
     if [ -z "$cmd_arr[-1]" ]
         # preserve the last white space
-        echo fish $cmd "''" | xargs path/to/your/binary
+        echo $cmd "''" | xargs path/to/your/binary
     else
-        echo fish $cmd | xargs path/to/your/binary
+        echo $cmd | xargs path/to/your/binary
     end
 end
 
 complete -k -c git -x -a "(__do_completion)"
 ```
 
-The scripts for other shells can be found in [supplement-example/shell](supplement-example/shell)
+The scripts for all supported shells can be found in [supplement-example/shell](supplement-example/shell).
 
-A complete example can be found in [supplement-example](supplement-example)
+A complete example can be found in [supplement-example](supplement-example).

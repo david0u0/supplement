@@ -34,9 +34,9 @@ pub enum SubCommand {
     #[clap(about = "log")]
     IgnoredCmd { arg: Option<String> },
 
-    DeepSub {
+    Remote {
         #[clap(subcommand)]
-        sub: DeepSub,
+        sub: Option<Remote>,
     },
 
     #[clap(external_subcommand)]
@@ -53,7 +53,7 @@ pub enum Pretty {
 }
 
 #[derive(Parser, Debug)]
-pub enum DeepSub {
-    Sub1 { arg: String },
-    Sub2,
+pub enum Remote {
+    Add,
+    Remove,
 }
