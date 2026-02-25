@@ -70,12 +70,13 @@ struct GlobalFlag {
     ignored: bool,
 }
 
+#[derive(Clone, Copy, Eq, PartialEq)]
 struct NameType(&'static str);
 impl NameType {
     const FLAG: Self = NameType("Flag");
     const ARG: Self = NameType("Arg");
     const COMMAND: Self = NameType("CMD");
-    const EXTERNAL: Self = NameType("EXTERNAL");
+    const EXTERNAL: Self = NameType("External");
 }
 impl std::fmt::Display for NameType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -172,8 +173,8 @@ fn generate_args_in_cmd(
 
     let ext_sub = if cmd.is_allow_external_subcommands_set() {
         log::debug!("generating external subcommand");
-        let name = NameType::EXTERNAL.to_string();
-        Some((name.clone(), name, std::usize::MAX))
+        let name = gen_rust_name(NameType::EXTERNAL, "");
+        Some((name.clone(), name, std::usize::MAX, NameType::EXTERNAL))
     } else {
         None
     };
@@ -185,18 +186,18 @@ fn generate_args_in_cmd(
         let max_values = arg.get_max_num_args();
         let rust_name = gen_rust_name(NameType::ARG, &name);
 
-        (name, rust_name, max_values)
+        (name, rust_name, max_values, NameType::ARG)
     });
     let args = args.chain(ext_sub.into_iter());
 
-    for (name, rust_name, max_values) in args {
+    for (name, rust_name, max_values, name_type) in args {
         let id_name = to_screaming_snake_case(&format!("id_{name}"));
         let id_type = if max_values == 1 {
             "id::SingleVal"
         } else {
             "id::MultiVal"
         };
-        let id_value = utils::get_id_value(prev, NameType::ARG, &name);
+        let id_value = utils::get_id_value(prev, name_type, &name);
         writeln!(
             w,
             "\
@@ -207,7 +208,8 @@ fn generate_args_in_cmd(
 {indent}}};"
         )?;
 
-        args_names.push((rust_name, name));
+        let enum_name = gen_enum_name(name_type, &name);
+        args_names.push((rust_name, enum_name));
     }
 
     Ok(args_names)
@@ -363,7 +365,6 @@ fn generate_recur(
         writeln!(w, "{indent}#[derive(Clone, Copy, PartialEq, Eq, Debug)]")?;
         writeln!(w, "{indent}pub enum ID {{")?;
         for (_, name) in args.iter() {
-            let name = gen_enum_name(NameType::ARG, name);
             writeln!(w, "{indent}    {name},")?;
         }
         for (_, name) in flags.iter() {

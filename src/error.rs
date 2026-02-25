@@ -62,3 +62,11 @@ impl From<std::io::Error> for GenerateError {
         GenerateError::IO(value)
     }
 }
+
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        // TODO: better display?
+        write!(f, "{:?}", self)
+    }
+}
+impl std::error::Error for Error {}

@@ -44,6 +44,9 @@ pub(crate) fn to_screaming_snake_case(s: &str) -> String {
 }
 
 pub(crate) fn gen_enum_name(ty: NameType, name: &str) -> String {
+    if ty == NameType::EXTERNAL {
+        return ty.to_string();
+    }
     let name = to_pascal_case(name);
     format!("{ty}{name}")
 }
@@ -51,8 +54,10 @@ pub(crate) fn gen_enum_name(ty: NameType, name: &str) -> String {
 pub(crate) fn gen_rust_name(ty: NameType, name: &str) -> String {
     let mut ret = ty.to_string();
     ret = ret.to_uppercase();
-    ret += "_";
-    ret += &to_screaming_snake_case(name);
+    if !name.is_empty() {
+        ret += "_";
+        ret += &to_screaming_snake_case(name);
+    }
     ret
 }
 
