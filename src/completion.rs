@@ -98,6 +98,7 @@ impl Completion {
 /// assert_eq!(shell, Shell::Fish);
 /// ```
 #[derive(Clone, Copy, Eq, PartialEq, Debug)]
+#[non_exhaustive]
 pub enum Shell {
     Zsh,
     Fish,

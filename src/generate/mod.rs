@@ -6,7 +6,7 @@ mod config;
 mod utils;
 use abstraction::{Arg, ArgAction, ClapCommand, Command, CommandMut};
 pub use config::Config;
-use utils::{gen_rust_name, to_pascal_case, to_screaming_snake_case, to_snake_case};
+use utils::{gen_enum_name, gen_rust_name, to_screaming_snake_case, to_snake_case};
 
 #[derive(Clone)]
 pub(crate) struct Trace {
@@ -37,7 +37,7 @@ pub(crate) struct Trace {
 ///        }
 ///        CompletionGroup::Unready { unready, id, value } => {
 ///            match id {
-///                def::ID::GitDir => {
+///                def::ID::FlagGitDir => {
 ///                    let comps = my_custom_completion(history, value);
 ///                    unready.to_ready(comps)
 ///                }
@@ -132,7 +132,7 @@ impl<'a> FlagDisplayHelper<'a> {
         let value = if is_certain {
             "new_certain(line!())".to_owned()
         } else {
-            let value = utils::get_id_value(self.prev, &id);
+            let value = utils::get_id_value(self.prev, NameType::FLAG, &id);
             format!("new({value})")
         };
         format!("pub const {id_name}: id::{id_type}{global_id} = id::{id_type}::{value};")
@@ -196,7 +196,7 @@ fn generate_args_in_cmd(
         } else {
             "id::MultiVal"
         };
-        let id_value = utils::get_id_value(prev, &name);
+        let id_value = utils::get_id_value(prev, NameType::ARG, &name);
         writeln!(
             w,
             "\
@@ -363,17 +363,17 @@ fn generate_recur(
         writeln!(w, "{indent}#[derive(Clone, Copy, PartialEq, Eq, Debug)]")?;
         writeln!(w, "{indent}pub enum ID {{")?;
         for (_, name) in args.iter() {
-            let name = to_pascal_case(name);
+            let name = gen_enum_name(NameType::ARG, name);
             writeln!(w, "{indent}    {name},")?;
         }
         for (_, name) in flags.iter() {
             if let Some(name) = name {
-                let name = to_pascal_case(name);
+                let name = gen_enum_name(NameType::FLAG, name);
                 writeln!(w, "{indent}    {name},")?;
             }
         }
         for (mod_name, name) in sub_cmds.iter() {
-            let name = to_pascal_case(name);
+            let name = gen_enum_name(NameType::COMMAND, name);
             writeln!(w, "{indent}    {name}({mod_name}::ID),")?;
         }
         writeln!(w, "{indent}}}")?;

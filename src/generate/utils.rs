@@ -43,6 +43,11 @@ pub(crate) fn to_screaming_snake_case(s: &str) -> String {
     s.replace('-', "_").to_uppercase() // TODO
 }
 
+pub(crate) fn gen_enum_name(ty: NameType, name: &str) -> String {
+    let name = to_pascal_case(name);
+    format!("{ty}{name}")
+}
+
 pub(crate) fn gen_rust_name(ty: NameType, name: &str) -> String {
     let mut ret = ty.to_string();
     ret = ret.to_uppercase();
@@ -84,7 +89,7 @@ i.e. `ls --color <TAB>` results in [always, auto, never], not the file completio
     }
 }
 
-pub fn get_id_value(prev: &[Trace], id: &str) -> String {
+pub fn get_id_value(prev: &[Trace], ty: NameType, id: &str) -> String {
     // pub enum ID {
     //     A,
     //     B,
@@ -112,11 +117,11 @@ pub fn get_id_value(prev: &[Trace], id: &str) -> String {
     for trace in prev.iter() {
         let super_str = "super::".repeat(level);
         level -= 1;
-        let enum_name = to_pascal_case(&trace.cmd_id);
+        let enum_name = gen_enum_name(NameType::COMMAND, &trace.cmd_id);
         ret += &format!("{super_str}ID::{enum_name}(");
     }
 
-    let enum_name = to_pascal_case(id);
+    let enum_name = gen_enum_name(ty, id);
     ret += &format!("ID::{enum_name}");
     ret += &")".repeat(prev.len());
     ret

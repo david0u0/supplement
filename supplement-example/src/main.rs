@@ -71,8 +71,8 @@ fn handle_comp(history: History<ID>, id: ID, value: &str) -> Vec<Completion> {
     use def::log::ID as LogID;
 
     match id {
-        ID::GitDir => Completion::files(value).collect(),
-        ID::Checkout(CheckoutID::FileOrCommit) => {
+        ID::FlagGitDir => Completion::files(value).collect(),
+        ID::CMDCheckout(CheckoutID::ArgFileOrCommit) => {
             // For the first argument, it can either be a git commit or a file
             let mut comps = vec![];
             for line in run_git("log --oneline -10").lines() {
@@ -85,7 +85,7 @@ fn handle_comp(history: History<ID>, id: ID, value: &str) -> Vec<Completion> {
             }
             comps
         }
-        ID::Checkout(CheckoutID::Files) => {
+        ID::CMDCheckout(CheckoutID::ArgFiles) => {
             // For the second and more arguments, it can only be file
             // Let's also filter out those files we've already seen!
             let prev1 = history
@@ -109,7 +109,7 @@ fn handle_comp(history: History<ID>, id: ID, value: &str) -> Vec<Completion> {
                 })
                 .collect()
         }
-        ID::Log(LogID::Commit) => run_git("log --oneline -10")
+        ID::CMDLog(LogID::ArgCommit) => run_git("log --oneline -10")
             .lines()
             .map(|line| {
                 let (hash, description) = line.split_once(" ").unwrap();

@@ -70,7 +70,7 @@ This is when `supplement` hands over the control to *YOU*. You're the only one w
 Only *YOU* can compute the vector based on the history, id, value, and anything else you're interested in.
 
 In [src/main.rs](src/main.rs) I wrote a function `handle_comp` for this custom logic.
-For example, `ID::GitDir` should simply be completed with files, and `ID::Log(def::log::ID::Commit)` should be completed with a list of commit hash.
+For example, `ID::FlagGitDir` should simply be completed with files, and `ID::CMDLog(LogID::ArgCommit)` should be completed with a list of commit hash.
 
 ### Ready::print
 The final step. Tell it which shell you're using and fire!

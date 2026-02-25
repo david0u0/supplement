@@ -61,7 +61,7 @@ fn main() {
         CompletionGroup::Unready { unready, id, value } => {
             // The hard path. You should write completion logic for each possible variant.
             match id {
-                def::ID::GitDir => {
+                def::ID::FlagGitDir => {
                     let comps: Vec<Completion> = complete_git_dir(history, value);
                     unready.to_ready(comps)
                 }
