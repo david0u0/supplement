@@ -1,6 +1,7 @@
 use std::fmt::Debug;
 use supplement::Result;
 pub mod args;
+pub mod conflict_name;
 use supplement::{Completion, CompletionGroup};
 
 mod def {
@@ -40,15 +41,14 @@ pub fn map_unready<ID: Debug + Copy>(grp: &CompletionGroup<ID>) -> (ID, &str, Ve
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::args::Arg;
+    use clap::CommandFactory;
     use def::ID;
+    use supplement::error::GenerateError;
+    use supplement::{Config, generate};
 
     #[test]
     fn test_unprocessed_conf() {
-        use crate::args::Arg;
-        use clap::CommandFactory;
-        use supplement::error::GenerateError;
-        use supplement::{Config, generate};
-
         fn do_assrt(err: GenerateError) {
             let v = match err {
                 GenerateError::UnprocessedConfigObj(v) => v,
@@ -60,7 +60,7 @@ mod test {
         let mut s: Vec<u8> = vec![];
         let cfg = Config::new().ignore(&["some-cmd", "pretty"]);
 
-        let err = generate(&mut Arg::command(), cfg.clone(), &mut s).unwrap_err();
+        let err = generate(&mut Arg::command(), cfg, &mut s).unwrap_err();
         do_assrt(err);
     }
 

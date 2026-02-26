@@ -54,7 +54,7 @@ impl Config {
 
     /// Rename a certain command during code-gen.
     /// This will only change the generated name in rust code, mostly to avoid name confliction with argument.
-    /// **It won't change any completion behavior.**
+    /// **It won't affect the completion behavior at all.**
     ///
     /// Note that if you want to rename something that doesn't actually exist in the command definition,
     /// The `generate` function will raise an `UnprocessedConfigObj` error.

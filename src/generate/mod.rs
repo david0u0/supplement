@@ -1,4 +1,5 @@
 use crate::error::GenerateError;
+use std::collections::HashSet;
 use std::io::Write;
 
 mod abstraction;
@@ -376,15 +377,21 @@ fn generate_recur(
 
         writeln!(w, "{indent}#[derive(Clone, Copy, PartialEq, Eq, Debug)]")?;
         writeln!(w, "{indent}pub enum ID {{")?;
+        let mut seen = HashSet::new();
         for (_, name) in args.iter().chain(flags.iter()) {
             if let Some(name) = name {
                 let name = gen_enum_name(name);
                 writeln!(w, "{indent}    {name},")?;
+                seen.insert(name);
             }
         }
         for (mod_name, name) in sub_cmds.iter() {
-            let name = gen_enum_name(name);
-            writeln!(w, "{indent}    {name}({mod_name}::ID),")?;
+            let enum_name = gen_enum_name(name);
+            if seen.contains(&enum_name) {
+                return Err(GenerateError::CmdNameConflict(name.clone()));
+            }
+            writeln!(w, "{indent}    {enum_name}({mod_name}::ID),")?;
+            seen.insert(enum_name);
         }
         writeln!(w, "{indent}}}")?;
 
