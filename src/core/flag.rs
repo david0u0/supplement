@@ -135,15 +135,15 @@ impl<ID: PartialEq + Copy + Debug> Flag<ID> {
 
     pub(super) fn exists_in_history(&self, history: &History<ID>) -> bool {
         match self.ty {
-            Type::Bool(Bool { id, .. }) => history.find(&id).is_some(),
+            Type::Bool(Bool { id, .. }) => history.find(id).is_some(),
             Type::Valued(Valued {
                 id: id::Valued::Single(id),
                 ..
-            }) => history.find(&id).is_some(),
+            }) => history.find(id).is_some(),
             Type::Valued(Valued {
                 id: id::Valued::Multi(id),
                 ..
-            }) => history.find(&id).is_some(),
+            }) => history.find(id).is_some(),
         }
     }
 

@@ -21,10 +21,10 @@ pub struct Completion {
     pub group: Option<&'static str>,
 }
 impl Completion {
-    pub fn new(value: &str, description: &str) -> Self {
+    pub fn new(value: impl ToString, description: impl ToString) -> Self {
         Completion {
-            value: value.to_owned(),
-            description: description.to_owned(),
+            value: value.to_string(),
+            description: description.to_string(),
             group: None,
         }
     }

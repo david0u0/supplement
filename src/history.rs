@@ -135,15 +135,15 @@ impl<ID: PartialEq + std::fmt::Debug> History<ID> {
     /// let history = History::<()>::new();
     ///
     /// let id = id::NoVal::new(0);
-    /// let c: u32 = history.find(&id).unwrap().count;
+    /// let c: u32 = history.find(id).unwrap().count;
     ///
     /// let id = id::SingleVal::new(());
-    /// let v: &String = &history.find(&id).unwrap().value;
+    /// let v: &String = &history.find(id).unwrap().value;
     ///
     /// let id = id::MultiVal::new(());
-    /// let v: &[String] = &history.find(&id).unwrap().values;
+    /// let v: &[String] = &history.find(id).unwrap().values;
     /// ```
-    pub fn find<I: Getter<ID>>(&self, id: &I) -> Option<&I::Ret> {
+    pub fn find<I: Getter<ID>>(&self, id: I) -> Option<&I::Ret> {
         for h in self.0.iter() {
             let h = id.match_and_cast(h);
             if h.is_some() {

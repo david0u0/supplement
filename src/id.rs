@@ -7,7 +7,7 @@
 /// use supplement::{History, id};
 /// let history = History::<()>::new();
 /// let id = id::NoVal::new(0);
-/// let c: u32 = history.find(&id).unwrap().count; // Represents how many times it's seen in the CLI command
+/// let c: u32 = history.find(id).unwrap().count; // Represents how many times it's seen in the CLI command
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct NoVal(u32);
@@ -18,7 +18,7 @@ pub struct NoVal(u32);
 /// use supplement::{History, id};
 /// let history = History::new();
 /// let id = id::SingleVal::new(());
-/// let v: &str = &history.find(&id).unwrap().value;
+/// let v: &str = &history.find(id).unwrap().value;
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SingleVal<ID> {
@@ -32,7 +32,7 @@ pub enum SingleVal<ID> {
 /// use supplement::{History, id};
 /// let history = History::new();
 /// let id = id::MultiVal::new(());
-/// let v: &[String] = &history.find(&id).unwrap().values;
+/// let v: &[String] = &history.find(id).unwrap().values;
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MultiVal<ID> {

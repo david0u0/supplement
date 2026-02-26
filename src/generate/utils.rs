@@ -3,8 +3,9 @@ use super::{NameType, Trace};
 use crate::core::CompleteWithEqual;
 
 pub(super) fn flags<'a>(p: &Command<'a>) -> impl Iterator<Item = Arg<'a>> {
+    let custom_help = p.is_disable_help_flag_set();
     p.get_arguments()
-        .filter(|a| !a.is_positional() && a.get_id() != "help")
+        .filter(move |a| !a.is_positional() && (a.get_id() != "help" || custom_help))
 }
 
 pub(super) fn args<'a>(p: &Command<'a>) -> impl Iterator<Item = Arg<'a>> {
@@ -12,8 +13,9 @@ pub(super) fn args<'a>(p: &Command<'a>) -> impl Iterator<Item = Arg<'a>> {
 }
 
 pub(super) fn non_help_subcmd<'a>(p: &Command<'a>) -> impl Iterator<Item = Command<'a>> {
-    // TODO: Check if the help is default implementation
-    p.get_subcommands().filter(|c| c.get_name() != "help")
+    let custom_help = p.is_disable_help_subcommand_set();
+    p.get_subcommands()
+        .filter(move |c| custom_help || c.get_name() != "help")
 }
 
 pub(super) fn escape_help(help: &str) -> String {

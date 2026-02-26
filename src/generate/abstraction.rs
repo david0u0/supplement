@@ -81,6 +81,12 @@ impl<'a> Command<'a> {
     pub fn is_allow_external_subcommands_set(&self) -> bool {
         self.0.is_allow_external_subcommands_set()
     }
+    pub fn is_disable_help_flag_set(&self) -> bool {
+        self.0.is_disable_help_flag_set()
+    }
+    pub fn is_disable_help_subcommand_set(&self) -> bool {
+        self.0.is_disable_help_subcommand_set()
+    }
 }
 
 impl<'a> Arg<'a> {
