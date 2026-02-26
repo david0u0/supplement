@@ -18,6 +18,7 @@ use std::collections::HashMap;
 #[derive(Clone)]
 pub struct Config {
     ignore: HashMap<Vec<String>, bool>,
+    rename_cmd: HashMap<Vec<String>, (bool, String)>,
     strict: bool,
 }
 
@@ -31,9 +32,11 @@ impl Config {
         Config {
             strict: true,
             ignore: Default::default(),
+            rename_cmd: Default::default(),
         }
     }
     /// Ignore a certain flag or subcommand during code-gen.
+    ///
     /// Note that if you want to ignore something that doesn't actually exist in the command definition,
     /// The `generate` function will raise an `UnprocessedConfigObj` error.
     /// ```no_run
@@ -49,6 +52,27 @@ impl Config {
         self
     }
 
+    /// Rename a certain command during code-gen.
+    /// This will only change the generated name in rust code, mostly to avoid name confliction with argument.
+    /// **It won't change any completion behavior.**
+    ///
+    /// Note that if you want to rename something that doesn't actually exist in the command definition,
+    /// The `generate` function will raise an `UnprocessedConfigObj` error.
+    /// ```no_run
+    /// # use supplement::Config;
+    /// let config = Config::default()
+    ///     .rename_cmd(&["log"], "my-log")
+    ///     .rename_cmd(&["remote", "set-url"], "my-set-url")
+    ///     .rename_cmd(&["unexpected-thing"], "xxx"); // will cause error during code-gen
+    /// ```
+    pub fn rename_cmd(mut self, ids: &[&str], new_name: &str) -> Self {
+        self.rename_cmd.insert(
+            ids.iter().map(|x| x.to_string()).collect(),
+            (false, new_name.to_string()),
+        );
+        self
+    }
+
     pub(crate) fn is_ignored(&mut self, prev: &[Trace], id: &str) -> bool {
         let mut key: Vec<_> = prev.iter().map(|t| t.cmd_id.to_string()).collect();
         key.push(id.to_string());
@@ -59,6 +83,17 @@ impl Config {
             false
         }
     }
+    pub(crate) fn get_cmd_name<'a>(&'a mut self, prev: &[Trace], id: &'a str) -> &'a str {
+        let mut key: Vec<_> = prev.iter().map(|t| t.cmd_id.to_string()).collect();
+        key.push(id.to_string());
+        if let Some(t) = self.rename_cmd.get_mut(&key) {
+            t.0 = true;
+            t.1.as_str()
+        } else {
+            id
+        }
+    }
+
     pub(crate) fn unprocessed_ignore(&self) -> impl Iterator<Item = &[String]> {
         self.ignore.iter().filter_map(|(key, processed)| {
             if *processed {
@@ -68,9 +103,21 @@ impl Config {
             }
         })
     }
+    pub(crate) fn unprocessed_rename_cmd(&self) -> impl Iterator<Item = &[String]> {
+        self.rename_cmd.iter().filter_map(|(key, (processed, _))| {
+            if *processed {
+                None
+            } else {
+                Some(key.as_slice())
+            }
+        })
+    }
 
     pub(crate) fn check_unprocessed_config(&self) -> Result<(), GenerateError> {
-        let mut it = self.unprocessed_ignore().peekable();
+        let it = self
+            .unprocessed_ignore()
+            .chain(self.unprocessed_rename_cmd());
+        let mut it = it.peekable();
         if it.peek().is_none() {
             return Ok(());
         }

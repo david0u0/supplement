@@ -133,7 +133,7 @@ impl<'a> FlagDisplayHelper<'a> {
         let value = if is_certain {
             "new_certain(line!())".to_owned()
         } else {
-            let value = utils::get_id_value(self.prev, NameType::FLAG, &id);
+            let value = utils::get_id_value(self.prev, &id);
             format!("new({value})")
         };
         format!("pub const {id_name}: id::{id_type}{global_id} = id::{id_type}::{value};")
@@ -174,7 +174,7 @@ fn generate_args_in_cmd(
     let ext_sub = if cmd.is_allow_external_subcommands_set() {
         log::debug!("generating external subcommand");
         let name = gen_rust_name(NameType::EXTERNAL, "");
-        Some((name.clone(), name, std::usize::MAX, NameType::EXTERNAL))
+        Some((name.clone(), name, std::usize::MAX))
     } else {
         None
     };
@@ -186,18 +186,18 @@ fn generate_args_in_cmd(
         let max_values = arg.get_max_num_args();
         let rust_name = gen_rust_name(NameType::ARG, &name);
 
-        (name, rust_name, max_values, NameType::ARG)
+        (name, rust_name, max_values)
     });
     let args = args.chain(ext_sub.into_iter());
 
-    for (name, rust_name, max_values, name_type) in args {
+    for (name, rust_name, max_values) in args {
         let id_name = to_screaming_snake_case(&format!("id_{name}"));
         let id_type = if max_values == 1 {
             "id::SingleVal"
         } else {
             "id::MultiVal"
         };
-        let id_value = utils::get_id_value(prev, name_type, &name);
+        let id_value = utils::get_id_value(prev, &name);
         writeln!(
             w,
             "\
@@ -208,7 +208,7 @@ fn generate_args_in_cmd(
 {indent}}};"
         )?;
 
-        let enum_name = gen_enum_name(name_type, &name);
+        let enum_name = gen_enum_name(&name);
         args_names.push((rust_name, enum_name));
     }
 
@@ -328,8 +328,8 @@ fn generate_subcmd_names(
         if config.is_ignored(prev, &c.get_name()) {
             None
         } else {
-            let name = c.get_name().to_string();
-            Some((generate_mod_name(&name), name))
+            let name = config.get_cmd_name(prev, c.get_name());
+            Some((generate_mod_name(&name), name.to_string()))
         }
     })
 }
@@ -369,12 +369,12 @@ fn generate_recur(
         }
         for (_, name) in flags.iter() {
             if let Some(name) = name {
-                let name = gen_enum_name(NameType::FLAG, name);
+                let name = gen_enum_name(name);
                 writeln!(w, "{indent}    {name},")?;
             }
         }
         for (mod_name, name) in sub_cmds.iter() {
-            let name = gen_enum_name(NameType::COMMAND, name);
+            let name = gen_enum_name(name);
             writeln!(w, "{indent}    {name}({mod_name}::ID),")?;
         }
         writeln!(w, "{indent}}}")?;
@@ -397,10 +397,11 @@ fn generate_recur(
         )?;
 
         for sub_cmd in utils::non_help_subcmd(cmd) {
-            let cmd_id = sub_cmd.get_name().to_string();
-            if config.is_ignored(&prev, &cmd_id) {
+            let cmd_id = sub_cmd.get_name();
+            if config.is_ignored(&prev, cmd_id) {
                 continue;
             }
+            let cmd_id = config.get_cmd_name(prev, cmd_id).to_string();
 
             writeln!(w, "{indent}pub mod {} {{", generate_mod_name(&cmd_id))?;
             let mut prev = prev.to_vec();

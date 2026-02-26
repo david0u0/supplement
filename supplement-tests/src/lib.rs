@@ -1,7 +1,17 @@
 use std::fmt::Debug;
+use supplement::Result;
 pub mod args;
-pub mod dummy;
 use supplement::{Completion, CompletionGroup};
+
+mod def {
+    include!(concat!(env!("OUT_DIR"), "/definition.rs"));
+}
+
+pub fn run(cmd: &str) -> Result<CompletionGroup<def::ID>> {
+    let cmd = cmd.split(" ").map(|s| s.to_string());
+    let (_, grp) = def::CMD.supplement(cmd)?;
+    Ok(grp)
+}
 
 fn map_comps(comps: &[Completion]) -> Vec<&str> {
     let mut v: Vec<_> = comps.iter().map(|c| c.value.as_str()).collect();
@@ -29,6 +39,9 @@ pub fn map_unready<ID: Debug + Copy>(grp: &CompletionGroup<ID>) -> (ID, &str, Ve
 
 #[cfg(test)]
 mod test {
+    use super::*;
+    use def::ID;
+
     #[test]
     fn test_unprocessed_conf() {
         use crate::args::Arg;
@@ -49,5 +62,42 @@ mod test {
 
         let err = generate(&mut Arg::command(), cfg.clone(), &mut s).unwrap_err();
         do_assrt(err);
+    }
+
+    #[test]
+    fn test_simple() {
+        let comps = run("git -").unwrap();
+        assert_eq!(vec!["--git-dir"], map_ready(&comps));
+
+        let comps = run("git g").unwrap();
+        assert_eq!(
+            map_unready(&comps),
+            (ID::External, "g", vec!["checkout", "log", "remote"], "")
+        );
+
+        let comps = run("git remote g").unwrap();
+        assert_eq!(map_ready(&comps), vec!["add", "remove"]);
+
+        let comps = run("git log -").unwrap();
+        assert_eq!(
+            vec!["--flag1", "--git-dir", "--graph", "--pretty", "--pretty="],
+            map_ready(&comps)
+        );
+
+        let comps = run("git checkout -").unwrap();
+        assert_eq!(vec!["--git-dir"], map_ready(&comps));
+
+        let comps = run("git log --pretty=").unwrap();
+        assert_eq!(
+            vec!["--pretty=full", "--pretty=oneline", "--pretty=short"],
+            map_ready(&comps)
+        );
+    }
+
+    #[test]
+    fn test_rename() {
+        let comps = run("git remote add x").unwrap();
+        let id = ID::Remote(def::remote::ID::MyAdd(def::remote::my_add::ID::Remote));
+        assert_eq!(map_unready(&comps), (id, "x", vec![], ""));
     }
 }

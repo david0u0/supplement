@@ -11,7 +11,8 @@ fn main() {
         .ignore(&["ignored-cmd"])
         .ignore(&["checkout", "flag1"])
         .ignore(&["log", "flag2"])
-        .ignore(&["flag3"]);
+        .ignore(&["flag3"])
+        .rename_cmd(&["remote", "add"], "my-add");
 
     let out_dir = std::env::var_os("OUT_DIR").unwrap();
     let file = Path::new(&out_dir).join("definition.rs");
