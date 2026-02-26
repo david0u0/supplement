@@ -4,7 +4,7 @@ use std::io::Write;
 mod abstraction;
 mod config;
 mod utils;
-use abstraction::{Arg, ArgAction, ClapCommand, Command, CommandMut};
+use abstraction::{Arg, ArgAction, ClapCommand, Command, CommandMut, PossibleValue};
 pub use config::Config;
 use utils::{gen_enum_name, gen_rust_name, to_screaming_snake_case, to_snake_case};
 
@@ -104,6 +104,14 @@ where
     }
 }
 
+fn join_possible_values(values: &[PossibleValue]) -> impl std::fmt::Display {
+    Join(values.iter().map(|p| {
+        let name = p.get_name();
+        let help = p.get_help().unwrap_or_default();
+        format!("(\"{name}\", \"{help}\")")
+    }))
+}
+
 enum FlagType {
     No,
     Single,
@@ -149,11 +157,7 @@ impl<'a> FlagDisplayHelper<'a> {
                 let complete_with_equal = utils::compute_flag_equal(self.flag, self.strict)
                     .map_err(|msg| GenerateError::Strict { id, msg })?;
                 let possible_values = self.flag.get_possible_values();
-                let possible_values = Join(possible_values.iter().map(|p| {
-                    let name = p.get_name();
-                    let help = p.get_help().unwrap_or_default();
-                    format!("(\"{name}\", \"{help}\")")
-                }));
+                let possible_values = join_possible_values(&possible_values);
                 format!(
                     "flag_type::Type::new_valued({id_name}.into(), {complete_with_equal}, &[{possible_values}])"
                 )
@@ -168,13 +172,13 @@ fn generate_args_in_cmd(
     cmd: &Command<'_>,
     prev: &[Trace],
     w: &mut impl Write,
-) -> std::io::Result<Vec<(String, String)>> {
+) -> std::io::Result<Vec<(String, Option<String>)>> {
     let mut args_names = vec![];
 
     let ext_sub = if cmd.is_allow_external_subcommands_set() {
         log::debug!("generating external subcommand");
         let name = gen_rust_name(NameType::EXTERNAL, "");
-        Some((name.clone(), name, std::usize::MAX))
+        Some((name.clone(), name, std::usize::MAX, vec![]))
     } else {
         None
     };
@@ -186,30 +190,38 @@ fn generate_args_in_cmd(
         let max_values = arg.get_max_num_args();
         let rust_name = gen_rust_name(NameType::ARG, &name);
 
-        (name, rust_name, max_values)
+        (name, rust_name, max_values, arg.get_possible_values())
     });
     let args = args.chain(ext_sub.into_iter());
 
-    for (name, rust_name, max_values) in args {
+    for (name, rust_name, max_values, possible_values) in args {
         let id_name = to_screaming_snake_case(&format!("id_{name}"));
         let id_type = if max_values == 1 {
             "id::SingleVal"
         } else {
             "id::MultiVal"
         };
-        let id_value = utils::get_id_value(prev, &name);
+        let is_certain = !possible_values.is_empty();
+        let id_value = if is_certain {
+            "new_certain(line!())".to_owned()
+        } else {
+            format!("new({})", utils::get_id_value(prev, &name))
+        };
+        let possible_values = join_possible_values(&possible_values);
+
         writeln!(
             w,
             "\
-{indent}pub const {id_name}: {id_type}<GlobalID> = {id_type}::new({id_value});
+{indent}pub const {id_name}: {id_type}<GlobalID> = {id_type}::{id_value};
 {indent}const {rust_name}: Arg<GlobalID> = Arg {{
 {indent}    id: {id_name}.into(),
 {indent}    max_values: {max_values},
+{indent}    possible_values: &[{possible_values}],
 {indent}}};"
         )?;
 
-        let enum_name = gen_enum_name(&name);
-        args_names.push((rust_name, enum_name));
+        let id_for_enum = if is_certain { None } else { Some(name) };
+        args_names.push((rust_name, id_for_enum));
     }
 
     Ok(args_names)
@@ -364,10 +376,7 @@ fn generate_recur(
 
         writeln!(w, "{indent}#[derive(Clone, Copy, PartialEq, Eq, Debug)]")?;
         writeln!(w, "{indent}pub enum ID {{")?;
-        for (_, name) in args.iter() {
-            writeln!(w, "{indent}    {name},")?;
-        }
-        for (_, name) in flags.iter() {
+        for (_, name) in args.iter().chain(flags.iter()) {
             if let Some(name) = name {
                 let name = gen_enum_name(name);
                 writeln!(w, "{indent}    {name},")?;

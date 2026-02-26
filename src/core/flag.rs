@@ -6,7 +6,7 @@ use crate::{Completion, History, Result, id};
 use std::fmt::Debug;
 use std::iter::Peekable;
 
-type PossibleValues = &'static [(&'static str, &'static str)];
+use super::PossibleValues;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CompleteWithEqual {

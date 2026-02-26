@@ -72,7 +72,12 @@ mod test {
         let comps = run("git g").unwrap();
         assert_eq!(
             map_unready(&comps),
-            (ID::External, "g", vec!["checkout", "log", "remote"], "")
+            (
+                ID::External,
+                "g",
+                vec!["bisect", "checkout", "log", "remote"],
+                ""
+            )
         );
 
         let comps = run("git remote g").unwrap();
@@ -92,6 +97,9 @@ mod test {
             vec!["--pretty=full", "--pretty=oneline", "--pretty=short"],
             map_ready(&comps)
         );
+
+        let comps = run("git bisect x").unwrap();
+        assert_eq!(vec!["bad", "good"], map_ready(&comps));
     }
 
     #[test]

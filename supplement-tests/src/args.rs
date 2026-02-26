@@ -12,6 +12,9 @@ pub struct Arg {
 }
 #[derive(Parser, Debug)]
 pub enum SubCommand {
+    Bisect {
+        arg: Bisect,
+    },
     Checkout {
         #[clap(long)]
         flag1: Option<String>, // ignored
@@ -32,7 +35,9 @@ pub enum SubCommand {
         flag2: bool, // ignored
     },
     #[clap(about = "log")]
-    IgnoredCmd { arg: Option<String> },
+    IgnoredCmd {
+        arg: Option<String>,
+    },
 
     Remote {
         #[clap(subcommand)]
@@ -56,4 +61,10 @@ pub enum Pretty {
 pub enum Remote {
     Add { remote: String },
     Remove,
+}
+
+#[derive(Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
+pub enum Bisect {
+    Good,
+    Bad,
 }

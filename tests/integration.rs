@@ -34,6 +34,7 @@ mod def {
     pub const A_ARG: Arg<ID> = Arg {
         id: A_ARG_ID.into(),
         max_values: 1,
+        possible_values: &[],
     };
     pub const ROOT: Command<ID> = Command {
         all_flags: &[B_FLAG, C_FLAG, OPT_FLAG],
@@ -53,6 +54,7 @@ mod def {
     pub const D_ARG: Arg<ID> = Arg {
         id: D_ARG_ID.into(),
         max_values: 2,
+        possible_values: &[],
     };
 
     pub const OPT_FLAG_ID: id::SingleVal<ID> = id::SingleVal::new_certain(line!());

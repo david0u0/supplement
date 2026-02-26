@@ -11,9 +11,21 @@ use crate::parsed_flag::ParsedFlag;
 use crate::{Completion, History, Result};
 use std::fmt::Debug;
 
+type PossibleValues = &'static [(&'static str, &'static str)];
+
 pub struct Arg<ID> {
     pub id: id::Valued<ID>,
     pub max_values: usize,
+    pub possible_values: PossibleValues,
+}
+
+impl<ID> Arg<ID> {
+    pub(crate) fn comp_from_possible(&self) -> Vec<Completion> {
+        self.possible_values
+            .iter()
+            .map(|(value, desc)| Completion::new(value, desc))
+            .collect()
+    }
 }
 
 /// The object to represent a command.
@@ -246,7 +258,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                             unready,
                             value: arg,
                         },
-                        None => unready.to_ready_grp(vec![]), // TODO: arg can have possible value?
+                        None => unready.to_ready_grp(arg_obj.comp_from_possible()),
                     }
                 } else {
                     if cmd_comps.is_empty() {
