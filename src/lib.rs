@@ -12,7 +12,9 @@ pub(crate) mod parsed_flag;
 
 pub type Result<T = ()> = std::result::Result<T, error::Error>;
 
-pub use supplement_proc_macro::id_enum;
+pub mod helper {
+    pub use supplement_proc_macro::id;
+}
 
 #[cfg(any(feature = "clap-3", feature = "clap-4"))]
 mod generate;

@@ -40,7 +40,7 @@ pub fn run(cmd: &str) -> Result<CompletionGroup<def::ID>> {
 mod test {
     use super::*;
     use def::ID;
-    use supplement::id_enum;
+    use supplement::helper::id;
 
     #[test]
     fn test_unprocessed_conf() {
@@ -65,10 +65,10 @@ mod test {
     }
     #[test]
     fn test_proc_macro() {
-        let id = id_enum!(def external);
+        let id = id!(def external);
         assert_eq!(id, ID::ValExternal);
 
-        let id = id_enum!(def remote add name);
+        let id = id!(def remote add name);
         assert_eq!(
             id,
             ID::CMDRemote(def::remote::ID::CMDAdd(def::remote::add::ID::ValName))

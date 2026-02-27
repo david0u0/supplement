@@ -66,16 +66,16 @@ fn main() {
     }
 }
 
-macro_rules! id_enum {
+macro_rules! id {
     ($($id:ident )+) => {
-        supplement::id_enum!(def $($id )+)
+        supplement::helper::id!(def $($id )+)
     };
 }
 
 fn handle_comp(history: History<ID>, id: ID, value: &str) -> Vec<Completion> {
     match id {
-        id_enum!(git_dir) => Completion::files(value).collect(),
-        id_enum!(checkout file_or_commit) => {
+        id!(git_dir) => Completion::files(value).collect(),
+        id!(checkout file_or_commit) => {
             // For the first argument, it can either be a git commit or a file
             let mut comps = vec![];
             for line in run_git("log --oneline -10").lines() {
@@ -88,7 +88,7 @@ fn handle_comp(history: History<ID>, id: ID, value: &str) -> Vec<Completion> {
             }
             comps
         }
-        id_enum!(checkout files) => {
+        id!(checkout files) => {
             // For the second and more arguments, it can only be file
             // Let's also filter out those files we've already seen!
             let prev1 = history
@@ -112,7 +112,7 @@ fn handle_comp(history: History<ID>, id: ID, value: &str) -> Vec<Completion> {
                 })
                 .collect()
         }
-        id_enum!(log commit) => run_git("log --oneline -10")
+        id!(log commit) => run_git("log --oneline -10")
             .lines()
             .map(|line| {
                 let (hash, description) = line.split_once(" ").unwrap();

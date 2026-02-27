@@ -55,10 +55,10 @@ impl Parse for IdList {
     }
 }
 
-/// `id_enum!(def remote set_url url)` becomes
+/// `id!(def remote set_url url)` becomes
 /// `def::ID::CMDRemote(def::remote::ID::CMDSetUrl(def::remote::set_url::ID::ValUrl)`
 #[proc_macro]
-pub fn id_enum(input: TokenStream) -> TokenStream {
+pub fn id(input: TokenStream) -> TokenStream {
     let IdList { items } = parse_macro_input!(input as IdList);
     let mod_name = items.first().unwrap(); // TODO: error
     let items = &items[1..];
