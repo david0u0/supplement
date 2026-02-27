@@ -45,8 +45,21 @@ pub(crate) fn to_screaming_snake_case(s: &str) -> String {
     s.replace('-', "_").to_uppercase() // TODO
 }
 
-pub(crate) fn gen_enum_name(name: &str) -> String {
-    to_pascal_case(name)
+pub(crate) fn gen_enum_name(mut ty: NameType, mut name: &str) -> String {
+    match ty {
+        NameType::EXTERNAL => {
+            name = "External";
+            ty = NameType::VAL;
+        }
+        NameType::FLAG | NameType::ARG => {
+            // flags & args should never have conflicting names. Let's just use the same prefix.
+            ty = NameType::VAL;
+        }
+        _ => (),
+    }
+
+    let name = to_pascal_case(name);
+    format!("{ty}{name}")
 }
 
 pub(crate) fn gen_rust_name(ty: NameType, name: &str) -> String {
@@ -92,7 +105,7 @@ i.e. `ls --color <TAB>` results in [always, auto, never], not the file completio
     }
 }
 
-pub fn get_id_value(prev: &[Trace], id: &str) -> String {
+pub fn get_id_value(prev: &[Trace], ty: NameType, id: &str) -> String {
     // pub enum ID {
     //     A,
     //     B,
@@ -120,11 +133,11 @@ pub fn get_id_value(prev: &[Trace], id: &str) -> String {
     for trace in prev.iter() {
         let super_str = "super::".repeat(level);
         level -= 1;
-        let enum_name = gen_enum_name(&trace.cmd_id);
+        let enum_name = gen_enum_name(NameType::COMMAND, &trace.cmd_id);
         ret += &format!("{super_str}ID::{enum_name}(");
     }
 
-    let enum_name = gen_enum_name(id);
+    let enum_name = gen_enum_name(ty, id);
     ret += &format!("ID::{enum_name}");
     ret += &")".repeat(prev.len());
     ret

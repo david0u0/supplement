@@ -53,10 +53,6 @@ pub enum GenerateError {
         msg: &'static str,
         id: String,
     },
-    /// Error when command name conflicts with arg or flag.
-    /// This can be solved by `Config::rename_cmd`. The function will rename a command's name in Rust code
-    /// (but doesn't affect the completion behavior at all)
-    CmdNameConflict(String),
     UnprocessedConfigObj(Vec<Vec<String>>),
     IO(std::io::Error),
 }
