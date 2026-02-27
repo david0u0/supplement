@@ -40,6 +40,7 @@ pub fn run(cmd: &str) -> Result<CompletionGroup<def::ID>> {
 mod test {
     use super::*;
     use def::ID;
+    use supplement::id_enum;
 
     #[test]
     fn test_unprocessed_conf() {
@@ -61,6 +62,17 @@ mod test {
 
         let err = generate(&mut Arg::command(), cfg.clone(), &mut s).unwrap_err();
         do_assrt(err);
+    }
+    #[test]
+    fn test_proc_macro() {
+        let id = id_enum!(def external);
+        assert_eq!(id, ID::ValExternal);
+
+        let id = id_enum!(def remote add name);
+        assert_eq!(
+            id,
+            ID::CMDRemote(def::remote::ID::CMDAdd(def::remote::add::ID::ValName))
+        );
     }
 
     #[test]

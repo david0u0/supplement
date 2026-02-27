@@ -59,7 +59,7 @@ pub enum Pretty {
 
 #[derive(Parser, Debug)]
 pub enum Remote {
-    Add,
+    Add { name: String },
     Remove,
 }
 

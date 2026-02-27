@@ -421,6 +421,7 @@ dependencies = [
  "clap 4.5.56",
  "env_logger",
  "log",
+ "supplement-proc-macro",
 ]
 
 [[package]]
@@ -432,6 +433,15 @@ dependencies = [
  "env_logger",
  "log",
  "supplement",
+]
+
+[[package]]
+name = "supplement-proc-macro"
+version = "0.1.0"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.114",
 ]
 
 [[package]]

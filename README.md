@@ -61,9 +61,12 @@ fn main() {
         CompletionGroup::Unready { unready, id, value } => {
             // The hard path. You should write completion logic for each possible variant.
             match id {
-                def::ID::FlagGitDir => {
+                id_enum!(def git_dir) => {
                     let comps: Vec<Completion> = complete_git_dir(history, value);
                     unready.to_ready(comps)
+                }
+                id_enum!(def remote set_url name) => {
+                    unimplemented!("logic for `git remote set-url <TAB>`");
                 }
                 _ => unimplemented!("Some more custom logic...")
             }

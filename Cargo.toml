@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["supplement-example", "supplement-tests"]
+members = ["supplement-example", "supplement-proc-macro", "supplement-tests"]
 
 [package]
 name = "supplement"
@@ -16,6 +16,7 @@ repository = "https://github.com/david0u0/supplement"
 log = { version = "0.4.18", default-features = false }
 clap3 = { package = "clap", version = "3", optional = true }
 clap4 = { package = "clap", version = "4", optional = true }
+supplement-proc-macro = { path = "./supplement-proc-macro", version = "0.1" }
 
 [dev-dependencies]
 env_logger = '0.11'
