@@ -19,6 +19,7 @@ pub struct Completion {
     pub value: String,
     pub description: String,
     pub group: Option<&'static str>,
+    pub always_match: bool,
 }
 impl Completion {
     pub fn new(value: impl ToString, description: impl ToString) -> Self {
@@ -26,10 +27,17 @@ impl Completion {
             value: value.to_string(),
             description: description.to_string(),
             group: None,
+            always_match: false,
         }
     }
     pub fn value<F: FnOnce(&str) -> String>(mut self, val: F) -> Self {
         self.value = val(&self.value);
+        self
+    }
+    /// If `always_match` is set, this `Completion` will always be returned.
+    /// Otherwise it will be returned only if `Completion::value` matches the value on CLI.
+    pub fn always_match(mut self) -> Self {
+        self.always_match = true;
         self
     }
     pub fn group(mut self, group: &'static str) -> Self {
@@ -43,51 +51,80 @@ impl Completion {
     /// - `ls another/xyz<TAB>` - everything under `another` directory
     /// - `ls /xyz<TAB>` - everything under `/` directory
     pub fn files(arg: &str) -> impl Iterator<Item = Completion> {
-        let path = Path::new(arg);
-        let (arg_dir, dir) = match arg {
-            "" => (Path::new(""), Path::new("./")),
-            "/" => (Path::new("/"), Path::new("/")),
-            _ => {
-                let arg_dir = if arg.ends_with(MAIN_SEPARATOR_STR) {
-                    // path like xyz/ will have `parent() == Some("")`, but we want Some("xyz")
-                    path
-                } else {
-                    path.parent().unwrap()
-                };
-
-                let dir = if arg_dir == Path::new("") {
-                    Path::new("./")
-                } else {
-                    arg_dir
-                };
-                (arg_dir, dir)
+        fn check_is_hidden(s: Option<&str>) -> bool {
+            log::debug!("checking is_hidden for {s:?}");
+            if let Some(s) = s {
+                return s.starts_with('.') && s != "..";
             }
-        };
-        log::debug!("arg_dir = {:?}, dir = {:?}", arg_dir, dir);
-        let paths = match fs::read_dir(dir) {
-            Ok(paths) => Some(paths),
-            Err(err) => {
-                log::warn!("error reading current directory: {:?}", err);
-                None
-            }
-        };
+            false
+        }
 
-        paths.into_iter().flatten().filter_map(|p| {
-            let p = match p {
-                Ok(p) => p.path(),
-                Err(err) => {
-                    log::warn!("error reading current directory: {:?}", err);
-                    return None;
+        fn inner(arg: &str) -> impl Iterator<Item = Completion> {
+            // TODO: expand "~" and "~some_user"
+            let (arg_dir, dir, is_hidden) = match arg {
+                "" => (Path::new(""), Path::new("./"), false),
+                "/" => (Path::new("/"), Path::new("/"), false),
+                _ => {
+                    // don't use `Path::file_name` because it doesn't handle single dot e.g. "abc/."
+                    // don't use `Path::path_name` because it doesn't handle "abc/"
+                    let (arg_dir, last) =
+                        if let Some((mut parent, last)) = arg.rsplit_once(MAIN_SEPARATOR_STR) {
+                            if parent == "" {
+                                parent = MAIN_SEPARATOR_STR;
+                            }
+                            (Path::new(parent), last)
+                        } else {
+                            (Path::new(""), arg)
+                        };
+
+                    let is_hidden = check_is_hidden(Some(last));
+                    let dir = if arg_dir == Path::new("") {
+                        Path::new("./")
+                    } else {
+                        arg_dir
+                    };
+                    (arg_dir, dir, is_hidden)
                 }
             };
-            let Some(file_name) = p.file_name() else {
-                return None;
+            log::debug!("arg_dir = {:?}, dir = {:?}", arg_dir, dir);
+            let paths = match fs::read_dir(dir) {
+                Ok(paths) => Some(paths),
+                Err(err) => {
+                    log::warn!("error reading directory: {:?}", err);
+                    None
+                }
             };
-            let file_name = arg_dir.join(file_name);
-            let trailing = if file_name.is_dir() { "/" } else { "" };
-            let file_name = format!("{}{}", file_name.to_string_lossy(), trailing);
-            Some(Completion::new(&file_name, ""))
-        })
+
+            paths.into_iter().flatten().filter_map(move |p| {
+                let p = match p {
+                    Ok(p) => p.path(),
+                    Err(err) => {
+                        log::warn!("error reading directory: {:?}", err);
+                        return None;
+                    }
+                };
+                let Some(file_name) = p.file_name() else {
+                    return None;
+                };
+                let file_is_hidden = check_is_hidden(file_name.to_str());
+                if file_is_hidden != is_hidden {
+                    return None;
+                }
+
+                let file_name = arg_dir.join(file_name);
+                let trailing = if file_name.is_dir() { "/" } else { "" };
+                let file_name = format!("{}{}", file_name.to_string_lossy(), trailing);
+                Some(Completion::new(&file_name, ""))
+            })
+        }
+
+        let is_dot_dot = arg.ends_with("/..") || arg.ends_with("..");
+        let (iter1, iter2) = if is_dot_dot {
+            (Some(Completion::new(format!("{arg}/"), "")), None)
+        } else {
+            (None, Some(inner(arg)))
+        };
+        iter2.into_iter().flatten().chain(iter1)
     }
 }
 
@@ -140,17 +177,24 @@ impl Ready {
     /// Print the completion.
     /// Normally this is used to print the completion to stdout in a shell completion script.
     pub fn print(&self, shell: Shell, w: &mut impl Write) -> IoResult<()> {
+        let comps = self.comps.iter().filter(|comp| {
+            if shell == Shell::Bash {
+                return comp.value.starts_with(&self.arg); // If there are multiple candates, bash will not complete :(
+            }
+
+            if comp.always_match {
+                return true;
+            }
+            naive_fuzzy(&comp.value, &self.arg)
+        });
         match shell {
             Shell::Bash => {
-                for comp in self.comps.iter() {
-                    if !comp.value.starts_with(&self.arg) {
-                        continue; // If there are multiple candates, bash will not complete :(
-                    }
+                for comp in comps {
                     writeln!(w, "{}", comp.value)?; // Bash doesn't allow description
                 }
             }
             Shell::Fish => {
-                for comp in self.comps.iter() {
+                for comp in comps {
                     let desc = match (comp.description.as_str(), comp.group) {
                         ("", None) => "",
                         ("", Some(g)) => g,
@@ -161,7 +205,7 @@ impl Ready {
             }
             Shell::Zsh => {
                 let mut groups: Vec<(&str, Vec<&Completion>)> = vec![];
-                for comp in self.comps.iter() {
+                for comp in comps {
                     let group = comp.group.unwrap_or("option");
                     let (_, group_vec) =
                         if let Some(group_vec) = groups.iter_mut().find(|(s, _)| *s == group) {
@@ -308,4 +352,20 @@ impl<ID> CompletionGroup<ID> {
             value,
         }
     }
+}
+
+fn naive_fuzzy(mut value: &str, pattern: &str) -> bool {
+    if pattern.len() > value.len() {
+        return false;
+    }
+
+    for ch in pattern.chars() {
+        let pos = value.chars().position(|t| t == ch);
+        let Some(pos) = pos else {
+            return false;
+        };
+        value = &value[pos + 1..];
+    }
+
+    true
 }
