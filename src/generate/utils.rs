@@ -45,18 +45,10 @@ pub(crate) fn to_screaming_snake_case(s: &str) -> String {
     s.replace('-', "_").to_uppercase() // TODO
 }
 
-pub(crate) fn gen_enum_name(mut ty: NameType, name: &str) -> String {
-    match ty {
-        NameType::EXTERNAL => {
-            return ty.to_string();
-        }
-        NameType::FLAG | NameType::ARG => {
-            // flags & args should never have conflicting names. Let's just use the same prefix.
-            ty = NameType::VAL;
-        }
-        _ => (),
+pub(crate) fn gen_enum_name(ty: NameType, name: &str) -> String {
+    if ty == NameType::EXTERNAL {
+        return ty.to_string();
     }
-
     let name = to_pascal_case(name);
     format!("{ty}{name}")
 }

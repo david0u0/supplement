@@ -73,8 +73,6 @@ struct GlobalFlag {
 #[derive(Clone, Copy, Eq, PartialEq)]
 struct NameType(&'static str);
 impl NameType {
-    const FLAG: Self = NameType("Flag");
-    const ARG: Self = NameType("Arg");
     const COMMAND: Self = NameType("CMD");
     const EXTERNAL: Self = NameType("External");
     const VAL: Self = NameType("Val");
@@ -142,7 +140,7 @@ impl<'a> FlagDisplayHelper<'a> {
         let value = if is_certain {
             "new_certain(line!())".to_owned()
         } else {
-            let value = utils::get_id_value(self.prev, NameType::FLAG, &id);
+            let value = utils::get_id_value(self.prev, NameType::VAL, &id);
             format!("new({value})")
         };
         format!("pub const {id_name}: id::{id_type}{global_id} = id::{id_type}::{value};")
@@ -195,20 +193,20 @@ fn generate_args_in_cmd(
         log::debug!("generating arg {}", name);
 
         let max_values = arg.get_max_num_args();
-        let rust_name = gen_rust_name(NameType::ARG, &name);
+        let rust_name = gen_rust_name(NameType::VAL, &name);
 
         (
             name,
             rust_name,
             max_values,
             arg.get_possible_values(),
-            NameType::ARG,
+            NameType::VAL,
         )
     });
     let args = args.chain(ext_sub.into_iter());
 
     for (name, rust_name, max_values, possible_values, name_type) in args {
-        let id_name = to_screaming_snake_case(&format!("id_{name}"));
+        let id_name = to_screaming_snake_case(&format!("id_{rust_name}"));
         let id_type = if max_values == 1 {
             "id::SingleVal"
         } else {
@@ -263,7 +261,7 @@ fn generate_flags_in_cmd(
 
         let takes_values = flag.takes_values();
         let possible_values = flag.get_possible_values();
-        let rust_name = gen_rust_name(NameType::FLAG, &name);
+        let rust_name = gen_rust_name(NameType::VAL, &name);
         if flag.is_global_set() {
             let level = prev.len();
             if let Some(prev_flag) = global_flags.iter().find(|f| &f.id == &name) {
@@ -310,7 +308,7 @@ fn generate_flags_in_cmd(
 
         let shorts = Join(shorts.iter().map(|s| format!("'{s}'")));
         let longs = Join(longs.iter().map(|s| format!("\"{s}\"")));
-        let id_name = to_screaming_snake_case(&format!("id_{name}"));
+        let id_name = to_screaming_snake_case(&format!("id_{rust_name}"));
         let flag_display_helper = FlagDisplayHelper {
             ty,
             flag,
@@ -320,7 +318,7 @@ fn generate_flags_in_cmd(
         };
 
         let is_certain = !takes_values || !possible_values.is_empty();
-        let enum_name = gen_enum_name(NameType::FLAG, &name);
+        let enum_name = gen_enum_name(NameType::VAL, &name);
         let enum_name = if is_certain { None } else { Some(enum_name) };
 
         let id_line = flag_display_helper.id_line_str();

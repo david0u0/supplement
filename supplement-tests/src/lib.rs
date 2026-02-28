@@ -78,7 +78,7 @@ mod test {
     #[test]
     fn test_simple() {
         let comps = run("git -").unwrap();
-        assert_eq!(vec!["--git-dir"], map_ready(&comps));
+        assert_eq!(vec!["--external", "--git-dir"], map_ready(&comps));
 
         let comps = run("git g").unwrap();
         assert_eq!(

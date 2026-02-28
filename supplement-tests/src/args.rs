@@ -7,6 +7,10 @@ pub struct Arg {
 
     #[clap(long, global = true)]
     pub git_dir: Option<std::path::PathBuf>,
+
+    #[clap(long)]
+    pub external: Option<String>,
+
     #[clap(subcommand)]
     pub sub: SubCommand,
 }
