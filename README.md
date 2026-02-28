@@ -1,6 +1,12 @@
 # Supplement
 > Shell-agnostic, extensible CLI completion for Rust 💊
 
+[![Crates.io](https://img.shields.io/crates/v/supplement?style=flat-square)](https://crates.io/crates/supplement)
+[![Crates.io](https://img.shields.io/crates/d/supplement?style=flat-square)](https://crates.io/crates/supplement)
+![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)
+![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
+[![Doc](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/supplement)
+
 **supplement** is a Rust library that generates completion scaffolds as Rust code.
 
 Give it a [`clap`](https://github.com/clap-rs/clap) object, and instead of spitting out shell files that you later have to manually edit, it spits out Rust! supplement is:
@@ -22,9 +28,16 @@ supplement = { version = "0.1", default-features = false }
 ```
 
 ## Quick start
-Say you have this awesome clap definition, and want to use supplement to make it even more awesome.
+Say you have some awesome clap definition, and want to use supplement to make it even more awesome.
+
+<details>
+<summary>
+Click to show clap definition
+</summary>
 
 ```rs
+// src/args.rs
+
 use clap::{CommandFactory, Parser, ValueEnum};
 
 #[derive(Parser, Debug)]
@@ -34,10 +47,61 @@ pub struct Git {
     #[clap(subcommand)]
     pub sub: SubCommand,
 }
+#[derive(Parser, Debug)]
+pub enum SubCommand {
+    Checkout {
+        file_or_commit: Option<String>,
+        files: Vec<std::path::PathBuf>,
+    },
+
+    #[clap(about = "log")]
+    Log {
+        #[clap(short, long)]
+        graph: bool,
+        #[clap(short, long, num_args = 0..=1, default_value = "short", default_missing_value = "full", require_equals = true)]
+        pretty: Option<Pretty>,
+        #[clap(short, long, default_value = "auto")]
+        color: Color,
+        commit: Option<String>,
+    },
+}
+
 // more definition...
 ```
+</details>
 
-You can now edit `build.rs` to generate the scaffold code (see [supplement-example/build.rs](supplement-example/build.rs)), and in `main.rs`, utilize the generated code like this:
+You can call `supplement::generate` to generate the completion file (preferably in `build.rs`):
+
+<details>
+<summary>
+Click to show build.rs
+</summary>
+
+```rs
+#[path = "src/args.rs"]
+mod args; // path to the clap definition
+
+use args::Git;
+use clap::CommandFactory;
+use std::path::Path;
+use supplement::generate;
+
+fn main() {
+    let out_dir = std::env::var_os("OUT_DIR").unwrap();
+    let file = Path::new(&out_dir).join("definition.rs");
+    let mut f = std::fs::File::create(file).unwrap();
+
+    // Code-gen to a file like target/debug/build/myapp-3b7bb95d1e25522b/out/definition.rs
+    generate(&mut Git::command(), Default::default(), &mut f).unwrap();
+}
+```
+</details>
+
+### Implementation
+
+Utilize the generated code in `main.rs`.
+Note that, if you missed some implementation, it's a *compile time error*.
+So just relex and let Rust get your back 💪
 
 ```rs
 use supplement::{*, helper::id};
@@ -65,8 +129,8 @@ fn main() {
                     let comps: Vec<Completion> = complete_git_dir(history, value);
                     unready.to_ready(comps)
                 }
-                id!(def remote set_url name) => {
-                    unimplemented!("logic for `git remote set-url <TAB>`");
+                id!(def log commit) => {
+                    unimplemented!("logic for `git log <TAB>`");
                 }
                 _ => unimplemented!("Some more custom logic...")
             }
@@ -78,9 +142,10 @@ fn main() {
 }
 ```
 
-Note that, if you missed some implementation, it's a *compile time error*. So just relex and let Rust get your back 💪
+### Install to system
 
-And after implementing everything, compile it to binary file and create a shell completion file to tell the shell how to use the binary. For example, in `fish` shell you should have:
+After implementing everything, compile it to binary file, and create a shell completion script to tell the shell how to use the binary.
+Here's an example for [Fish](https://github.com/fish-shell/fish-shell) shell:
 
 ```fish
 # Put this to /usr/share/fish/completions/git.fish or  ~/.config/fish/completions/git.fish
