@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
-use syn::{Result, Token, parse_macro_input};
+use syn::{Error, Result, Token, parse_macro_input};
 
 fn to_snake_case(s: &str) -> String {
     s.replace('-', "_").to_lowercase() // TODO
@@ -27,6 +27,9 @@ fn to_cmd_enum(ident: &str) -> String {
     format!("CMD{}", to_pascal_case(ident))
 }
 fn to_val_enum(ident: &str) -> String {
+    if ident == "@ext" {
+        return "External".to_owned();
+    }
     format!("Val{}", to_pascal_case(ident))
 }
 fn to_cmd_mod(ident: &str) -> String {
@@ -40,32 +43,95 @@ struct IdList {
 impl Parse for IdList {
     fn parse(input: ParseStream) -> Result<Self> {
         let mut items = Vec::new();
+        let ident: syn::Ident = input.parse()?;
+        items.push(ident.to_string());
 
         while !input.is_empty() {
-            let ident: syn::Ident = input.parse()?;
-            items.push(ident.to_string());
-
-            // allow optional whitespace only (space separated)
-            if input.peek(Token![,]) {
-                input.parse::<Token![,]>()?;
+            if input.peek(Token![@]) {
+                input.parse::<Token![@]>()?;
+                let ident: syn::Ident = input.parse()?;
+                let ident = ident.to_string();
+                if ident != "ext" {
+                    return Err(Error::new(
+                        Span::call_site(),
+                        format!("Unknown ident @{ident}"),
+                    ));
+                }
+                if !input.is_empty() {
+                    return Err(Error::new(
+                        Span::call_site(),
+                        "@ext must be the last element",
+                    ));
+                }
+                items.push("@ext".to_owned());
+            } else {
+                let ident: syn::Ident = input.parse()?;
+                items.push(ident.to_string());
             }
+        }
+
+        if items.len() < 2 {
+            return Err(Error::new(
+                Span::call_site(),
+                "The macro requires at least two elements",
+            ));
         }
 
         Ok(IdList { items })
     }
 }
 
-/// `id!(def remote set_url url)` becomes
+/// Helper macro to simplify the nested ID hell.
+///
+/// `id!(def remote set_url url)` expands to
 /// `def::ID::CMDRemote(def::remote::ID::CMDSetUrl(def::remote::set_url::ID::ValUrl)`
+///
+/// To specify an external subcommand, use `@ext`. E.g. `id!(def parent_cmd @ext)`.
+/// This expands to `def::ID::CMDParentCmd(def::parent_cmd::ID::External)`
+/// ```rust
+/// use supplement_proc_macro::id;
+///
+/// mod def {
+///     #[derive(PartialEq, Eq, Debug)]
+///     pub enum ID {
+///         ValGitDir,
+///         CMDRemote(remote::ID),
+///     }
+///
+///     pub mod remote {
+///         #[derive(PartialEq, Eq, Debug)]
+///         pub enum ID {
+///             CMDSetUrl(set_url::ID),
+///             External,
+///         }
+///
+///         pub mod set_url {
+///             #[derive(PartialEq, Eq, Debug)]
+///             pub enum ID {
+///                 ValUrl,
+///             }
+///         }
+///     }
+/// }
+///
+/// let e = id!(def git_dir);
+/// assert_eq!(e, def::ID::ValGitDir);
+///
+/// let e = id!(def remote set_url url);
+/// assert_eq!(
+///     e,
+///     def::ID::CMDRemote(def::remote::ID::CMDSetUrl(def::remote::set_url::ID::ValUrl))
+/// );
+///
+/// let e = id!(def remote @ext);
+/// assert_eq!(e, def::ID::CMDRemote(def::remote::ID::External));
+/// ```
 #[proc_macro]
 pub fn id(input: TokenStream) -> TokenStream {
     let IdList { items } = parse_macro_input!(input as IdList);
-    let mod_name = items.first().unwrap(); // TODO: error
+    let mod_name = items.first().unwrap();
     let items = &items[1..];
     let mod_ident = Ident::new(mod_name, Span::call_site());
-    if items.is_empty() {
-        panic!(); // TODO better error?
-    }
     let tokens = build_recur(&mod_ident, items, 0);
     tokens.into()
 }

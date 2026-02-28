@@ -65,8 +65,8 @@ mod test {
     }
     #[test]
     fn test_proc_macro() {
-        let id = id!(def external);
-        assert_eq!(id, ID::ValExternal);
+        let id = id!(def @ext);
+        assert_eq!(id, ID::External);
 
         let id = id!(def remote add name);
         assert_eq!(
@@ -84,7 +84,7 @@ mod test {
         assert_eq!(
             map_unready(&comps),
             (
-                ID::ValExternal,
+                ID::External,
                 "g",
                 vec!["bisect", "checkout", "log", "remote"],
                 ""
