@@ -4,7 +4,7 @@ members = ["supplement-example", "supplement-proc-macro", "supplement-tests"]
 
 [package]
 name = "supplement"
-version = "0.1.7"
+version = "0.1.8"
 authors = ["why8ther <lturtsamuel@gmail.com>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
