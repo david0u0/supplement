@@ -63,7 +63,11 @@ pub enum Pretty {
 
 #[derive(Parser, Debug)]
 pub enum Remote {
-    Add { name: String },
+    Add {
+        #[clap(long)]
+        tags: bool,
+        name: String,
+    },
     Remove,
 }
 

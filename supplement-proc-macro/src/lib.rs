@@ -37,15 +37,15 @@ fn to_cmd_mod(ident: &str) -> String {
 }
 
 struct IdList {
+    root_mod: syn::Path,
     items: Vec<String>,
 }
 
 impl Parse for IdList {
     fn parse(input: ParseStream) -> Result<Self> {
-        let mut items = Vec::new();
-        let ident: syn::Ident = input.parse()?;
-        items.push(ident.to_string());
+        let root_mod: syn::Path = input.parse()?;
 
+        let mut items = Vec::new();
         while !input.is_empty() {
             if input.peek(Token![@]) {
                 input.parse::<Token![@]>()?;
@@ -70,14 +70,14 @@ impl Parse for IdList {
             }
         }
 
-        if items.len() < 2 {
+        if items.len() < 1 {
             return Err(Error::new(
                 Span::call_site(),
                 "The macro requires at least two elements",
             ));
         }
 
-        Ok(IdList { items })
+        Ok(IdList { items, root_mod })
     }
 }
 
@@ -114,29 +114,34 @@ impl Parse for IdList {
 ///     }
 /// }
 ///
+/// // Root flag or arg
 /// let e = id!(def git_dir);
 /// assert_eq!(e, def::ID::ValGitDir);
 ///
+/// // Flag or arg within subcommand
 /// let e = id!(def remote set_url url);
 /// assert_eq!(
 ///     e,
 ///     def::ID::CMDRemote(def::remote::ID::CMDSetUrl(def::remote::set_url::ID::ValUrl))
 /// );
 ///
+/// // External subcommands
 /// let e = id!(def remote @ext);
 /// assert_eq!(e, def::ID::CMDRemote(def::remote::ID::External));
+///
+/// // Start with a different module def::remote
+/// let e = id!(def::remote set_url url);
+/// assert_eq!(e, def::remote::ID::CMDSetUrl(def::remote::set_url::ID::ValUrl));
+///
 /// ```
 #[proc_macro]
 pub fn id(input: TokenStream) -> TokenStream {
-    let IdList { items } = parse_macro_input!(input as IdList);
-    let mod_name = items.first().unwrap();
-    let items = &items[1..];
-    let mod_ident = Ident::new(mod_name, Span::call_site());
-    let tokens = build_recur(&mod_ident, items, 0);
+    let IdList { items, root_mod } = parse_macro_input!(input as IdList);
+    let tokens = build_recur(&root_mod, &items, 0);
     tokens.into()
 }
 
-fn build_recur(mod_ident: &Ident, items: &[String], index: usize) -> proc_macro2::TokenStream {
+fn build_recur(root_mod: &syn::Path, items: &[String], index: usize) -> proc_macro2::TokenStream {
     let mod_path: Vec<Ident> = items[..index]
         .iter()
         .map(|m| Ident::new(&to_cmd_mod(&*m), Span::call_site()))
@@ -145,13 +150,13 @@ fn build_recur(mod_ident: &Ident, items: &[String], index: usize) -> proc_macro2
     if index == items.len() - 1 {
         let val = Ident::new(&to_val_enum(&items[index]), Span::call_site());
         return quote! {
-            #mod_ident::#(#mod_path::)*ID::#val
+            #root_mod::#(#mod_path::)*ID::#val
         };
     }
 
     let cmd = Ident::new(&to_cmd_enum(&items[index]), Span::call_site());
-    let inner = build_recur(mod_ident, items, index + 1);
+    let inner = build_recur(root_mod, items, index + 1);
     quote! {
-        #mod_ident::#(#mod_path::)*ID::#cmd(#inner)
+        #root_mod::#(#mod_path::)*ID::#cmd(#inner)
     }
 }

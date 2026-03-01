@@ -1,6 +1,6 @@
 # supplement-example
 
-This example will demonstrate the steps to use `supplement` in your CLI app.
+This example demonstrates the steps to use `supplement` in your CLI app.
 
 The CLI definition here mimics our beloved version control tool `git`, so in this document, let's call our toy app `qit`.
 
@@ -63,13 +63,13 @@ The function `def::CMD.supplement` returns a `Result<(History, CompletionGroup)>
 ### Unready
 `Unready` is the hard path. Your custom logic should go here. You'll have the history, the id of the last seen element (flag or argument), and the value in the command line (possibly `''`).
 
-For example, if you do `cargo run -- fish checkout file1 file2 ''`, the history will contain `file1` and `file2`, the id will be `ID::Checkout(def::checkout::ID::File)`, and the value will be `''`.
+For example, if you do `cargo run -- fish checkout file1 file2 fi`, the history will contain `file1` and `file2`, the id will be `id!(checkout files)`, and the value will be `"fi"`.
 
 You have to convert it to a `Ready` object to print it, hence the `to_ready` function, and the input is a `Vec<Completion>`.
 This is when `supplement` hands over the control to *YOU*. You're the only one who knows the invariants and needs of your app.
-Only *YOU* can compute the vector based on the history, id, value, and anything else you're interested in.
+Only *YOU* can compute the vector based on the history, id, value, and whatever else you're interested in.
 
-In [src/main.rs](src/main.rs) I wrote a function `handle_comp` for this custom logic.
+In [src/main.rs](src/main.rs) I wrote a function `handle_comp` for the custom logic.
 For example, `id!(git_dir)` should simply be completed with files, and `id!(checkout files)` should be completed with a list of commit hash.
 
 ### Ready::print

@@ -236,11 +236,6 @@ fn generate_flags_in_cmd(
 
         let ignored = config.is_ignored(prev, &name);
 
-        if name == "help" {
-            log::debug!("skipping help flag");
-            continue;
-        }
-
         let takes_values = flag.takes_values();
         let possible_values = flag.get_possible_values();
         let rust_name = gen_rust_name(NameType::VAL, &name);
@@ -248,12 +243,11 @@ fn generate_flags_in_cmd(
             let level = prev.len();
             if let Some(prev_flag) = global_flags.iter().find(|f| &f.id == &name) {
                 log::info!("get existing global flag {name}");
-                if prev_flag.ignored {
-                    continue;
+                if !prev_flag.ignored && !ignored {
+                    let mut name = "super::".repeat(level - prev_flag.level);
+                    name += &rust_name;
+                    flag_names.push((name, None));
                 }
-                let mut name = "super::".repeat(level - prev_flag.level);
-                name += &rust_name;
-                flag_names.push((name, None));
                 continue;
             } else {
                 log::info!("get new global flag {name}");

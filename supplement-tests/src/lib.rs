@@ -1,5 +1,6 @@
 use std::fmt::Debug;
 pub mod args;
+pub mod generate;
 use supplement::{Completion, CompletionGroup, Result};
 
 fn map_comps(comps: &[Completion]) -> Vec<&str> {
@@ -109,7 +110,12 @@ mod test {
             map_ready(&comps)
         );
 
+        // test possible value for arg
         let comps = run("git bisect x").unwrap();
         assert_eq!(vec!["bad", "good"], map_ready(&comps));
+
+        // test ignoring global flags
+        let comps = run("git remote add -").unwrap();
+        assert_eq!(vec!["--tags"], map_ready(&comps));
     }
 }
