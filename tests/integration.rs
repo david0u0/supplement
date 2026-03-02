@@ -13,6 +13,7 @@ mod def {
         B,
         D,
         OPT2,
+        E,
     }
 
     pub const C_FLAG_ID: id::NoVal = id::NoVal::new(line!());
@@ -37,11 +38,17 @@ mod def {
         max_values: 1,
         possible_values: &[],
     };
+    pub const E_ARG_ID: id::SingleVal<ID> = id::SingleVal::new(ID::E);
+    pub const E_ARG: Arg<ID> = Arg {
+        id: E_ARG_ID.into(),
+        max_values: 1,
+        possible_values: &[("ext1", "")],
+    };
     pub const ROOT: Command<ID> = Command {
         all_flags: &[B_FLAG, C_FLAG, OPT_FLAG],
         name: "root",
         description: "",
-        args: &[A_ARG, D_ARG],
+        args: &[E_ARG, D_ARG],
         commands: &[SUB],
     };
     pub const SUB: Command<ID> = Command {
@@ -255,20 +262,23 @@ fn test_flags_supplement() {
 
     let (h, r) = run("-c x", false);
     assert_eq!(h, expected_h);
-    assert_eq!(map_unready(&r), (ID::A, "x", vec![(false, "sub")], ""));
+    assert_eq!(
+        map_unready(&r),
+        (ID::E, "x", vec![(true, "ext1"), (false, "sub")], "")
+    );
 }
 
 #[test]
 fn test_fall_back_and_var_len_arg() {
     let (h, r) = run("arg1", true);
-    assert_eq!(h, vec![single!(A_ARG_ID, "arg1")]);
+    assert_eq!(h, vec![single!(E_ARG_ID, "arg1")]);
     assert_eq!(map_unready(&r), (ID::D, "", vec![(true, "p1")], ""));
 
     let (h, r) = run("arg1 d1", true);
-    assert_eq!(h, vec![single!(A_ARG_ID, "arg1"), multi!(D_ARG_ID, ["d1"])]);
+    assert_eq!(h, vec![single!(E_ARG_ID, "arg1"), multi!(D_ARG_ID, ["d1"])]);
     assert_eq!(map_unready(&r), (ID::D, "", vec![(true, "p1")], ""));
 
-    let expected_h = vec![single!(A_ARG_ID, "arg1"), multi!(D_ARG_ID, ["d1", "d2"])];
+    let expected_h = vec![single!(E_ARG_ID, "arg1"), multi!(D_ARG_ID, ["d1", "d2"])];
 
     let (h, r) = try_run("arg1 d1 d2", true);
     assert_eq!(h, expected_h);
@@ -302,23 +312,23 @@ fn test_flag_after_external_sub() {
     let (h, r) = run("--long-b flag1 ext", true);
     assert_eq!(
         h,
-        vec![single!(B_FLAG_ID, "flag1"), single!(A_ARG_ID, "ext")]
+        vec![single!(B_FLAG_ID, "flag1"), single!(E_ARG_ID, "ext")]
     );
     assert_eq!(map_unready(&r), (ID::D, "", vec![(true, "p1")], ""));
 
     let (h, r) = run("ext --", false);
-    assert_eq!(h, vec![single!(A_ARG_ID, "ext")]);
+    assert_eq!(h, vec![single!(E_ARG_ID, "ext")]);
     assert_eq!(map_unready(&r), (ID::D, "--", vec![(true, "p1")], ""));
 
     let (h, r) = run("ext --long-b flag1", false);
     assert_eq!(
         h,
-        vec![single!(A_ARG_ID, "ext"), multi!(D_ARG_ID, ["--long-b"])]
+        vec![single!(E_ARG_ID, "ext"), multi!(D_ARG_ID, ["--long-b"])]
     );
     assert_eq!(map_unready(&r), (ID::D, "flag1", vec![(true, "p1")], ""));
 
     let expected_h = vec![
-        single!(A_ARG_ID, "ext"),
+        single!(E_ARG_ID, "ext"),
         multi!(D_ARG_ID, ["--long-b", "flag1"]),
     ];
     let (h, r) = try_run("ext --long-b flag1", true);
@@ -332,13 +342,15 @@ fn test_optional_flag() {
     assert_eq!(h, vec![]);
     assert_eq!(map_comp_values(&r), vec!["--opt=opt1", "--opt=opt2"]);
 
+    let expected_r = (ID::E, "", vec![(true, "ext1"), (false, "sub")], "");
+
     let (h, r) = run("--opt=xxx", true);
     assert_eq!(h, vec![single!(OPT_FLAG_ID, "xxx")]);
-    assert_eq!(map_unready(&r), (ID::A, "", vec![(false, "sub")], ""));
+    assert_eq!(map_unready(&r), expected_r);
 
     let (h, r) = run("--opt", true);
     assert_eq!(h, vec![single!(OPT_FLAG_ID, "")]);
-    assert_eq!(map_unready(&r), (ID::A, "", vec![(false, "sub")], ""));
+    assert_eq!(map_unready(&r), expected_r);
 
     let (h, r) = run("--opt sub", true);
     assert_eq!(h, vec![single!(OPT_FLAG_ID, "")]);
@@ -352,7 +364,7 @@ fn test_optional_flag() {
 
     let (h, r) = run("-oba", true);
     assert_eq!(h, vec![single!(OPT_FLAG_ID, ""), single!(B_FLAG_ID, "a")]);
-    assert_eq!(map_unready(&r), (ID::A, "", vec![(false, "sub")], ""));
+    assert_eq!(map_unready(&r), expected_r);
 
     let (h, r) = run("-ob a", false);
     assert_eq!(h, vec![single!(OPT_FLAG_ID, "")]);
