@@ -2,14 +2,13 @@ mod flag;
 pub use crate::id;
 pub use flag::{CompleteWithEqual, Flag, flag_type};
 
-use std::iter::Peekable;
-
 use crate::arg_context::ArgsContext;
 use crate::completion::{CompletionGroup, Unready};
 use crate::error::Error;
 use crate::parsed_flag::ParsedFlag;
 use crate::{Completion, History, Result};
 use std::fmt::Debug;
+use std::iter::Peekable;
 
 type PossibleValues = &'static [(&'static str, &'static str)];
 
@@ -19,12 +18,18 @@ pub struct Arg<ID> {
     pub possible_values: PossibleValues,
 }
 
-impl<ID> Arg<ID> {
-    pub(crate) fn comp_from_possible(&self) -> Vec<Completion> {
-        self.possible_values
-            .iter()
-            .map(|(value, desc)| Completion::new(value, desc))
-            .collect()
+fn comp_with_possible<ID>(
+    mut unready: Unready,
+    values: PossibleValues,
+    value: String,
+    id: id::Valued<ID>,
+) -> CompletionGroup<ID> {
+    let values = values.iter().map(|(v, d)| Completion::new(v, d));
+    unready = unready.preexist(values);
+    match id.id() {
+        // TODO: test when `values` is not empty and id is not certian
+        Some(id) => CompletionGroup::Unready { id, unready, value },
+        None => CompletionGroup::Ready(unready.to_ready(vec![])),
     }
 }
 
@@ -245,26 +250,20 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                     log::debug!("completion for {} subcommands", self.commands.len());
                     self.commands
                 };
-                let cmd_comps: Vec<_> = cmd_slice
+                let cmd_comps = cmd_slice
                     .iter()
-                    .map(|c| Completion::new(c.name, c.description).group("command"))
-                    .collect();
+                    .map(|c| Completion::new(c.name, c.description).group("command"));
+
                 if let Some(arg_obj) = args_ctx.next_arg() {
                     log::debug!("completion for args {:?}", arg_obj.id);
-                    let unready = Unready::new(String::new(), arg.clone()).preexist(cmd_comps);
-                    match arg_obj.id.id() {
-                        Some(id) => CompletionGroup::Unready {
-                            id,
-                            unready,
-                            value: arg,
-                        },
-                        None => unready.to_ready_grp(arg_obj.comp_from_possible()),
-                    }
+                    let unready =
+                        Unready::new(String::new(), arg.clone()).preexist_no_prefix(cmd_comps);
+                    comp_with_possible(unready, arg_obj.possible_values, arg, arg_obj.id)
                 } else {
-                    if cmd_comps.is_empty() {
+                    if cmd_slice.is_empty() {
                         return Err(Error::UnexpectedArg(arg));
                     }
-                    CompletionGroup::new_ready(cmd_comps, arg)
+                    CompletionGroup::new_ready(cmd_comps.collect(), arg)
                 }
             }
             ParsedFlag::DoubleDash | ParsedFlag::Long { equal: None, .. } => check_no_flag(
@@ -293,11 +292,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                 let prefix = format!("--{body}=");
                 let value = value.to_string();
                 let unready = Unready::new(prefix, arg);
-
-                match valued.id.id() {
-                    Some(id) => CompletionGroup::Unready { unready, value, id },
-                    None => unready.to_ready_grp(valued.comp_from_possible()),
-                }
+                comp_with_possible(unready, valued.possible_values, value, valued.id)
             }
             ParsedFlag::Shorts => self.supplement_last_short_flags(history, arg)?,
         };
@@ -380,7 +375,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
             flag_type::Type::Valued(valued) => {
                 let value = resolved.value.unwrap_or_default().to_string();
                 let mut eq = "";
-                let mut more = vec![];
+                let mut base = None;
                 if valued.complete_with_equal != CompleteWithEqual::NoNeed {
                     if resolved.value.is_none() {
                         // E.g. `cmd -af`
@@ -388,8 +383,8 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                         if valued.complete_with_equal == CompleteWithEqual::Optional {
                             // Want: `-af=opt1`, `-af=opt2`, `-af`
                             // NOTE that we don't want `-afx`, `-afy` where x and y are other flags. That's too much.
-                            more =
-                                vec![Completion::new(resolved.flag_part, &flag.get_description())];
+                            base =
+                                Some(Completion::new(resolved.flag_part, &flag.get_description()));
                         }
                     } else {
                         // E.g. `cmd -af=xyz` or `cmd -af=`.
@@ -398,12 +393,8 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                     }
                 }
                 let prefix = format!("{}{}", resolved.flag_part, eq);
-                let unready = Unready::new(prefix, arg).preexist(more);
-
-                match valued.id.id() {
-                    Some(id) => CompletionGroup::Unready { unready, value, id },
-                    None => unready.to_ready_grp(valued.comp_from_possible()),
-                }
+                let unready = Unready::new(prefix, arg).preexist_no_prefix(base.into_iter());
+                comp_with_possible(unready, valued.possible_values, value, valued.id)
             }
             flag_type::Type::Bool(inner) => {
                 log::debug!("list short flags with history {:?}", history);

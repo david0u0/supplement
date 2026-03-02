@@ -166,6 +166,8 @@ pub struct Unready {
     #[doc(hidden)]
     pub preexist: Vec<Completion>,
     #[doc(hidden)]
+    pub preexist_no_prefix: Vec<Completion>,
+    #[doc(hidden)]
     pub prefix: String,
 }
 impl Unready {
@@ -174,10 +176,15 @@ impl Unready {
             prefix,
             arg,
             preexist: vec![],
+            preexist_no_prefix: vec![],
         }
     }
-    pub(crate) fn preexist(mut self, preexist: Vec<Completion>) -> Self {
-        self.preexist = preexist;
+    pub(crate) fn preexist(mut self, preexist: impl Iterator<Item = Completion>) -> Self {
+        self.preexist.extend(preexist);
+        self
+    }
+    pub(crate) fn preexist_no_prefix(mut self, preexist: impl Iterator<Item = Completion>) -> Self {
+        self.preexist_no_prefix.extend(preexist);
         self
     }
 
@@ -207,20 +214,17 @@ impl Unready {
     pub fn to_ready(self, comps: Vec<Completion>) -> Ready {
         log::info!("to_ready: {:?} with {:?}", self, comps);
         let prefix = self.prefix;
-        let mut final_comps = self.preexist;
-        final_comps.extend(
-            comps
-                .into_iter()
-                .map(|c| c.value(|c| format!("{prefix}{c}"))),
-        );
+        let mut final_comps = self.preexist_no_prefix;
+        let iter = self
+            .preexist
+            .into_iter()
+            .chain(comps.into_iter())
+            .map(|c| c.value(|c| format!("{prefix}{c}")));
+        final_comps.extend(iter);
         Ready {
             arg: self.arg,
             comps: final_comps,
         }
-    }
-    pub(crate) fn to_ready_grp<ID>(self, comps: Vec<Completion>) -> CompletionGroup<ID> {
-        let ready = self.to_ready(comps);
-        CompletionGroup::Ready(ready)
     }
 }
 
@@ -259,14 +263,6 @@ pub enum CompletionGroup<ID> {
 impl<ID> CompletionGroup<ID> {
     pub(crate) fn new_ready(comps: Vec<Completion>, arg: String) -> Self {
         CompletionGroup::Ready(Ready { comps, arg })
-    }
-    pub(crate) fn new_unready(id: ID, prefix: String, arg: String, value: Option<String>) -> Self {
-        let value = value.unwrap_or_else(|| arg.clone());
-        CompletionGroup::Unready {
-            unready: Unready::new(prefix, arg),
-            id,
-            value,
-        }
     }
 }
 

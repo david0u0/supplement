@@ -20,7 +20,8 @@ pub fn map_ready<ID: Debug>(grp: &CompletionGroup<ID>) -> Vec<&str> {
 pub fn map_unready<ID: Debug + Copy>(grp: &CompletionGroup<ID>) -> (ID, &str, Vec<&str>, &str) {
     match grp {
         CompletionGroup::Unready { unready, id, value } => {
-            let preexist = map_comps(&unready.preexist);
+            let preexist = map_comps(&unready.preexist_no_prefix);
+            assert_eq!(unready.preexist.len(), 0);
             (*id, value, preexist, &unready.prefix)
         }
         _ => panic!("{:?} is ready", grp),

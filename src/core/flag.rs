@@ -1,12 +1,10 @@
-use super::parse_flag;
-use crate::completion::CompletionGroup;
+use super::{PossibleValues, comp_with_possible, parse_flag};
+use crate::completion::{CompletionGroup, Unready};
 use crate::error::Error;
 use crate::parsed_flag::ParsedFlag;
 use crate::{Completion, History, Result, id};
 use std::fmt::Debug;
 use std::iter::Peekable;
-
-use super::PossibleValues;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CompleteWithEqual {
@@ -40,17 +38,11 @@ pub mod flag_type {
     pub struct Valued<ID> {
         pub(crate) id: id::Valued<ID>,
         pub(crate) complete_with_equal: CompleteWithEqual,
-        possible_values: PossibleValues,
+        pub(crate) possible_values: PossibleValues,
     }
     impl<ID: PartialEq + Copy + Debug> Valued<ID> {
         pub(crate) fn push(&self, history: &mut History<ID>, arg: String) {
             history.push_valued(self.id, arg)
-        }
-        pub(crate) fn comp_from_possible(&self) -> Vec<Completion> {
-            self.possible_values
-                .iter()
-                .map(|(value, desc)| Completion::new(value, desc))
-                .collect()
         }
     }
 
@@ -187,10 +179,8 @@ impl<ID: PartialEq + Copy + Debug> Flag<ID> {
         }
 
         if args.peek().is_none() {
-            let group = match valued.id.id() {
-                Some(id) => CompletionGroup::new_unready(id, String::new(), arg, None),
-                None => CompletionGroup::new_ready(valued.comp_from_possible(), arg),
-            };
+            let unready = Unready::new(String::new(), arg.clone());
+            let group = comp_with_possible(unready, valued.possible_values, arg, valued.id);
             return Ok(Some(group));
         }
 
