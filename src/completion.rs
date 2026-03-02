@@ -218,10 +218,6 @@ impl Unready {
             comps: final_comps,
         }
     }
-    pub(crate) fn to_ready_grp<ID>(self, comps: Vec<Completion>) -> CompletionGroup<ID> {
-        let ready = self.to_ready(comps);
-        CompletionGroup::Ready(ready)
-    }
 }
 
 /// The object to represent completion results.
@@ -259,14 +255,6 @@ pub enum CompletionGroup<ID> {
 impl<ID> CompletionGroup<ID> {
     pub(crate) fn new_ready(comps: Vec<Completion>, arg: String) -> Self {
         CompletionGroup::Ready(Ready { comps, arg })
-    }
-    pub(crate) fn new_unready(id: ID, prefix: String, arg: String, value: Option<String>) -> Self {
-        let value = value.unwrap_or_else(|| arg.clone());
-        CompletionGroup::Unready {
-            unready: Unready::new(prefix, arg),
-            id,
-            value,
-        }
     }
 }
 

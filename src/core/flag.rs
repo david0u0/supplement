@@ -1,12 +1,10 @@
-use super::parse_flag;
-use crate::completion::CompletionGroup;
+use super::{Either, comp_from_possible, parse_flag};
+use crate::completion::{CompletionGroup, Unready};
 use crate::error::Error;
 use crate::parsed_flag::ParsedFlag;
 use crate::{Completion, History, Result, id};
 use std::fmt::Debug;
 use std::iter::Peekable;
-
-use super::PossibleValues;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum CompleteWithEqual {
@@ -14,11 +12,12 @@ pub enum CompleteWithEqual {
     Must,
     /// `ls --colo<TAB>` => `--color=` and `--color`
     /// NOTE: everything marked as `Optional` should be meaningful.
-    /// There should be a functional difference between `--color=always` and `--color always`
+    /// There should be a functional difference between `ls --color=always` and `ls --color always`.
+    /// So `ls --width` doesn't count because `ls --width=10` is the same as `ls --width 10`.
     Optional,
     /// `ls --colo<TAB>` => `--color`
     /// NOTE: This doesn't mean it CAN'T have an equal (only pure boolean flags can't have equal).
-    /// It just means we're not going to give an equal sign when hitting completion
+    /// It just means we're not going to give an equal sign when hitting completion.
     NoNeed,
 }
 
@@ -40,17 +39,10 @@ pub mod flag_type {
     pub struct Valued<ID> {
         pub(crate) id: id::Valued<ID>,
         pub(crate) complete_with_equal: CompleteWithEqual,
-        possible_values: PossibleValues,
     }
     impl<ID: PartialEq + Copy + Debug> Valued<ID> {
         pub(crate) fn push(&self, history: &mut History<ID>, arg: String) {
             history.push_valued(self.id, arg)
-        }
-        pub(crate) fn comp_from_possible(&self) -> Vec<Completion> {
-            self.possible_values
-                .iter()
-                .map(|(value, desc)| Completion::new(value, desc))
-                .collect()
         }
     }
 
@@ -66,12 +58,10 @@ pub mod flag_type {
         pub const fn new_valued(
             id: id::Valued<ID>,
             complete_with_equal: CompleteWithEqual,
-            possible_values: PossibleValues,
         ) -> Self {
             Type::Valued(Valued {
                 id,
                 complete_with_equal,
-                possible_values,
             })
         }
     }
@@ -175,26 +165,27 @@ impl<ID: PartialEq + Copy + Debug> Flag<ID> {
             }
         }
 
-        let arg = args.next().unwrap();
-        match parse_flag(&arg, false) {
+        let value = args.next().unwrap();
+        match parse_flag(&value, false) {
             ParsedFlag::NotFlag | ParsedFlag::Empty | ParsedFlag::SingleDash => (),
             ParsedFlag::DoubleDash | ParsedFlag::Long { .. } | ParsedFlag::Shorts => {
                 log::warn!(
-                    "`--{name} {arg}` is invalid. Maybe you should write it like `--{name}={arg}",
+                    "`--{name} {value}` is invalid. Maybe you should write it like `--{name}={value}",
                 );
                 return Err(Error::FlagNoValue(name));
             }
         }
 
         if args.peek().is_none() {
+            let unready = Unready::new(String::new(), value.clone());
             let group = match valued.id.id() {
-                Some(id) => CompletionGroup::new_unready(id, String::new(), arg, None),
-                None => CompletionGroup::new_ready(valued.comp_from_possible(), arg),
+                Either::A(id) => CompletionGroup::Unready { unready, value, id },
+                Either::B(values) => comp_from_possible(unready, values),
             };
             return Ok(Some(group));
         }
 
-        valued.push(history, arg);
+        valued.push(history, value);
         Ok(None)
     }
 

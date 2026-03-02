@@ -115,15 +115,23 @@ impl<'a> FlagDisplayHelper<'a> {
             FlagType::Single => "SingleVal",
             FlagType::Multi => "MultiVal",
         };
-        let (global_id, is_certain) = match self.ty {
-            FlagType::No => ("", true),
-            _ => ("<GlobalID>", !self.flag.get_possible_values().is_empty()),
-        };
-        let value = if is_certain {
-            "new_certain(line!())".to_owned()
+        let global_id = if matches!(self.ty, FlagType::No) {
+            ""
         } else {
-            let value = utils::get_id_value(self.prev, NameType::VAL, &id);
-            format!("new({value})")
+            "<GlobalID>"
+        };
+        let value = match self.ty {
+            FlagType::No => "new(line!())".to_owned(),
+            _ => {
+                let values = self.flag.get_possible_values();
+                if values.is_empty() {
+                    let value = utils::get_id_value(self.prev, NameType::VAL, &id);
+                    format!("new({value})")
+                } else {
+                    let values = join_possible_values(&values);
+                    format!("new_certain(line!(), &[{values}])")
+                }
+            }
         };
         format!("pub const {id_name}: id::{id_type}{global_id} = id::{id_type}::{value};")
     }
@@ -137,11 +145,7 @@ impl<'a> FlagDisplayHelper<'a> {
             _ => {
                 let complete_with_equal = utils::compute_flag_equal(self.flag, self.strict)
                     .map_err(|msg| GenerateError::Strict { id, msg })?;
-                let possible_values = self.flag.get_possible_values();
-                let possible_values = join_possible_values(&possible_values);
-                format!(
-                    "flag_type::Type::new_valued({id_name}.into(), {complete_with_equal}, &[{possible_values}])"
-                )
+                format!("flag_type::Type::new_valued({id_name}.into(), {complete_with_equal})")
             }
         };
         Ok(s)
@@ -196,11 +200,11 @@ fn generate_args_in_cmd(
         };
         let is_certain = !possible_values.is_empty();
         let id_value = if is_certain {
-            "new_certain(line!())".to_owned()
+            let values = join_possible_values(&possible_values);
+            format!("new_certain(line!(), &[{values}])")
         } else {
             format!("new({})", utils::get_id_value(prev, name_type, &name))
         };
-        let possible_values = join_possible_values(&possible_values);
 
         writeln!(
             w,
@@ -209,7 +213,6 @@ fn generate_args_in_cmd(
 {indent}const {rust_name}: Arg<GlobalID> = Arg {{
 {indent}    id: {id_name}.into(),
 {indent}    max_values: {max_values},
-{indent}    possible_values: &[{possible_values}],
 {indent}}};"
         )?;
 

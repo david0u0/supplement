@@ -41,12 +41,10 @@ mod test {
     const ARG1: Arg<()> = Arg {
         id: id::Valued::Single(id::SingleVal::new(())),
         max_values: 1,
-        possible_values: &[],
     };
     const ARG2: Arg<()> = Arg {
         id: id::Valued::Single(id::SingleVal::new(())),
         max_values: 1,
-        possible_values: &[],
     };
     #[test]
     fn test_empty_arg_ctx() {
@@ -68,12 +66,10 @@ mod test {
     const ARG3: Arg<()> = Arg {
         id: id::Valued::Single(id::SingleVal::new(())),
         max_values: 2,
-        possible_values: &[],
     };
     const ARG4: Arg<()> = Arg {
         id: id::Valued::Single(id::SingleVal::new(())),
         max_values: 3,
-        possible_values: &[],
     };
     #[test]
     fn test_var_arg_ctx() {

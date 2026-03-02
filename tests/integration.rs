@@ -24,7 +24,7 @@ mod def {
     };
     pub const B_FLAG_ID: id::SingleVal<ID> = id::SingleVal::new(ID::B);
     pub const B_FLAG: Flag<ID> = Flag {
-        ty: flag_type::Type::new_valued(B_FLAG_ID.into(), CompleteWithEqual::NoNeed, &[]),
+        ty: flag_type::Type::new_valued(B_FLAG_ID.into(), CompleteWithEqual::NoNeed),
         short: &['b', 'x'],
         long: &["long-b"],
         description: "test description for flag B",
@@ -34,7 +34,6 @@ mod def {
     pub const A_ARG: Arg<ID> = Arg {
         id: A_ARG_ID.into(),
         max_values: 1,
-        possible_values: &[],
     };
     pub const ROOT: Command<ID> = Command {
         all_flags: &[B_FLAG, C_FLAG, OPT_FLAG],
@@ -54,16 +53,12 @@ mod def {
     pub const D_ARG: Arg<ID> = Arg {
         id: D_ARG_ID.into(),
         max_values: 2,
-        possible_values: &[],
     };
 
-    pub const OPT_FLAG_ID: id::SingleVal<ID> = id::SingleVal::new_certain(line!());
+    pub const OPT_FLAG_ID: id::SingleVal<ID> =
+        id::SingleVal::new_certain(line!(), &[("opt1", ""), ("opt2", "")]);
     pub const OPT_FLAG: Flag<ID> = Flag {
-        ty: flag_type::Type::new_valued(
-            OPT_FLAG_ID.into(),
-            CompleteWithEqual::Optional,
-            &[("opt1", ""), ("opt2", "")],
-        ),
+        ty: flag_type::Type::new_valued(OPT_FLAG_ID.into(), CompleteWithEqual::Optional),
         short: &['o'],
         long: &["opt"],
         description: "test description for flag OPT",
