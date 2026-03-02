@@ -1,7 +1,6 @@
 #compdef qit
 
 _qit() {
-
     local -a expl=()
 
     local -a candidates
@@ -11,6 +10,10 @@ _qit() {
         candidates=("${(@f)$( echo zsh ${words[1,CURRENT]} "''" | xargs PLACEHOLDER_FOR_BIN_PATH )}")
     else
         candidates=("${(@f)$( echo zsh ${words[1,CURRENT]} | xargs PLACEHOLDER_FOR_BIN_PATH )}")
+    fi
+
+    if [ "$?" != "0" ]; then
+        _files
     fi
 
     local group=''

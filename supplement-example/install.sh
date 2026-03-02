@@ -33,18 +33,30 @@ BIN_FILE=$USR_PATH/bin/qit
 echo Installing binary to $BIN_FILE...
 cp $BIN $BIN_FILE
 
-read -p "Please provide shell to install completion file [fish/bash/zsh] " SELECT_SHELL
-case $SELECT_SHELL in
-    fish) COMP_FILE=$(realpath ~/.config/fish/completions/qit.fish)
-        ;;
-    bash) COMP_FILE=$USR_PATH/share/bash-completion/completions/qit
-        ;;
-    zsh) COMP_FILE=$USR_PATH/local/share/zsh/site-functions/_qit
-        ;;
-    *) echo Unknown shell $SELECT_SHELL; exit 1
-esac
+read -p "Please provide shell to install completion file [fish/bash/zsh/all] " SELECT_SHELL
 
-echo Installing completion file to $COMP_FILE...
-cp shell/qit.$SELECT_SHELL $COMP_FILE
-BIN_FILE_ESC=$(echo $BIN_FILE | sed -e "s/\//\\\\\//g")
-sed -i -e "s/PLACEHOLDER_FOR_BIN_PATH/$BIN_FILE_ESC/g" $COMP_FILE
+install_comp() {
+    SELECT_SHELL="$@"
+    case $SELECT_SHELL in
+        fish) COMP_FILE=$(realpath ~/.config/fish/completions/qit.fish)
+            ;;
+        bash) COMP_FILE=$USR_PATH/share/bash-completion/completions/qit
+            ;;
+        zsh) COMP_FILE=$USR_PATH/local/share/zsh/site-functions/_qit
+            ;;
+        all)
+            install_comp fish
+            install_comp bash
+            install_comp zsh
+            return
+            ;;
+        *) echo Unknown shell $SELECT_SHELL; exit 1
+    esac
+
+    echo Installing completion file to $COMP_FILE...
+    cp shell/qit.$SELECT_SHELL $COMP_FILE
+    BIN_FILE_ESC=$(echo $BIN_FILE | sed -e "s/\//\\\\\//g")
+    sed -i -e "s/PLACEHOLDER_FOR_BIN_PATH/$BIN_FILE_ESC/g" $COMP_FILE
+}
+
+install_comp $SELECT_SHELL

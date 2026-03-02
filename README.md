@@ -151,7 +151,7 @@ Here's an example for [Fish](https://github.com/fish-shell/fish-shell) shell:
 # Put this to /usr/share/fish/completions/git.fish or  ~/.config/fish/completions/git.fish
 
 function __do_completion
-    set cmd (commandline -j)
+    set cmd (commandline -c)
     set cmd_arr (string split ' ' $cmd)
     if [ -z "$cmd_arr[-1]" ]
         # preserve the last white space

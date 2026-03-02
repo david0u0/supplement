@@ -72,9 +72,9 @@ macro_rules! id {
     };
 }
 
-fn handle_comp(history: History<ID>, id: ID, value: &str) -> Vec<Completion> {
+fn handle_comp(history: History<ID>, id: ID, _value: &str) -> Vec<Completion> {
     match id {
-        id!(git_dir) => Completion::files(value).collect(),
+        id!(git_dir) => std::process::exit(1), // Exit to use default completion
         id!(checkout file_or_commit) => {
             // For the first argument, it can either be a git commit or a file
             let mut comps = vec![];

@@ -1,7 +1,5 @@
-use std::fs;
 use std::io::Result as IoResult;
 use std::io::Write;
-use std::path::{MAIN_SEPARATOR_STR, Path};
 
 /// The object to represent a single completion result.
 /// For example, if you type `git <TAB>` in command-line, the result should be:
@@ -43,88 +41,6 @@ impl Completion {
     pub fn group(mut self, group: &'static str) -> Self {
         self.group = Some(group);
         self
-    }
-    /// Generate completion by file. e.g.
-    /// - `ls <TAB>` - everything under current directory
-    /// - `ls xyz<TAB>` - everything under current directory
-    /// - `ls xyz/<TAB>` - everything under `xyz` directory
-    /// - `ls another/xyz<TAB>` - everything under `another` directory
-    /// - `ls /xyz<TAB>` - everything under `/` directory
-    pub fn files(arg: &str) -> impl Iterator<Item = Completion> {
-        fn check_is_hidden(s: Option<&str>) -> bool {
-            log::debug!("checking is_hidden for {s:?}");
-            if let Some(s) = s {
-                return s.starts_with('.') && s != "..";
-            }
-            false
-        }
-
-        fn inner(arg: &str) -> impl Iterator<Item = Completion> {
-            // TODO: expand "~" and "~some_user"
-            let (arg_dir, dir, is_hidden) = match arg {
-                "" => (Path::new(""), Path::new("./"), false),
-                "/" => (Path::new("/"), Path::new("/"), false),
-                _ => {
-                    // don't use `Path::file_name` because it doesn't handle single dot e.g. "abc/."
-                    // don't use `Path::path_name` because it doesn't handle "abc/"
-                    let (arg_dir, last) =
-                        if let Some((mut parent, last)) = arg.rsplit_once(MAIN_SEPARATOR_STR) {
-                            if parent == "" {
-                                parent = MAIN_SEPARATOR_STR;
-                            }
-                            (Path::new(parent), last)
-                        } else {
-                            (Path::new(""), arg)
-                        };
-
-                    let is_hidden = check_is_hidden(Some(last));
-                    let dir = if arg_dir == Path::new("") {
-                        Path::new("./")
-                    } else {
-                        arg_dir
-                    };
-                    (arg_dir, dir, is_hidden)
-                }
-            };
-            log::debug!("arg_dir = {:?}, dir = {:?}", arg_dir, dir);
-            let paths = match fs::read_dir(dir) {
-                Ok(paths) => Some(paths),
-                Err(err) => {
-                    log::warn!("error reading directory: {:?}", err);
-                    None
-                }
-            };
-
-            paths.into_iter().flatten().filter_map(move |p| {
-                let p = match p {
-                    Ok(p) => p.path(),
-                    Err(err) => {
-                        log::warn!("error reading directory: {:?}", err);
-                        return None;
-                    }
-                };
-                let Some(file_name) = p.file_name() else {
-                    return None;
-                };
-                let file_is_hidden = check_is_hidden(file_name.to_str());
-                if file_is_hidden != is_hidden {
-                    return None;
-                }
-
-                let file_name = arg_dir.join(file_name);
-                let trailing = if file_name.is_dir() { "/" } else { "" };
-                let file_name = format!("{}{}", file_name.to_string_lossy(), trailing);
-                Some(Completion::new(&file_name, ""))
-            })
-        }
-
-        let is_dot_dot = arg.ends_with("/..") || arg.ends_with("..");
-        let (iter1, iter2) = if is_dot_dot {
-            (Some(Completion::new(format!("{arg}/"), "")), None)
-        } else {
-            (None, Some(inner(arg)))
-        };
-        iter2.into_iter().flatten().chain(iter1)
     }
 }
 

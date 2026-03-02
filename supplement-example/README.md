@@ -70,7 +70,7 @@ This is when `supplement` hands over the control to *YOU*. You're the only one w
 Only *YOU* can compute the vector based on the history, id, value, and whatever else you're interested in.
 
 In [src/main.rs](src/main.rs) I wrote a function `handle_comp` for the custom logic.
-For example, `id!(git_dir)` should simply be completed with files, and `id!(checkout files)` should be completed with a list of commit hash.
+For example, `id!(git_dir)` should use default completion, and `id!(checkout files)` should be completed with a list of commit hash.
 
 ### Ready::print
 The final step. Tell it which shell you're using and fire!
