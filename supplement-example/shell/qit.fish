@@ -11,6 +11,7 @@ function __qit_do_completion
     end
 
     if [ "$status" != "0" ]
+        # fall back to default completion
         complete -C "'' $cur"
     end
 end

@@ -320,19 +320,17 @@ fn generate_flags_in_cmd(
 fn generate_mod_name(name: &str) -> String {
     to_snake_case(&format!("{}", name))
 }
-fn generate_subcmd_names(
-    prev: &[Trace],
-    config: &mut Config,
-    cmd: &Command<'_>,
-) -> impl Iterator<Item = (String, String)> {
-    utils::non_help_subcmd(cmd).filter_map(|c| {
-        if config.is_ignored(prev, &c.get_name()) {
-            None
-        } else {
-            let name = c.get_name().to_string();
-            Some((generate_mod_name(&name), name))
-        }
-    })
+
+fn check_cmd_not_empty(
+    sub_cmds: &[(String, String, bool)],
+    flags: &[(String, Option<String>)],
+    args: &[(String, Option<String>)],
+) -> bool {
+    if sub_cmds.iter().any(|(_, _, x)| *x) {
+        return true;
+    }
+
+    flags.iter().chain(args.iter()).any(|(_, x)| x.is_some())
 }
 
 fn generate_recur(
@@ -342,11 +340,12 @@ fn generate_recur(
     cmd: &Command<'_>,
     global_flags: &[GlobalFlag],
     w: &mut impl Write,
-) -> Result<(), GenerateError> {
+) -> Result<bool, GenerateError> {
     let mut global_flags = global_flags.to_vec();
     let name = cmd.get_name();
     let description = utils::escape_help(&cmd.get_about().unwrap_or_default());
     let level = prev.len();
+    let cmd_not_empty: bool;
     {
         let inner_indent = format!("    {indent}");
         let indent = if level > 0 { &inner_indent } else { indent };
@@ -359,26 +358,49 @@ fn generate_recur(
 
         let flags = generate_flags_in_cmd(prev, &indent, config, cmd, &mut global_flags, w)?;
         let args = generate_args_in_cmd(&indent, cmd, prev, w)?;
-        let sub_cmds: Vec<_> = generate_subcmd_names(prev, config, cmd).collect();
+
+        let mut sub_cmds: Vec<(String, String, bool)> = vec![];
+        for sub_cmd in utils::non_help_subcmd(cmd) {
+            let cmd_id = sub_cmd.get_name().to_string();
+            if config.is_ignored(&prev, &cmd_id) {
+                continue;
+            }
+
+            let mod_name = generate_mod_name(&cmd_id);
+            writeln!(w, "{indent}pub mod {mod_name} {{")?;
+            let mut prev = prev.to_vec();
+            prev.push(Trace {
+                cmd_id: cmd_id.clone(),
+            });
+            let cur_cmd_not_empty =
+                generate_recur(&prev, &indent, config, &sub_cmd, &global_flags, w)?;
+            sub_cmds.push((mod_name, cmd_id, cur_cmd_not_empty));
+            writeln!(w, "{indent}}}")?;
+        }
 
         let cmd_name = NameType::COMMAND;
+        cmd_not_empty = check_cmd_not_empty(&sub_cmds, &flags, &args);
 
-        writeln!(w, "{indent}#[derive(Clone, Copy, PartialEq, Eq, Debug)]")?;
-        writeln!(w, "{indent}pub enum ID {{")?;
-        for (_, enum_name) in args.iter().chain(flags.iter()) {
-            if let Some(enum_name) = enum_name {
-                writeln!(w, "{indent}    {enum_name},")?;
+        if cmd_not_empty {
+            writeln!(w, "{indent}#[derive(Clone, Copy, PartialEq, Eq, Debug)]")?;
+            writeln!(w, "{indent}pub enum ID {{")?;
+            for (_, enum_name) in args.iter().chain(flags.iter()) {
+                if let Some(enum_name) = enum_name {
+                    writeln!(w, "{indent}    {enum_name},")?;
+                }
             }
+            for (mod_name, name, not_empty) in sub_cmds.iter() {
+                if *not_empty {
+                    let name = gen_enum_name(NameType::COMMAND, name);
+                    writeln!(w, "{indent}    {name}({mod_name}::ID),")?;
+                }
+            }
+            writeln!(w, "{indent}}}")?;
         }
-        for (mod_name, name) in sub_cmds.iter() {
-            let name = gen_enum_name(NameType::COMMAND, name);
-            writeln!(w, "{indent}    {name}({mod_name}::ID),")?;
-        }
-        writeln!(w, "{indent}}}")?;
 
         let args = Join(args.iter().map(|x| &x.0));
         let flags = Join(flags.iter().map(|x| &x.0));
-        let sub_cmds = Join(sub_cmds.iter().map(|(m, _)| format!("{m}::{cmd_name}")));
+        let sub_cmds = Join(sub_cmds.iter().map(|(m, _, _)| format!("{m}::{cmd_name}")));
         let scope = if level == 0 { "" } else { "(super)" };
 
         writeln!(
@@ -392,19 +414,6 @@ fn generate_recur(
 {indent}    commands: &[{sub_cmds}],
 {indent}}};"
         )?;
-
-        for sub_cmd in utils::non_help_subcmd(cmd) {
-            let cmd_id = sub_cmd.get_name().to_string();
-            if config.is_ignored(&prev, &cmd_id) {
-                continue;
-            }
-
-            writeln!(w, "{indent}pub mod {} {{", generate_mod_name(&cmd_id))?;
-            let mut prev = prev.to_vec();
-            prev.push(Trace { cmd_id });
-            generate_recur(&prev, &indent, config, &sub_cmd, &global_flags, w)?;
-            writeln!(w, "{indent}}}")?;
-        }
     }
-    Ok(())
+    Ok(cmd_not_empty)
 }

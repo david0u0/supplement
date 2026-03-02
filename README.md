@@ -153,11 +153,17 @@ Here's an example for [Fish](https://github.com/fish-shell/fish-shell) shell:
 function __do_completion
     set cmd (commandline -c)
     set cmd_arr (string split ' ' $cmd)
-    if [ -z "$cmd_arr[-1]" ]
+    set cur "$cmd_arr[-1]"
+    if [ -z "$cur" ]
         # preserve the last white space
         echo $cmd "''" | xargs path/to/your/binary
     else
         echo $cmd | xargs path/to/your/binary
+    end
+
+    if [ "$status" != "0" ]
+        # fall back to default completion
+        complete -C "'' $cur"
     end
 end
 

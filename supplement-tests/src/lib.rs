@@ -1,7 +1,7 @@
 use std::fmt::Debug;
 pub mod args;
 pub mod generate;
-use supplement::{Completion, CompletionGroup, Result};
+use supplement::{Completion, CompletionGroup};
 
 fn map_comps(comps: &[Completion]) -> Vec<&str> {
     let mut v: Vec<_> = comps.iter().map(|c| c.value.as_str()).collect();
@@ -27,21 +27,21 @@ pub fn map_unready<ID: Debug + Copy>(grp: &CompletionGroup<ID>) -> (ID, &str, Ve
     }
 }
 
-mod def {
-    include!(concat!(env!("OUT_DIR"), "/definition.rs"));
-}
-
-pub fn run(cmd: &str) -> Result<CompletionGroup<def::ID>> {
-    let cmd = cmd.split(" ").map(|s| s.to_string());
-    let (_, grp) = def::CMD.supplement(cmd)?;
-    Ok(grp)
-}
-
 #[cfg(test)]
 mod test {
     use super::*;
     use def::ID;
-    use supplement::helper::id;
+    use supplement::{Result, helper::id};
+
+    mod def {
+        include!(concat!(env!("OUT_DIR"), "/definition.rs"));
+    }
+
+    fn run(cmd: &str) -> Result<CompletionGroup<def::ID>> {
+        let cmd = cmd.split(" ").map(|s| s.to_string());
+        let (_, grp) = def::CMD.supplement(cmd)?;
+        Ok(grp)
+    }
 
     #[test]
     fn test_unprocessed_conf() {
