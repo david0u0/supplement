@@ -1,3 +1,9 @@
+//! The module defining CLI objects, including [`Command`], [`Flag`] and [`Arg`].
+//!
+//! Normally, everything here is constant created by code-gen [`crate::generate`].
+//! User can just call [`Command::supplement`] to start the CLI completion,
+//! without diving into the detail of these objects.
+
 mod flag;
 pub use crate::id;
 pub use flag::{CompleteWithEqual, Flag, flag_type};
@@ -27,15 +33,13 @@ fn comp_with_possible<ID>(
     let values = values.iter().map(|(v, d)| Completion::new(v, d));
     unready = unready.preexist(values);
     match id.id() {
-        // TODO: test when `values` is not empty and id is not certian
         Some(id) => CompletionGroup::Unready { id, unready, value },
         None => CompletionGroup::Ready(unready.to_ready(vec![])),
     }
 }
 
 /// The object to represent a command.
-/// Usually this object is a constant created by code-gen,
-/// and user can just call `supplement` function for CLI completion.
+/// User can just call [`Command::supplement`] function for CLI completion.
 pub struct Command<ID: 'static> {
     pub name: &'static str,
     pub description: &'static str,

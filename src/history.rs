@@ -1,3 +1,7 @@
+//! The module for CLI history.
+//!
+//! Define a collection of history [`History`], and the simplest unit of hisoty [`HistoryUnit`].
+
 use crate::id;
 
 #[derive(Debug, Eq, PartialEq)]
@@ -55,8 +59,8 @@ impl<ID: PartialEq> Getter<ID> for id::MultiVal<ID> {
     }
 }
 
-/// A structures that records all seen args/flags/commands, along with their value if they have some.
-/// You can search in the history by their IDs using the `find` function.
+/// A structures that records all seen CLI objects, along with their value if they have some.
+/// You can search in the history by their IDs using the [`History::find`] function.
 #[derive(Debug, Eq, PartialEq)]
 pub struct History<ID>(Vec<HistoryUnit<ID>>);
 impl<ID: PartialEq + std::fmt::Debug> History<ID> {
@@ -126,9 +130,9 @@ impl<ID: PartialEq + std::fmt::Debug> History<ID> {
 
     /// Find the history of flags/args/commands by their ID.
     /// Based on the type of ID, the returned `HistoryUnit` will contain different types of value.
-    /// - `id::NoVal`: An integer that represents how many times it's seen in the CLI command
-    /// - `id::SingleVal`: A single string
-    /// - `id::MultiVal`: A vector of string
+    /// - [`id::NoVal`]: An integer that represents how many times it's seen in the CLI command
+    /// - [`id::SingleVal`]: A single string
+    /// - [`id::MultiVal`]: A vector of string
     ///
     /// ```no_run
     /// use supplement::{History, id};

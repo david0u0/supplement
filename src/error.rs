@@ -1,5 +1,11 @@
+//! Module defining the error type for this crate.
+
+#[cfg(doc)]
+use crate::core::Command;
+
 #[derive(Debug, Eq, PartialEq)]
 #[non_exhaustive]
+/// The error type for CLI completion, raised by [`Command::supplement`]
 pub enum Error {
     /// When asking for a flag where there is none.
     /// e.g. `cd --<TAB>`, because there's no flag for `cd` at all
@@ -31,9 +37,10 @@ pub enum Error {
 #[cfg(any(feature = "clap-3", feature = "clap-4"))]
 #[derive(Debug)]
 #[non_exhaustive]
+/// Error for code-gne, raised by [`crate::generate`]
 pub enum GenerateError {
     /// Error when the clap definition has some potential problem.
-    /// To suppress this, use `Config::strict(false)`.
+    /// To suppress this, use [`crate::Config::strict`].
     /// ```no_run
     /// # #[cfg(feature = "clap-3")]
     /// # use clap3 as clap;

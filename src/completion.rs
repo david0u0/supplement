@@ -1,5 +1,17 @@
+//! The module for CLI completion output.
+//!
+//! The entry point is [`CompletionGroup`] returned by [`Command::supplement`].
+//! Users can then print the completion if it's ready,
+//! or provide the custom completion logic if it's not.
+//!
+//! An example can be found in `supplement-example`.
+
+use crate::Shell;
 use std::io::Result as IoResult;
 use std::io::Write;
+
+#[allow(unused)]
+use crate::core::Command; // for documnent
 
 /// The object to represent a single completion result.
 /// For example, if you type `git <TAB>` in command-line, the result should be:
@@ -32,8 +44,8 @@ impl Completion {
         self.value = val(&self.value);
         self
     }
-    /// If `always_match` is set, this `Completion` will always be returned.
-    /// Otherwise it will be returned only if `Completion::value` matches the value on CLI.
+    /// If this is set, this [`Completion`] will always be returned.
+    /// Otherwise it will be returned only if [`Completion::value`] matches the value on CLI.
     pub fn always_match(mut self) -> Self {
         self.always_match = true;
         self
@@ -44,37 +56,11 @@ impl Completion {
     }
 }
 
-/// Enum to represent different shell. Use `str::parse` to create it.
-/// ```rust
-/// use supplement::Shell;
-/// let shell: Shell = "fish".parse().unwrap();
-/// assert_eq!(shell, Shell::Fish);
-/// ```
-#[derive(Clone, Copy, Eq, PartialEq, Debug)]
-#[non_exhaustive]
-pub enum Shell {
-    Zsh,
-    Fish,
-    Bash,
-}
-impl std::str::FromStr for Shell {
-    type Err = String;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let ret = match s {
-            "zsh" => Shell::Zsh,
-            "fish" => Shell::Fish,
-            "bash" => Shell::Bash,
-            _ => return Err(format!("Unknown shell {}", s)),
-        };
-
-        Ok(ret)
-    }
-}
-
 /// The object to represent multiple completion results.
-/// It's not supposed to be created by user of this library, but instead should only be returned by
-/// `Command::supplement` function,
-/// and is solely used to print out those completion results.
+/// It's is solely used to print out those completion results with [`Ready::print`].
+///
+/// The struct should be created directly by [`Command::supplement`],
+/// or by consuming an [`Unready`] with [`Unready::to_ready`].
 #[derive(Debug)]
 pub struct Ready {
     arg: String,
@@ -159,7 +145,7 @@ impl Ready {
 
 /// The object to represent an unready completion results.
 /// You can't use it to print completion directly,
-/// but instead should convert it to `Ready` (by `to_ready`) first.
+/// but instead should convert it to [`Ready`] (by [`Unready::to_ready`]) first.
 #[derive(Debug)]
 pub struct Unready {
     arg: String,
@@ -188,11 +174,11 @@ impl Unready {
         self
     }
 
-    /// Building a `Ready` completion based on an `Unready` one.
-    /// You have to provide a vector of `Completion`, which represents you're custom completion logic.
+    /// Building a [`Ready`] completion based on an [`Unready`] one.
+    /// You have to provide a vector of [`Completion`], which represents your custom completion logic.
     ///
     /// ```no_run
-    /// use supplement::completion::{Ready, Unready, Completion, Shell};
+    /// use supplement::{completion::{Ready, Unready, Completion}, Shell};
     /// # fn create_unready() -> Unready {
     /// #     unimplemented!()
     /// # }
@@ -209,7 +195,7 @@ impl Unready {
     /// NOTE that the end result may not be 100% identical to the vector.
     /// For example, if you're completing a flag value `ls --color=<TAB>`,
     /// the vector provided here should be `[auto, never, always]`.
-    /// But due to the nature of completion, the `Ready` object created by this function actually contains
+    /// But due to the nature of completion, the [`Ready`] object created by this function actually contains
     /// `[--color=auto, --color=never, --color=always]`
     pub fn to_ready(self, comps: Vec<Completion>) -> Ready {
         log::info!("to_ready: {:?} with {:?}", self, comps);
@@ -230,7 +216,8 @@ impl Unready {
 
 /// The object to represent completion results.
 /// It's not supposed to be created by user of this library, but instead should only be returned by
-/// `Command::supplement` function.
+/// [`Command::supplement`] function.
+///
 /// ```no_run
 /// use supplement::{core::Command, Shell};
 /// # type ID = u32;

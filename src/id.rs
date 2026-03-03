@@ -1,7 +1,11 @@
+//! Module for IDs of CLI objects that can be used to lookup history in [`History`].
+
+#[cfg(doc)]
+use crate::History;
+
 /// Id for things that cannot have value.
-/// All subcommand belong to this, and flags can also have no value.
 ///
-/// When searching for it in `History`, it will still have an integer value `count`,
+/// When searching for it in [`History`], it will still have an integer value `count`,
 /// which represents how many times it's seen in the CLI command
 /// ```no_run
 /// use supplement::{History, id};
@@ -13,7 +17,7 @@
 pub struct NoVal(u32);
 
 /// Id for things that have at most one value.
-/// When searching for it in `History`, it will have a single string `value`
+/// When searching for it in [`History`], it will have a single string `value`
 /// ```no_run
 /// use supplement::{History, id};
 /// let history = History::new();
@@ -27,7 +31,7 @@ pub enum SingleVal<ID> {
 }
 
 /// Id for things that can have more than one value.
-/// When searching for it in `History`, it will have a vector of string `values`
+/// When searching for it in [`History`], it will have a vector of string `values`
 /// ```no_run
 /// use supplement::{History, id};
 /// let history = History::new();
@@ -40,6 +44,7 @@ pub enum MultiVal<ID> {
     Certain(u32),
 }
 
+#[doc(hidden)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Valued<ID> {
     Single(SingleVal<ID>),

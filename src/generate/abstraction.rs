@@ -2,9 +2,9 @@
 compile_error!("Only one of the clap features can be enabled");
 
 #[cfg(feature = "clap-3")]
-use clap3 as clap;
+pub use clap3 as clap;
 #[cfg(feature = "clap-4")]
-use clap4 as clap;
+pub use clap4 as clap;
 
 #[cfg(feature = "clap-3")]
 pub type ClapCommand<'a> = &'a mut clap::Command<'static>;

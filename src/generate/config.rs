@@ -35,7 +35,7 @@ impl Config {
     }
     /// Ignore a certain flag or subcommand during code-gen.
     /// Note that if you want to ignore something that doesn't actually exist in the command definition,
-    /// The `generate` function will raise an `UnprocessedConfigObj` error.
+    /// The `generate` function will raise a [`GenerateError::UnprocessedConfigObj`] error.
     /// ```no_run
     /// # use supplement::Config;
     /// let config = Config::default()

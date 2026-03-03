@@ -13,8 +13,13 @@ pub(crate) struct Trace {
     cmd_id: String,
 }
 
-/// Generate the scaffold for your completion based on `clap::Command` object.
-/// After importing the generated code, you can call `CMD.supplement(args)` to get the completion result.
+#[cfg(doc)]
+use crate::core;
+#[cfg(doc)]
+use abstraction::clap;
+
+/// Generate the scaffold for your completion based on [`clap::Command`] object.
+/// After importing the generated code, you can call [`core::Command::supplement`] to get the completion result.
 ///
 /// ```no_run
 /// # #[cfg(feature = "clap-3")]
@@ -30,7 +35,7 @@ pub(crate) struct Trace {
 /// generate(&mut cmd, config, &mut std::io::stdout()).unwrap();
 /// ```
 ///
-///full example can be found in `supplement-example/src/main.rs`
+/// full example can be found in `supplement-example/src/main.rs`
 pub fn generate(
     cmd: ClapCommand<'_>,
     mut config: Config,
