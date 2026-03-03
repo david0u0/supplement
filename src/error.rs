@@ -1,5 +1,7 @@
-//! Module defining the error type for this crate.
+//! Module defining the error types for this crate.
 
+#[cfg(doc)]
+use crate::Config;
 #[cfg(doc)]
 use crate::core::Command;
 
@@ -37,10 +39,10 @@ pub enum Error {
 #[cfg(any(feature = "clap-3", feature = "clap-4"))]
 #[derive(Debug)]
 #[non_exhaustive]
-/// Error for code-gne, raised by [`crate::generate`]
+/// Error for code-gen, raised by [`crate::generate`]
 pub enum GenerateError {
     /// Error when the clap definition has some potential problem.
-    /// To suppress this, use [`crate::Config::strict`].
+    /// To suppress this, use [`Config::strict`].
     /// ```no_run
     /// # #[cfg(feature = "clap-3")]
     /// # use clap3 as clap;
@@ -60,7 +62,15 @@ pub enum GenerateError {
         msg: &'static str,
         id: String,
     },
+
+    /// See document for [`Config::ignore`] and similar methods.
     UnprocessedConfigObj(Vec<Vec<String>>),
+
+    /// See document for [`Config::make_uncertain`].
+    AlreadyUncertain(String),
+    /// See document for [`Config::make_uncertain`].
+    UncertainWithoutValue(String),
+
     IO(std::io::Error),
 }
 #[cfg(any(feature = "clap-3", feature = "clap-4"))]

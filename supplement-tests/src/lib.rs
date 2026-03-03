@@ -17,11 +17,20 @@ pub fn map_ready<ID: Debug>(grp: &CompletionGroup<ID>) -> Vec<&str> {
     map_comps(v)
 }
 
-pub fn map_unready<ID: Debug + Copy>(grp: &CompletionGroup<ID>) -> (ID, &str, Vec<&str>, &str) {
+pub fn map_unready<ID: Debug + Copy>(
+    grp: &CompletionGroup<ID>,
+) -> (ID, &str, Vec<Vec<&str>>, &str) {
     match grp {
         CompletionGroup::Unready { unready, id, value } => {
-            let preexist = map_comps(&unready.preexist_no_prefix);
-            assert_eq!(unready.preexist.len(), 0);
+            let preexist1 = map_comps(&unready.preexist);
+            let preexist2 = map_comps(&unready.preexist_no_prefix);
+
+            let preexist = if !preexist1.is_empty() || !preexist2.is_empty() {
+                vec![preexist1, preexist2]
+            } else {
+                vec![]
+            };
+
             (*id, value, preexist, &unready.prefix)
         }
         _ => panic!("{:?} is ready", grp),
@@ -61,9 +70,26 @@ mod test {
 
         let mut s: Vec<u8> = vec![];
         let cfg = Config::new().ignore(&["some-cmd", "pretty"]);
-
         let err = generate(&mut Arg::command(), cfg.clone(), &mut s).unwrap_err();
         do_assrt(err);
+    }
+    #[test]
+    fn test_gen_uncertain() {
+        use crate::args::Arg;
+        use clap::CommandFactory;
+        use supplement::error::GenerateError;
+        use supplement::{Config, generate};
+
+        let mut s: Vec<u8> = vec![];
+        let cfg = Config::new().make_uncertain(&["log", "commit"]);
+        let err = generate(&mut Arg::command(), cfg.clone(), &mut s).unwrap_err();
+        let is_match = matches!(err, GenerateError::AlreadyUncertain(s) if s == "commit");
+        assert!(is_match);
+
+        let cfg = Config::new().make_uncertain(&["log", "graph"]);
+        let err = generate(&mut Arg::command(), cfg.clone(), &mut s).unwrap_err();
+        let is_match = matches!(err, GenerateError::UncertainWithoutValue(s) if s == "graph");
+        assert!(is_match);
     }
     #[test]
     fn test_proc_macro() {
@@ -88,7 +114,10 @@ mod test {
             (
                 ID::External,
                 "g",
-                vec!["bisect", "checkout", "log", "remote"],
+                vec![
+                    vec![],
+                    vec!["bisect", "bisect2", "checkout", "log", "remote"]
+                ],
                 ""
             )
         );
@@ -118,5 +147,30 @@ mod test {
         // test ignoring global flags
         let comps = run("git remote add -").unwrap();
         assert_eq!(vec!["--tags"], map_ready(&comps));
+    }
+
+    #[test]
+    fn test_made_uncertain() {
+        let comps = run("git bisect2 x").unwrap();
+        assert_eq!(
+            map_unready(&comps),
+            (
+                id!(def bisect2 arg),
+                "x",
+                vec![vec!["bad", "good"], vec![]],
+                ""
+            )
+        );
+
+        let comps = run("git bisect2 --pretty=z").unwrap();
+        assert_eq!(
+            map_unready(&comps),
+            (
+                id!(def bisect2 pretty),
+                "z",
+                vec![vec!["full", "oneline", "short"], vec![]],
+                "--pretty="
+            )
+        );
     }
 }

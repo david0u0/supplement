@@ -2,6 +2,28 @@ use super::Trace;
 use crate::error::GenerateError;
 use std::collections::HashMap;
 
+fn to_trace(v: &[&str]) -> Vec<String> {
+    v.iter().map(|x| x.to_string()).collect()
+}
+fn not_processed(map: HashMap<Vec<String>, MayBeProcessed>) -> impl Iterator<Item = Vec<String>> {
+    map.into_iter().filter_map(
+        |(key, processed)| {
+            if processed.0 { None } else { Some(key) }
+        },
+    )
+}
+
+#[derive(Debug, Clone)]
+struct MayBeProcessed(bool);
+impl MayBeProcessed {
+    fn new() -> Self {
+        MayBeProcessed(false)
+    }
+    fn process(&mut self) {
+        self.0 = true;
+    }
+}
+
 /// An object to configure how the code-gen should work
 /// e.g. to ignore some certain flags or subcommands.
 /// ```no_run
@@ -17,7 +39,8 @@ use std::collections::HashMap;
 /// ```
 #[derive(Clone)]
 pub struct Config {
-    ignore: HashMap<Vec<String>, bool>,
+    ignore: HashMap<Vec<String>, MayBeProcessed>,
+    uncertain: HashMap<Vec<String>, MayBeProcessed>,
     strict: bool,
 }
 
@@ -31,11 +54,12 @@ impl Config {
         Config {
             strict: true,
             ignore: Default::default(),
+            uncertain: Default::default(),
         }
     }
-    /// Ignore a certain flag or subcommand during code-gen.
+    /// Ignore a flag or subcommand during code-gen.
     /// Note that if you want to ignore something that doesn't actually exist in the command definition,
-    /// The `generate` function will raise a [`GenerateError::UnprocessedConfigObj`] error.
+    /// The [`crate::generate`] function will raise a [`GenerateError::UnprocessedConfigObj`] error.
     /// ```no_run
     /// # use supplement::Config;
     /// let config = Config::default()
@@ -44,8 +68,7 @@ impl Config {
     ///     .ignore(&["unexpected-thing"]); // will cause error during code-gen
     /// ```
     pub fn ignore(mut self, ids: &[&str]) -> Self {
-        self.ignore
-            .insert(ids.iter().map(|x| x.to_string()).collect(), false);
+        self.ignore.insert(to_trace(ids), MayBeProcessed::new());
         self
     }
 
@@ -53,24 +76,55 @@ impl Config {
         let mut key: Vec<_> = prev.iter().map(|t| t.cmd_id.to_string()).collect();
         key.push(id.to_string());
         if let Some(t) = self.ignore.get_mut(&key) {
-            *t = true;
+            t.process();
             true
         } else {
             false
         }
     }
-    pub(crate) fn unprocessed_ignore(&self) -> impl Iterator<Item = &[String]> {
-        self.ignore.iter().filter_map(|(key, processed)| {
-            if *processed {
-                None
-            } else {
-                Some(key.as_slice())
-            }
-        })
+
+    /// Make a flag or argument *"uncertain"* during code-gen.
+    /// This means it will become a [`crate::completion::Unready`] after completion,
+    /// and user can then apply custom logic.
+    ///
+    /// Error when calling [`crate::generate`]:
+    /// - If the path doesn't exist, raise a [`GenerateError::UnprocessedConfigObj`] error.
+    /// - If it is already uncertain, raise a [`GenerateError::AlreadyUncertain`] error.
+    /// - If the flag has no value, raise a [`GenerateError::UncertainWithoutValue`] error.
+    ///
+    /// ```no_run
+    /// # use supplement::Config;
+    /// let config = Config::default()
+    ///     .make_uncertain(&["log", "pretty"]) // make `git log --pretty` uncertain
+    ///     .make_uncertain(&["unexpected-thing"]) // Error: path not found
+    ///     .make_uncertain(&["commit", "message"]) // Error: already uncertain
+    ///     .make_uncertain(&["log", "graph"]); // Error: flag without value
+    /// ```
+    pub fn make_uncertain(mut self, ids: &[&str]) -> Self {
+        self.uncertain.insert(to_trace(ids), MayBeProcessed::new());
+        self
     }
 
-    pub(crate) fn check_unprocessed_config(&self) -> Result<(), GenerateError> {
-        let mut it = self.unprocessed_ignore().peekable();
+    pub(crate) fn is_uncertain(&mut self, prev: &[Trace], id: &str) -> bool {
+        let mut key: Vec<_> = prev.iter().map(|t| t.cmd_id.to_string()).collect();
+        key.push(id.to_string());
+        if let Some(t) = self.uncertain.get_mut(&key) {
+            t.process();
+            true
+        } else {
+            false
+        }
+    }
+
+    pub(crate) fn check_unprocessed_config(self) -> Result<(), GenerateError> {
+        let Config {
+            strict: _,
+            ignore,
+            uncertain,
+        } = self;
+        let it = not_processed(ignore).chain(not_processed(uncertain));
+
+        let mut it = it.peekable();
         if it.peek().is_none() {
             return Ok(());
         }

@@ -19,6 +19,11 @@ pub enum SubCommand {
     Bisect {
         arg: Bisect,
     },
+    Bisect2 {
+        arg: Bisect,
+        #[clap(long, num_args = 0..=1, default_value = None, default_missing_value = "full", require_equals = true)]
+        pretty: Option<Pretty>,
+    },
     Checkout {
         #[clap(long)]
         flag1: Option<String>, // ignored

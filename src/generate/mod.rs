@@ -98,6 +98,18 @@ fn join_possible_values(values: &[PossibleValue]) -> impl std::fmt::Display {
     }))
 }
 
+macro_rules! handle_certian {
+    ($is_certain:ident, $force_uncertain:expr, $name:expr) => {
+        let force_uncertain = $force_uncertain;
+        if force_uncertain {
+            if !$is_certain {
+                return Err(GenerateError::AlreadyUncertain($name));
+            }
+            $is_certain = false;
+        }
+    };
+}
+
 enum FlagType {
     No,
     Single,
@@ -108,11 +120,31 @@ struct FlagDisplayHelper<'a> {
     ty: FlagType,
     flag: Arg<'a>,
     strict: bool,
+    force_uncertain: bool,
 
     prev: &'a [Trace],
 }
 impl<'a> FlagDisplayHelper<'a> {
-    fn id_line_str(&self) -> String {
+    fn is_certain(&self) -> Result<bool, GenerateError> {
+        let mut is_certain = match self.ty {
+            FlagType::No => {
+                if self.force_uncertain {
+                    return Err(GenerateError::UncertainWithoutValue(
+                        self.flag.get_id().to_string(),
+                    ));
+                }
+                true
+            }
+            _ => !self.flag.get_possible_values().is_empty(),
+        };
+        handle_certian!(
+            is_certain,
+            self.force_uncertain,
+            self.flag.get_id().to_string()
+        );
+        Ok(is_certain)
+    }
+    fn id_line_str(&self) -> Result<String, GenerateError> {
         let id_name = self.id_name;
         let id = self.flag.get_id().to_string();
         let id_type = match self.ty {
@@ -120,17 +152,21 @@ impl<'a> FlagDisplayHelper<'a> {
             FlagType::Single => "SingleVal",
             FlagType::Multi => "MultiVal",
         };
-        let (global_id, is_certain) = match self.ty {
-            FlagType::No => ("", true),
-            _ => ("<GlobalID>", !self.flag.get_possible_values().is_empty()),
+        let global_id = match self.ty {
+            FlagType::No => "",
+            _ => "<GlobalID>",
         };
+        let is_certain = self.is_certain()?;
+
         let value = if is_certain {
             "new_certain(line!())".to_owned()
         } else {
             let value = utils::get_id_value(self.prev, NameType::VAL, &id);
             format!("new({value})")
         };
-        format!("pub const {id_name}: id::{id_type}{global_id} = id::{id_type}::{value};")
+        Ok(format!(
+            "pub const {id_name}: id::{id_type}{global_id} = id::{id_type}::{value};"
+        ))
     }
     fn type_str(&self) -> Result<String, GenerateError> {
         let id_name = self.id_name;
@@ -156,16 +192,17 @@ impl<'a> FlagDisplayHelper<'a> {
 fn generate_args_in_cmd(
     indent: &str,
     cmd: &Command<'_>,
+    config: &mut Config,
     prev: &[Trace],
     w: &mut impl Write,
-) -> std::io::Result<Vec<(String, Option<String>)>> {
+) -> Result<Vec<(String, Option<String>)>, GenerateError> {
     let mut args_names = vec![];
 
     let ext_sub = if cmd.is_allow_external_subcommands_set() {
         log::debug!("generating external subcommand");
         let name = gen_rust_name(NameType::EXTERNAL, "");
         Some((
-            name.clone(),
+            "@ext".to_string(),
             name,
             std::usize::MAX,
             vec![],
@@ -199,7 +236,10 @@ fn generate_args_in_cmd(
         } else {
             "id::MultiVal"
         };
-        let is_certain = !possible_values.is_empty();
+        let force_uncertain = config.is_uncertain(prev, &name);
+        let mut is_certain = !possible_values.is_empty();
+        handle_certian!(is_certain, force_uncertain, name);
+
         let id_value = if is_certain {
             "new_certain(line!())".to_owned()
         } else {
@@ -242,7 +282,6 @@ fn generate_flags_in_cmd(
         let ignored = config.is_ignored(prev, &name);
 
         let takes_values = flag.takes_values();
-        let possible_values = flag.get_possible_values();
         let rust_name = gen_rust_name(NameType::VAL, &name);
         if flag.is_global_set() {
             let level = prev.len();
@@ -296,13 +335,14 @@ fn generate_flags_in_cmd(
             prev,
             id_name: &id_name,
             strict: config.is_strict(),
+            force_uncertain: config.is_uncertain(prev, &name),
         };
 
-        let is_certain = !takes_values || !possible_values.is_empty();
+        let is_certain = flag_display_helper.is_certain()?;
         let enum_name = gen_enum_name(NameType::VAL, &name);
         let enum_name = if is_certain { None } else { Some(enum_name) };
 
-        let id_line = flag_display_helper.id_line_str();
+        let id_line = flag_display_helper.id_line_str()?;
         let type_str = flag_display_helper.type_str()?;
 
         writeln!(
@@ -362,7 +402,7 @@ fn generate_recur(
         writeln!(w, "{indent}use supplement::core::*;\n")?;
 
         let flags = generate_flags_in_cmd(prev, &indent, config, cmd, &mut global_flags, w)?;
-        let args = generate_args_in_cmd(&indent, cmd, prev, w)?;
+        let args = generate_args_in_cmd(&indent, cmd, config, prev, w)?;
 
         let mut sub_cmds: Vec<(String, String, bool)> = vec![];
         for sub_cmd in utils::non_help_subcmd(cmd) {
