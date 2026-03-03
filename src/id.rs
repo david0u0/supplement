@@ -1,5 +1,21 @@
 //! Module for IDs of CLI objects that can be used to lookup history in [`History`].
+//!
+//! There are two aspect for an ID: the amount of value it can take, and whether it is certain.
+//! Each is represented by a different type or enum variant.
+//!
+//! - The amount of value affects the data type it gets from [`History::find`].
+//! - An ID is *certain* if it doesn't need custom completion logic at all.
+//! It will always return [`CompletionGroup::Ready`] during completion.
+//!
+//! |           | no value  | single value             | multi value             |
+//! |-----------|-----------|--------------------------|-------------------------|
+//! | certain   | [`NoVal`] | [`SingleVal::Certain`]   | [`MultiVal::Certain`]   |
+//! | uncertain | N/A       | [`SingleVal::Uncertain`] | [`MultiVal::Uncertain`] |
+//!
+//! An ID that takes no value never need a completion logic, hence is always certain.
 
+#[cfg(doc)]
+use crate::CompletionGroup;
 #[cfg(doc)]
 use crate::History;
 

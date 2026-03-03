@@ -57,7 +57,7 @@ impl Completion {
 }
 
 /// The object to represent multiple completion results.
-/// It's is solely used to print out those completion results with [`Ready::print`].
+/// It's solely used to print out those completion results with [`Ready::print`].
 ///
 /// The struct should be created directly by [`Command::supplement`],
 /// or by consuming an [`Unready`] with [`Unready::to_ready`].
@@ -240,11 +240,21 @@ impl Unready {
 /// ```
 #[derive(Debug)]
 pub enum CompletionGroup<ID> {
+    /// See [`Ready`]
     Ready(Ready),
     Unready {
-        unready: Unready,
+        /// The ID for CLI object that needs to be completed.
         id: ID,
+        /// The value already provided on CLI.
+        /// For example, when user hit `git log mas<TAB>`,
+        /// this value should be `"mas"`.
+        ///
+        /// NOTE that this is not always the full argument.
+        /// For example, if user hit `git commit -m=xx<TAB>`,
+        /// this value will be `"xx"`, not `"-m=xx"`
         value: String,
+        /// See [`Unready`]
+        unready: Unready,
     },
 }
 impl<ID> CompletionGroup<ID> {
