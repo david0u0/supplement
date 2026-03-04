@@ -260,8 +260,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
 
                 if let Some(arg_obj) = args_ctx.next_arg() {
                     log::debug!("completion for args {:?}", arg_obj.id);
-                    let unready =
-                        Unready::new(String::new(), arg.clone()).preexist_no_prefix(cmd_comps);
+                    let unready = Unready::new(String::new(), arg.clone()).preexist(cmd_comps);
                     comp_with_possible(unready, arg_obj.possible_values, arg, arg_obj.id)
                 } else {
                     if cmd_slice.is_empty() {
@@ -379,25 +378,20 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
             flag_type::Type::Valued(valued) => {
                 let value = resolved.value.unwrap_or_default().to_string();
                 let mut eq = "";
-                let mut base = None;
                 if valued.complete_with_equal != CompleteWithEqual::NoNeed {
                     if resolved.value.is_none() {
                         // E.g. `cmd -af`
+                        // Want: `-af=opt1`, `-af=opt2`
+                        // NOTE: we don't want `-afx`, `-afy` where x and y are other flags. That's too much.
                         eq = "=";
-                        if valued.complete_with_equal == CompleteWithEqual::Optional {
-                            // Want: `-af=opt1`, `-af=opt2`, `-af`
-                            // NOTE that we don't want `-afx`, `-afy` where x and y are other flags. That's too much.
-                            base =
-                                Some(Completion::new(resolved.flag_part, &flag.get_description()));
-                        }
                     } else {
                         // E.g. `cmd -af=xyz` or `cmd -af=`.
-                        // It's impossible to be `cmd -afxyz`, either it throw error or `f` won't be the last flag.
                         // Want: `-af=opt1`, `-af=opt2`
+                        // NOTE: It's impossible to be `cmd -afxyz`, either it throws error (Must) or `f` isn't the last flag (Optional).
                     }
                 }
                 let prefix = format!("{}{}", resolved.flag_part, eq);
-                let unready = Unready::new(prefix, arg).preexist_no_prefix(base.into_iter());
+                let unready = Unready::new(prefix, arg);
                 comp_with_possible(unready, valued.possible_values, value, valued.id)
             }
             flag_type::Type::Bool(inner) => {

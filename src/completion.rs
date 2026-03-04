@@ -40,8 +40,11 @@ impl Completion {
             always_match: false,
         }
     }
-    pub fn value<F: FnOnce(&str) -> String>(mut self, val: F) -> Self {
+    pub fn set_value<F: FnOnce(&str) -> String>(&mut self, val: F) {
         self.value = val(&self.value);
+    }
+    pub fn value<F: FnOnce(&str) -> String>(mut self, val: F) -> Self {
+        self.set_value(val);
         self
     }
     /// If this is set, this [`Completion`] will always be returned.
@@ -152,8 +155,6 @@ pub struct Unready {
     #[doc(hidden)]
     pub preexist: Vec<Completion>,
     #[doc(hidden)]
-    pub preexist_no_prefix: Vec<Completion>,
-    #[doc(hidden)]
     pub prefix: String,
 }
 impl Unready {
@@ -162,15 +163,10 @@ impl Unready {
             prefix,
             arg,
             preexist: vec![],
-            preexist_no_prefix: vec![],
         }
     }
     pub(crate) fn preexist(mut self, preexist: impl Iterator<Item = Completion>) -> Self {
         self.preexist.extend(preexist);
-        self
-    }
-    pub(crate) fn preexist_no_prefix(mut self, preexist: impl Iterator<Item = Completion>) -> Self {
-        self.preexist_no_prefix.extend(preexist);
         self
     }
 
@@ -199,14 +195,14 @@ impl Unready {
     /// `[--color=auto, --color=never, --color=always]`
     pub fn to_ready(self, comps: Vec<Completion>) -> Ready {
         log::info!("to_ready: {:?} with {:?}", self, comps);
-        let prefix = self.prefix;
-        let mut final_comps = self.preexist_no_prefix;
-        let iter = self
-            .preexist
-            .into_iter()
-            .chain(comps.into_iter())
-            .map(|c| c.value(|c| format!("{prefix}{c}")));
-        final_comps.extend(iter);
+        let mut final_comps = self.preexist;
+        final_comps.extend(comps.into_iter());
+        if !self.prefix.is_empty() {
+            for comp in final_comps.iter_mut() {
+                comp.set_value(|v| format!("{}{v}", self.prefix));
+            }
+        }
+
         Ready {
             arg: self.arg,
             comps: final_comps,
@@ -246,12 +242,10 @@ pub enum CompletionGroup<ID> {
         /// The ID for CLI object that needs to be completed.
         id: ID,
         /// The value already provided on CLI.
-        /// For example, when user hit `git log mas<TAB>`,
-        /// this value should be `"mas"`.
+        /// For example, when user hit `git log mas<TAB>`, this value should be `"mas"`.
         ///
         /// NOTE that this is not always the full argument.
-        /// For example, if user hit `git commit -m=xx<TAB>`,
-        /// this value will be `"xx"`, not `"-m=xx"`
+        /// For example, if user hit `git commit -m=xx<TAB>`, this value will be `"xx"`, not `"-m=xx"`
         value: String,
         /// See [`Unready`]
         unready: Unready,

@@ -119,15 +119,10 @@ fn map_comps(comps: &[Completion]) -> Vec<&str> {
     v
 }
 
-fn map_unready(grp: &CompletionGroup<ID>) -> (ID, &str, Vec<(bool, &str)>, &str) {
+fn map_unready(grp: &CompletionGroup<ID>) -> (ID, &str, Vec<&str>, &str) {
     match grp {
         CompletionGroup::Unready { unready, id, value } => {
-            let preexist1 = map_comps(&unready.preexist);
-            let preexist2 = map_comps(&unready.preexist_no_prefix);
-            let preexist1 = preexist1.into_iter().map(|c| (true, c));
-            let preexist2 = preexist2.into_iter().map(|c| (false, c));
-            let preexist = preexist1.chain(preexist2).collect();
-
+            let preexist = map_comps(&unready.preexist);
             (*id, value, preexist, &unready.prefix)
         }
         _ => panic!("{:?} is ready", grp),
@@ -262,21 +257,18 @@ fn test_flags_supplement() {
 
     let (h, r) = run("-c x", false);
     assert_eq!(h, expected_h);
-    assert_eq!(
-        map_unready(&r),
-        (ID::E, "x", vec![(true, "ext1"), (false, "sub")], "")
-    );
+    assert_eq!(map_unready(&r), (ID::E, "x", vec!["ext1", "sub"], ""));
 }
 
 #[test]
 fn test_fall_back_and_var_len_arg() {
     let (h, r) = run("arg1", true);
     assert_eq!(h, vec![single!(E_ARG_ID, "arg1")]);
-    assert_eq!(map_unready(&r), (ID::D, "", vec![(true, "p1")], ""));
+    assert_eq!(map_unready(&r), (ID::D, "", vec!["p1"], ""));
 
     let (h, r) = run("arg1 d1", true);
     assert_eq!(h, vec![single!(E_ARG_ID, "arg1"), multi!(D_ARG_ID, ["d1"])]);
-    assert_eq!(map_unready(&r), (ID::D, "", vec![(true, "p1")], ""));
+    assert_eq!(map_unready(&r), (ID::D, "", vec!["p1"], ""));
 
     let expected_h = vec![single!(E_ARG_ID, "arg1"), multi!(D_ARG_ID, ["d1", "d2"])];
 
@@ -314,18 +306,18 @@ fn test_flag_after_external_sub() {
         h,
         vec![single!(B_FLAG_ID, "flag1"), single!(E_ARG_ID, "ext")]
     );
-    assert_eq!(map_unready(&r), (ID::D, "", vec![(true, "p1")], ""));
+    assert_eq!(map_unready(&r), (ID::D, "", vec!["p1"], ""));
 
     let (h, r) = run("ext --", false);
     assert_eq!(h, vec![single!(E_ARG_ID, "ext")]);
-    assert_eq!(map_unready(&r), (ID::D, "--", vec![(true, "p1")], ""));
+    assert_eq!(map_unready(&r), (ID::D, "--", vec!["p1"], ""));
 
     let (h, r) = run("ext --long-b flag1", false);
     assert_eq!(
         h,
         vec![single!(E_ARG_ID, "ext"), multi!(D_ARG_ID, ["--long-b"])]
     );
-    assert_eq!(map_unready(&r), (ID::D, "flag1", vec![(true, "p1")], ""));
+    assert_eq!(map_unready(&r), (ID::D, "flag1", vec!["p1"], ""));
 
     let expected_h = vec![
         single!(E_ARG_ID, "ext"),
@@ -342,7 +334,7 @@ fn test_optional_flag() {
     assert_eq!(h, vec![]);
     assert_eq!(map_comp_values(&r), vec!["--opt=opt1", "--opt=opt2"]);
 
-    let expected_r = (ID::E, "", vec![(true, "ext1"), (false, "sub")], "");
+    let expected_r = (ID::E, "", vec!["ext1", "sub"], "");
 
     let (h, r) = run("--opt=xxx", true);
     assert_eq!(h, vec![single!(OPT_FLAG_ID, "xxx")]);
@@ -376,7 +368,7 @@ fn test_optional_flag() {
 
     let (h, r) = run("-co", false);
     assert_eq!(h, vec![no!(C_FLAG_ID)]);
-    assert_eq!(map_comp_values(&r), vec!["-co", "-co=opt1", "-co=opt2"]);
+    assert_eq!(map_comp_values(&r), vec!["-co=opt1", "-co=opt2"]);
 
     let (h, r) = try_run("-oz", false);
     assert_eq!(h, vec![single!(OPT_FLAG_ID, "")]);
@@ -385,30 +377,18 @@ fn test_optional_flag() {
 
 #[test]
 fn test_uncertain_with_possible() {
-    // NOTE: This is not possible with the current code-gen,
-    // because a flag/arg with possible value is always certian
+    let (h, r) = run("sub -", false);
+    assert_eq!(h, vec![]);
+    assert_eq!(map_comp_values(&r), vec!["--long-b", "--opt", "--opt="]);
 
     let (h, r) = run("sub --opt=x", false);
     assert_eq!(h, vec![]);
     assert_eq!(
         map_unready(&r),
-        (
-            ID::OPT2,
-            "x",
-            vec![(true, "opt3"), (true, "opt4")],
-            "--opt="
-        )
+        (ID::OPT2, "x", vec!["opt3", "opt4"], "--opt=")
     );
 
     let (h, r) = run("sub -o", false);
     assert_eq!(h, vec![]);
-    assert_eq!(
-        map_unready(&r),
-        (
-            ID::OPT2,
-            "",
-            vec![(true, "opt3"), (true, "opt4"), (false, "-o")],
-            "-o="
-        )
-    );
+    assert_eq!(map_unready(&r), (ID::OPT2, "", vec!["opt3", "opt4"], "-o="));
 }

@@ -17,20 +17,10 @@ pub fn map_ready<ID: Debug>(grp: &CompletionGroup<ID>) -> Vec<&str> {
     map_comps(v)
 }
 
-pub fn map_unready<ID: Debug + Copy>(
-    grp: &CompletionGroup<ID>,
-) -> (ID, &str, Vec<Vec<&str>>, &str) {
+pub fn map_unready<ID: Debug + Copy>(grp: &CompletionGroup<ID>) -> (ID, &str, Vec<&str>, &str) {
     match grp {
         CompletionGroup::Unready { unready, id, value } => {
-            let preexist1 = map_comps(&unready.preexist);
-            let preexist2 = map_comps(&unready.preexist_no_prefix);
-
-            let preexist = if !preexist1.is_empty() || !preexist2.is_empty() {
-                vec![preexist1, preexist2]
-            } else {
-                vec![]
-            };
-
+            let preexist = map_comps(&unready.preexist);
             (*id, value, preexist, &unready.prefix)
         }
         _ => panic!("{:?} is ready", grp),
@@ -114,10 +104,7 @@ mod test {
             (
                 ID::External,
                 "g",
-                vec![
-                    vec![],
-                    vec!["bisect", "bisect2", "checkout", "log", "remote"]
-                ],
+                vec!["bisect", "bisect2", "checkout", "log", "remote"],
                 ""
             )
         );
@@ -154,12 +141,7 @@ mod test {
         let comps = run("git bisect2 x").unwrap();
         assert_eq!(
             map_unready(&comps),
-            (
-                id!(def bisect2 arg),
-                "x",
-                vec![vec!["bad", "good"], vec![]],
-                ""
-            )
+            (id!(def bisect2 arg), "x", vec!["bad", "good"], "")
         );
 
         let comps = run("git bisect2 --pretty=z").unwrap();
@@ -168,7 +150,7 @@ mod test {
             (
                 id!(def bisect2 pretty),
                 "z",
-                vec![vec!["full", "oneline", "short"], vec![]],
+                vec!["full", "oneline", "short"],
                 "--pretty="
             )
         );
