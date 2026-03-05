@@ -5,6 +5,7 @@
 [![Crates.io](https://img.shields.io/crates/d/supplement?style=flat-square)](https://crates.io/crates/supplement)
 ![License](https://img.shields.io/badge/license-Apache%202.0-blue?style=flat-square)
 ![License](https://img.shields.io/badge/license-MIT-blue?style=flat-square)
+[![Build Status](https://img.shields.io/github/actions/workflow/status/david0u0/supplement/ci.yml?branch=master&style=flat-square)](https://github.com/david0u0/supplement/actions/workflows/ci.yml?query=branch%3Amaster)
 [![Doc](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/supplement)
 
 **supplement** is a Rust library that generates completion scaffolds as Rust code.
