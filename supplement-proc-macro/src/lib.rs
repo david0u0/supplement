@@ -70,7 +70,7 @@ impl Parse for IdList {
             }
         }
 
-        if items.len() < 1 {
+        if items.is_empty() {
             return Err(Error::new(
                 Span::call_site(),
                 "The macro requires at least two elements",
@@ -144,7 +144,7 @@ pub fn id(input: TokenStream) -> TokenStream {
 fn build_recur(root_mod: &syn::Path, items: &[String], index: usize) -> proc_macro2::TokenStream {
     let mod_path: Vec<Ident> = items[..index]
         .iter()
-        .map(|m| Ident::new(&to_cmd_mod(&*m), Span::call_site()))
+        .map(|m| Ident::new(&to_cmd_mod(m), Span::call_site()))
         .collect();
 
     if index == items.len() - 1 {

@@ -103,7 +103,7 @@ fn try_run(args: &str, last_is_empty: bool) -> (Vec<HistoryUnit<ID>>, Result<Com
     } else {
         None
     };
-    let args = args.chain(last.into_iter());
+    let args = args.chain(last);
     let mut history = History::new();
     let res = def::ROOT.supplement_with_history(&mut history, args);
     (history.into_inner(), res)

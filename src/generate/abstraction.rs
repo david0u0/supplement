@@ -43,7 +43,7 @@ impl<'a> CommandMut<'a> {
     pub fn build(&mut self) {
         self.0.build()
     }
-    pub fn to_const(self) -> Command<'a> {
+    pub fn into_const(self) -> Command<'a> {
         Command(self.0)
     }
 }
@@ -66,11 +66,11 @@ impl<'a> Command<'a> {
         }
         #[cfg(feature = "clap-4")]
         {
-            self.0.get_arguments().map(|a| Arg(a))
+            self.0.get_arguments().map(Arg)
         }
     }
     pub fn get_subcommands(&self) -> impl Iterator<Item = Command<'a>> {
-        self.0.get_subcommands().map(|c| Command(c))
+        self.0.get_subcommands().map(Command)
     }
     pub fn get_name(&self) -> &'a str {
         self.0.get_name()

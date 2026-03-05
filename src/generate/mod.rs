@@ -43,7 +43,7 @@ pub fn generate(
 ) -> Result<(), GenerateError> {
     let mut cmd = CommandMut(cmd);
     cmd.build();
-    let cmd = cmd.to_const();
+    let cmd = cmd.into_const();
 
     writeln!(w, "type GlobalID = ID;")?;
     generate_recur(&[], "", &mut config, &cmd, &[], w)?;
@@ -124,7 +124,7 @@ struct FlagDisplayHelper<'a> {
 
     prev: &'a [Trace],
 }
-impl<'a> FlagDisplayHelper<'a> {
+impl FlagDisplayHelper<'_> {
     fn is_certain(&self) -> Result<bool, GenerateError> {
         let mut is_certain = match self.ty {
             FlagType::No => {
@@ -204,7 +204,7 @@ fn generate_args_in_cmd(
         Some((
             "@ext".to_string(),
             name,
-            std::usize::MAX,
+            usize::MAX,
             vec![],
             NameType::EXTERNAL,
         ))
@@ -227,7 +227,7 @@ fn generate_args_in_cmd(
             NameType::VAL,
         )
     });
-    let args = args.chain(ext_sub.into_iter());
+    let args = args.chain(ext_sub);
 
     for (name, rust_name, max_values, possible_values, name_type) in args {
         let id_name = to_screaming_snake_case(&format!("id_{rust_name}"));
@@ -285,7 +285,7 @@ fn generate_flags_in_cmd(
         let rust_name = gen_rust_name(NameType::VAL, &name);
         if flag.is_global_set() {
             let level = prev.len();
-            if let Some(prev_flag) = global_flags.iter().find(|f| &f.id == &name) {
+            if let Some(prev_flag) = global_flags.iter().find(|f| f.id == name) {
                 log::info!("get existing global flag {name}");
                 if !prev_flag.ignored && !ignored {
                     let mut name = "super::".repeat(level - prev_flag.level);
@@ -363,7 +363,7 @@ fn generate_flags_in_cmd(
 }
 
 fn generate_mod_name(name: &str) -> String {
-    to_snake_case(&format!("{}", name))
+    to_snake_case(name)
 }
 
 fn check_cmd_not_empty(
@@ -401,13 +401,13 @@ fn generate_recur(
         }
         writeln!(w, "{indent}use supplement::core::*;\n")?;
 
-        let flags = generate_flags_in_cmd(prev, &indent, config, cmd, &mut global_flags, w)?;
-        let args = generate_args_in_cmd(&indent, cmd, config, prev, w)?;
+        let flags = generate_flags_in_cmd(prev, indent, config, cmd, &mut global_flags, w)?;
+        let args = generate_args_in_cmd(indent, cmd, config, prev, w)?;
 
         let mut sub_cmds: Vec<(String, String, bool)> = vec![];
         for sub_cmd in utils::non_help_subcmd(cmd) {
             let cmd_id = sub_cmd.get_name().to_string();
-            if config.is_ignored(&prev, &cmd_id) {
+            if config.is_ignored(prev, &cmd_id) {
                 continue;
             }
 
@@ -418,7 +418,7 @@ fn generate_recur(
                 cmd_id: cmd_id.clone(),
             });
             let cur_cmd_not_empty =
-                generate_recur(&prev, &indent, config, &sub_cmd, &global_flags, w)?;
+                generate_recur(&prev, indent, config, &sub_cmd, &global_flags, w)?;
             sub_cmds.push((mod_name, cmd_id, cur_cmd_not_empty));
             writeln!(w, "{indent}}}")?;
         }

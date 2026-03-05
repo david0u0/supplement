@@ -196,7 +196,7 @@ impl Unready {
     pub fn to_ready(self, comps: Vec<Completion>) -> Ready {
         log::info!("to_ready: {:?} with {:?}", self, comps);
         let mut final_comps = self.preexist;
-        final_comps.extend(comps.into_iter());
+        final_comps.extend(comps);
         if !self.prefix.is_empty() {
             for comp in final_comps.iter_mut() {
                 comp.set_value(|v| format!("{}{v}", self.prefix));

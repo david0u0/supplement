@@ -4,15 +4,15 @@
 //! Each is represented by a different type or enum variant.
 //!
 //! - The amount of value affects the data type it gets from [`History::find`].
-//! - An ID is *certain* if it doesn't need custom completion logic at all.
-//! It will always return [`CompletionGroup::Ready`] during completion.
+//! - An ID is *certain* if and only if it never needs custom completion logic.
+//!   It will always return [`CompletionGroup::Ready`] during completion.
 //!
-//! |           | no value  | single value             | multi value             |
-//! |-----------|-----------|--------------------------|-------------------------|
-//! | certain   | [`NoVal`] | [`SingleVal::Certain`]   | [`MultiVal::Certain`]   |
-//! | uncertain | N/A       | [`SingleVal::Uncertain`] | [`MultiVal::Uncertain`] |
+//! |                  | no value  | single value             | multi value             |
+//! |------------------|-----------|--------------------------|-------------------------|
+//! | **Is certain**   | [`NoVal`] | [`SingleVal::Certain`]   | [`MultiVal::Certain`]   |
+//! | **Not certain**  | N/A       | [`SingleVal::Uncertain`] | [`MultiVal::Uncertain`] |
 //!
-//! An ID that takes no value never need a completion logic, hence is always certain.
+//! An ID that takes no value never needs a completion logic, hence is always certain.
 
 #[cfg(doc)]
 use crate::CompletionGroup;

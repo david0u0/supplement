@@ -84,8 +84,8 @@ impl<ID: PartialEq + Copy + Debug> Flag<ID> {
         if !self.description.is_empty() {
             return self.description;
         }
-        if let Some(long) = self.long.get(0) {
-            return *long;
+        if let Some(long) = self.long.first() {
+            return long;
         }
         ""
     }
@@ -98,18 +98,19 @@ impl<ID: PartialEq + Copy + Debug> Flag<ID> {
 
         let long = long
             .iter()
-            .map(|l| Completion::new(&format!("--{l}"), self.get_description()));
+            .map(|l| Completion::new(format!("--{l}"), self.get_description()));
         let short = short
             .iter()
-            .map(|s| Completion::new(&format!("-{s}"), self.get_description()));
+            .map(|s| Completion::new(format!("-{s}"), self.get_description()));
         let iter = long.chain(short).take(1);
         iter.flat_map(|mut comp| {
             let mut more = None;
-            match self.ty {
-                Type::Valued(Valued {
-                    complete_with_equal,
-                    ..
-                }) => match complete_with_equal {
+            if let Type::Valued(Valued {
+                complete_with_equal,
+                ..
+            }) = self.ty
+            {
+                match complete_with_equal {
                     CompleteWithEqual::NoNeed => (),
                     CompleteWithEqual::Must => {
                         comp.value += "=";
@@ -118,10 +119,9 @@ impl<ID: PartialEq + Copy + Debug> Flag<ID> {
                         more = Some(comp.clone());
                         comp.value += "=";
                     }
-                },
-                _ => (),
+                }
             }
-            std::iter::once(comp).chain(more.into_iter())
+            std::iter::once(comp).chain(more)
         })
     }
 
@@ -189,6 +189,6 @@ impl<ID: PartialEq + Copy + Debug> Flag<ID> {
     }
 
     pub(crate) fn name(&self) -> &'static str {
-        self.long.first().map(|s| *s).unwrap_or_default()
+        self.long.first().copied().unwrap_or_default()
     }
 }

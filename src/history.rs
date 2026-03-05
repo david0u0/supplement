@@ -63,9 +63,16 @@ impl<ID: PartialEq> Getter<ID> for id::MultiVal<ID> {
 /// You can search in the history by their IDs using the [`History::find`] function.
 #[derive(Debug, Eq, PartialEq)]
 pub struct History<ID>(Vec<HistoryUnit<ID>>);
+
+impl<ID> Default for History<ID> {
+    fn default() -> Self {
+        History(vec![])
+    }
+}
+
 impl<ID: PartialEq + std::fmt::Debug> History<ID> {
     pub fn new() -> Self {
-        History(vec![])
+        Default::default()
     }
 
     pub(crate) fn push_no_val(&mut self, id: id::NoVal) {

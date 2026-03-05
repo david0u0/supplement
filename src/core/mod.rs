@@ -163,12 +163,10 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     }
 
     fn find_long_flag(&self, flag: &str, history: &History<ID>) -> Result<&Flag<ID>> {
-        self.find_flag(flag, history, |f| f.long.iter().any(|l| *l == flag))
+        self.find_flag(flag, history, |f| f.long.contains(&flag))
     }
     fn find_short_flag(&self, flag: char, history: &History<ID>) -> Result<&Flag<ID>> {
-        self.find_flag(&flag.to_string(), history, |f| {
-            f.short.iter().any(|s| *s == flag)
-        })
+        self.find_flag(&flag.to_string(), history, |f| f.short.contains(&flag))
     }
 
     fn supplement_recur(
@@ -182,7 +180,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
         let args_ctx = if let Some(ctx) = args_ctx_opt {
             ctx
         } else {
-            *args_ctx_opt = Some(ArgsContext::new(&self.args));
+            *args_ctx_opt = Some(ArgsContext::new(self.args));
             args_ctx_opt.as_mut().unwrap()
         };
 
@@ -272,15 +270,13 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
             ParsedFlag::DoubleDash | ParsedFlag::Long { equal: None, .. } => check_no_flag(
                 arg,
                 self.flags(history)
-                    .map(|f| f.gen_completion(Some(true)))
-                    .flatten()
+                    .flat_map(|f| f.gen_completion(Some(true)))
                     .collect(),
             )?,
             ParsedFlag::SingleDash => check_no_flag(
                 arg,
                 self.flags(history)
-                    .map(|f| f.gen_completion(None))
-                    .flatten()
+                    .flat_map(|f| f.gen_completion(None))
                     .collect(),
             )?,
             ParsedFlag::Long {
@@ -399,8 +395,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                 inner.push(history);
                 let comps = self
                     .flags(history)
-                    .map(|f| f.gen_completion(Some(false)))
-                    .flatten()
+                    .flat_map(|f| f.gen_completion(Some(false)))
                     .map(|c| {
                         c.value(|v| {
                             let flag = &v[1..]; // skip the first '-' character

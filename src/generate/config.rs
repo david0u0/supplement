@@ -84,7 +84,7 @@ impl Config {
     }
 
     /// Make a flag or argument *"uncertain"* during code-gen.
-    /// This means it will become a [`crate::completion::Unready`] after completion,
+    /// This means it will become a [`crate::CompletionGroup::Unready`] after completion,
     /// and user can then apply custom logic.
     /// For mor detail, check the doc of [`crate::id`].
     ///
