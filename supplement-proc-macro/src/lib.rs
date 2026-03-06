@@ -89,9 +89,7 @@ impl Parse for IdList {
         }
 
         let ext_pos = items.iter().position(|i| matches!(i, Item::Ext));
-        if let Some(ext_pos) = ext_pos
-            && ext_pos != items.len() - 1
-        {
+        if ext_pos.is_some() && ext_pos != Some(items.len() - 1) {
             return Err(Error::new(Span::call_site(), "@ext must be the last one"));
         }
 

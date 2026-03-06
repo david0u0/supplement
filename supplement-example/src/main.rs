@@ -92,8 +92,8 @@ fn handle_comp(id: ID<&History<ID>>, _value: &str) -> Vec<Completion> {
         id!(checkout files(_, ctx)) => {
             // For the second and more arguments, it can only be file
             // Let's also filter out those files we've already seen!
-            let prev1: Option<&str> = ctx.file_or_commit();
-            let prev2: &[String] = ctx.files();
+            let prev1: Option<&str> = ctx.val_file_or_commit();
+            let prev2: &[String] = ctx.val_files();
             let prev: Vec<_> = prev1
                 .into_iter()
                 .chain(prev2.iter().map(|s| s.as_str()))
