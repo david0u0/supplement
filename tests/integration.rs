@@ -17,7 +17,7 @@ mod def {
     }
     impl<'a> HistoryBearer<'a, ID> for ID {
         type Ret = ID;
-        fn bear(self, h: &'a History<ID>) -> Self::Ret {
+        fn bear(self, _: &'a History<ID>) -> Self::Ret {
             self
         }
     }

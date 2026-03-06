@@ -9,6 +9,6 @@ description = "Proc macro for supplement. Not indetended to be used directly."
 proc-macro = true
 
 [dependencies]
-syn = "2"
 quote = "1"
 proc-macro2 = "1"
+syn = { version = "2", features = ["full"] }

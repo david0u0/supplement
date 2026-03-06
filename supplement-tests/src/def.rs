@@ -61,11 +61,13 @@ pub mod bisect2 {
     };
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub struct Ctx<H>(H);
-    impl<'a> Ctx<&'a History<GlobalID>> {
-        pub fn arg(&self) -> Option<&str> {
+    impl Ctx<&History<GlobalID>> {
+        #[allow(dead_code)]
+        pub fn val_arg(&self) -> Option<&str> {
             self.0.find(ID_VAL_ARG).map(|x| x.value.as_ref())
         }
-        pub fn pretty(&self) -> Option<&str> {
+        #[allow(dead_code)]
+        pub fn val_pretty(&self) -> Option<&str> {
             self.0.find(ID_VAL_PRETTY).map(|x| x.value.as_ref())
         }
     }
@@ -117,14 +119,17 @@ pub mod checkout {
     };
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub struct Ctx<H>(H);
-    impl<'a> Ctx<&'a History<GlobalID>> {
-        pub fn file_or_commit(&self) -> Option<&str> {
+    impl Ctx<&History<GlobalID>> {
+        #[allow(dead_code)]
+        pub fn val_file_or_commit(&self) -> Option<&str> {
             self.0.find(ID_VAL_FILE_OR_COMMIT).map(|x| x.value.as_ref())
         }
-        pub fn files(&self) -> &[String] {
+        #[allow(dead_code)]
+        pub fn val_files(&self) -> &[String] {
             self.0.find(ID_VAL_FILES).map(|x| x.values.as_slice()).unwrap_or_default()
         }
-        pub fn b(&self) -> u32 {
+        #[allow(dead_code)]
+        pub fn val_b(&self) -> u32 {
             self.0.find(ID_VAL_B).map(|x| x.count).unwrap_or_default()
         }
     }
@@ -186,17 +191,21 @@ pub mod log {
     };
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub struct Ctx<H>(H);
-    impl<'a> Ctx<&'a History<GlobalID>> {
-        pub fn commit(&self) -> Option<&str> {
+    impl Ctx<&History<GlobalID>> {
+        #[allow(dead_code)]
+        pub fn val_commit(&self) -> Option<&str> {
             self.0.find(ID_VAL_COMMIT).map(|x| x.value.as_ref())
         }
-        pub fn graph(&self) -> u32 {
+        #[allow(dead_code)]
+        pub fn val_graph(&self) -> u32 {
             self.0.find(ID_VAL_GRAPH).map(|x| x.count).unwrap_or_default()
         }
-        pub fn pretty(&self) -> Option<&str> {
+        #[allow(dead_code)]
+        pub fn val_pretty(&self) -> Option<&str> {
             self.0.find(ID_VAL_PRETTY).map(|x| x.value.as_ref())
         }
-        pub fn flag1(&self) -> Option<&str> {
+        #[allow(dead_code)]
+        pub fn val_flag1(&self) -> Option<&str> {
             self.0.find(ID_VAL_FLAG1).map(|x| x.value.as_ref())
         }
     }
@@ -246,11 +255,13 @@ pub mod remote {
         };
         #[derive(Clone, Copy, PartialEq, Eq, Debug)]
         pub struct Ctx<H>(H);
-        impl<'a> Ctx<&'a History<GlobalID>> {
-            pub fn name(&self) -> Option<&str> {
+        impl Ctx<&History<GlobalID>> {
+            #[allow(dead_code)]
+            pub fn val_name(&self) -> Option<&str> {
                 self.0.find(ID_VAL_NAME).map(|x| x.value.as_ref())
             }
-            pub fn tags(&self) -> u32 {
+            #[allow(dead_code)]
+            pub fn val_tags(&self) -> u32 {
                 self.0.find(ID_VAL_TAGS).map(|x| x.count).unwrap_or_default()
             }
         }
@@ -288,7 +299,7 @@ pub mod remote {
     }
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub struct Ctx<H>(H);
-    impl<'a> Ctx<&'a History<GlobalID>> {
+    impl Ctx<&History<GlobalID>> {
     }
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub enum ID<H = ()> {
@@ -312,11 +323,17 @@ pub mod remote {
 }
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Ctx<H>(H);
-impl<'a> Ctx<&'a History<GlobalID>> {
-    pub fn git_dir(&self) -> Option<&str> {
+impl Ctx<&History<GlobalID>> {
+    #[allow(dead_code)]
+    pub fn external(&self) -> &[String] {
+        self.0.find(ID_EXTERNAL).map(|x| x.values.as_slice()).unwrap_or_default()
+    }
+    #[allow(dead_code)]
+    pub fn val_git_dir(&self) -> Option<&str> {
         self.0.find(ID_VAL_GIT_DIR).map(|x| x.value.as_ref())
     }
-    pub fn external(&self) -> &[String] {
+    #[allow(dead_code)]
+    pub fn val_external(&self) -> &[String] {
         self.0.find(ID_VAL_EXTERNAL).map(|x| x.values.as_slice()).unwrap_or_default()
     }
 }

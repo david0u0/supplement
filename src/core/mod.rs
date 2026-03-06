@@ -110,7 +110,6 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     /// assert_eq!(comps[0], Completion::new("checkout", "").group("command"));
     /// assert_eq!(comps[1], Completion::new("log", "").group("command"));
     /// ```
-
     pub fn supplement<'a>(
         &self,
         history: &'a mut History<ID>,

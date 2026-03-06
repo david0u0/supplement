@@ -151,11 +151,12 @@ mod test {
     #[test]
     fn test_ctx() {
         let mut h = History::new();
-        let comps = run(&mut h, "git --git-dir=").unwrap();
+        let comps = run(&mut h, "git --external e --git-dir=").unwrap();
         let (id, _) = map_unready(&comps);
         match id {
             id!(def checkout files(root, _)) | id!(def git_dir(root)) => {
-                assert_eq!(root.git_dir(), None);
+                assert_eq!(root.val_git_dir(), None);
+                assert_eq!(root.val_external(), &["e"]);
             }
             _ => panic!("id is {id:?}"),
         }
@@ -165,10 +166,22 @@ mod test {
         let (id, _) = map_unready(&comps);
         match id {
             id!(def checkout files(root, chk)) => {
-                assert_eq!(root.git_dir(), Some("mydir"));
-                assert_eq!(chk.file_or_commit(), Some("ww"));
-                assert_eq!(chk.files(), &["xx", "yy"]);
-                assert_eq!(chk.b(), 0);
+                assert_eq!(root.val_git_dir(), Some("mydir"));
+                assert_eq!(chk.val_file_or_commit(), Some("ww"));
+                assert_eq!(chk.val_files(), &["xx", "yy"]);
+                assert_eq!(chk.val_b(), 0);
+            }
+            _ => panic!("id is {id:?}"),
+        }
+
+        let mut h = History::new();
+        let comps = run(&mut h, "git --external e time for some ext").unwrap();
+        let (id, _) = map_unready(&comps);
+        match id {
+            id!(def @ext(root)) => {
+                assert_eq!(root.val_git_dir(), None);
+                assert_eq!(root.val_external(), &["e"]);
+                assert_eq!(root.external(), &["time", "for", "some"]);
             }
             _ => panic!("id is {id:?}"),
         }

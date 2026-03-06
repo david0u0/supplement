@@ -60,7 +60,7 @@ struct CmdUnit {
 struct ValUnit {
     rust_name: String,
     enum_name: Option<String>,
-    ctx_func: Option<(String, ValType)>,
+    ctx_ty: Option<ValType>,
 }
 
 #[derive(Clone)]
@@ -264,16 +264,10 @@ fn generate_args_in_cmd(
 
         let enum_name = gen_enum_name(name_type, &name);
         let enum_name = if is_certain { None } else { Some(enum_name) };
-        let ctx_func = if name_type == NameType::EXTERNAL {
-            // FIXME: @ext should still have ctx!!
-            None
-        } else {
-            Some((name, ty))
-        };
         args_names.push(ValUnit {
             rust_name,
             enum_name,
-            ctx_func,
+            ctx_ty: Some(ty),
         });
     }
 
@@ -307,7 +301,7 @@ fn generate_flags_in_cmd(
                     flag_names.push(ValUnit {
                         rust_name: super_name,
                         enum_name: None,
-                        ctx_func: None,
+                        ctx_ty: None,
                     });
                 }
                 continue;
@@ -378,7 +372,7 @@ fn generate_flags_in_cmd(
         flag_names.push(ValUnit {
             rust_name,
             enum_name,
-            ctx_func: Some((name, ty)),
+            ctx_ty: Some(ty),
         });
     }
     Ok(flag_names)
@@ -458,12 +452,14 @@ fn generate_recur(
         if cmd_not_empty {
             writeln!(w, "{indent}#[derive(Clone, Copy, PartialEq, Eq, Debug)]")?;
             writeln!(w, "{indent}pub struct Ctx<H>(H);")?;
-            writeln!(w, "{indent}impl<'a> Ctx<&'a History<GlobalID>> {{")?;
+            writeln!(w, "{indent}impl Ctx<&History<GlobalID>> {{")?;
             for val in args.iter().chain(flags.iter()) {
-                if let Some((name, ty)) = val.ctx_func.as_ref() {
+                if let Some(ty) = val.ctx_ty.as_ref() {
                     let ctx_func = ctx_func(&val.rust_name, *ty);
-                    let rust_ty = ty.get_rust_type();
-                    writeln!(w, "{indent}    pub fn {name}(&self) -> {rust_ty} {{")?;
+                    let ty = ty.get_rust_type();
+                    let name = to_snake_case(&val.rust_name);
+                    writeln!(w, "{indent}    #[allow(dead_code)]")?;
+                    writeln!(w, "{indent}    pub fn {name}(&self) -> {ty} {{")?;
 
                     writeln!(w, "{indent}        {ctx_func}")?;
                     writeln!(w, "{indent}    }}")?;
