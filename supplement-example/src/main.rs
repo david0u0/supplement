@@ -90,8 +90,7 @@ fn handle_comp(id: ID<&History<ID>>, _value: &str) -> Vec<Completion> {
             }
             comps
         }
-        // TODO turn `ctx_dont_care` to `_`
-        id!(def checkout files(ctx_dont_care, ctx)) => {
+        id!(def checkout files(_, ctx)) => {
             // For the second and more arguments, it can only be file
             // Let's also filter out those files we've already seen!
             let prev1: Option<&str> = ctx.file_or_commit();

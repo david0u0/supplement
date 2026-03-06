@@ -265,6 +265,7 @@ fn generate_args_in_cmd(
         let enum_name = gen_enum_name(name_type, &name);
         let enum_name = if is_certain { None } else { Some(enum_name) };
         let ctx_func = if name_type == NameType::EXTERNAL {
+            // FIXME: @ext should still have ctx!!
             None
         } else {
             Some((name, ty))

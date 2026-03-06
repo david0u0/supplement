@@ -36,12 +36,35 @@ fn to_cmd_mod(ident: &str) -> String {
     to_snake_case(ident)
 }
 
+enum IdentOrUnderscore {
+    Ident(String),
+    Underscore,
+}
+impl Parse for IdentOrUnderscore {
+    fn parse(input: ParseStream) -> Result<Self> {
+        Ok(if input.peek(Token![_]) {
+            input.parse::<Token![_]>()?;
+            IdentOrUnderscore::Underscore
+        } else {
+            let ident: syn::Ident = input.parse()?;
+            IdentOrUnderscore::Ident(ident.to_string())
+        })
+    }
+}
+impl std::fmt::Display for IdentOrUnderscore {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            IdentOrUnderscore::Ident(s) => write!(f, "{}", s),
+            IdentOrUnderscore::Underscore => write!(f, "_"),
+        }
+    }
+}
+
 struct IdList {
     root_mod: syn::Path,
     items: Vec<String>,
     ctxs: Vec<String>,
 }
-
 impl Parse for IdList {
     fn parse(input: ParseStream) -> Result<Self> {
         let root_mod: syn::Path = input.parse()?;
@@ -68,7 +91,7 @@ impl Parse for IdList {
                     return Err(Error::new(Span::call_site(), "Ctx can't be empty"));
                 }
 
-                let content = content.parse_terminated(Ident::parse, Token![,])?;
+                let content = content.parse_terminated(IdentOrUnderscore::parse, Token![,])?;
                 ctxs = content.iter().map(|ident| ident.to_string()).collect();
 
                 if !input.is_empty() {
@@ -122,7 +145,7 @@ impl Parse for IdList {
 ///         pub mod set_url {
 ///             #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 ///             pub enum ID {
-///                 ValUrl(u32),
+///                 ValUrl(u32, u32),
 ///             }
 ///         }
 ///     }
@@ -131,32 +154,32 @@ impl Parse for IdList {
 /// // Root flag or arg
 /// let e = def::ID::ValGitDir(1);
 /// match e {
-///     // To get the ctx, add `(ctx)` in the macro
+///     // To get the context, add `(ctx)` in the macro
 ///     id!(def git_dir(ctx)) if ctx == 1 => (),
-///     // Or to ignore the ctx
+///     // Or to ignore the context
 ///     id!(def git_dir) => (),
 ///     _ => panic!(),
 /// }
 ///
 /// // Flag or arg within subcommand
-/// let e = def::ID::CMDRemote(def::remote::ID::CMDSetUrl(def::remote::set_url::ID::ValUrl(2)));
+/// let e = def::ID::CMDRemote(def::remote::ID::CMDSetUrl(def::remote::set_url::ID::ValUrl(2, 3)));
 /// match e {
-///     id!(def remote set_url url(ctx)) if ctx == 2 => (),
+///     id!(def remote set_url url(ctx1, ctx2)) if ctx1 == 2 && ctx2 == 3 => (),
 ///     _ => panic!(),
 /// }
 ///
 /// // External subcommands
-/// let e = def::ID::CMDRemote(def::remote::ID::External(3));
+/// let e = def::ID::CMDRemote(def::remote::ID::External(4));
 /// match e {
-///     id!(def remote @ext(ctx)) if ctx == 3 => (),
+///     id!(def remote @ext(ctx)) if ctx == 4 => (),
 ///     id!(def remote @ext) => panic!(),
 ///     _ => panic!(),
 /// }
 ///
 /// // Start with ctx different module def::remote
-/// let e = def::remote::ID::CMDSetUrl(def::remote::set_url::ID::ValUrl(4));
+/// let e = def::remote::ID::CMDSetUrl(def::remote::set_url::ID::ValUrl(5, 6));
 /// match e {
-///     id!(def::remote set_url url(ctx)) if ctx == 4 => (),
+///     id!(def::remote set_url url(ctx, _)) if ctx == 5 => (),
 ///     _ => panic!(),
 /// }
 ///

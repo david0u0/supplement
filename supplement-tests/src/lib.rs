@@ -113,7 +113,7 @@ mod test {
 
         let mut h = History::new();
         let comps = run(&mut h, "git checkout -").unwrap();
-        assert_eq!(vec!["--git-dir"], map_ready(&comps));
+        assert_eq!(vec!["--git-dir", "-b"], map_ready(&comps));
 
         let mut h = History::new();
         let comps = run(&mut h, "git log --pretty=").unwrap();
@@ -154,10 +154,25 @@ mod test {
         let comps = run(&mut h, "git --git-dir=").unwrap();
         let (id, _) = map_unready(&comps);
         match id {
+            // TODO: Uncomment the below line and make it work
+            //id!(def git_dir(ctx)) |
             id!(def git_dir(ctx)) => {
-                assert!(ctx.git_dir().is_none())
+                assert_eq!(ctx.git_dir(), None);
             }
-            _ => panic!(),
+            _ => panic!("id is {id:?}"),
+        }
+
+        let mut h = History::new();
+        let comps = run(&mut h, "git --git-dir mydir checkout ww xx yy zz").unwrap();
+        let (id, _) = map_unready(&comps);
+        match id {
+            id!(def checkout files(root, chk)) => {
+                assert_eq!(root.git_dir(), Some("mydir"));
+                assert_eq!(chk.file_or_commit(), Some("ww"));
+                assert_eq!(chk.files(), &["xx", "yy"]);
+                assert_eq!(chk.b(), 0);
+            }
+            _ => panic!("id is {id:?}"),
         }
     }
 }

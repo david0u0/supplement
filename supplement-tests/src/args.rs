@@ -25,6 +25,8 @@ pub enum SubCommand {
         pretty: Option<Pretty>,
     },
     Checkout {
+        #[clap(short, help = "Create new branch")]
+        b: bool,
         #[clap(long)]
         flag1: Option<String>, // ignored
         file_or_commit: Option<String>,

@@ -95,6 +95,14 @@ pub mod checkout {
     use super::GlobalID as GlobalID;
     use supplement::gen_prelude::*;
 
+    const ID_VAL_B: id::NoVal = id::NoVal::new_certain(line!());
+    const VAL_B: Flag<GlobalID> = Flag {
+        short: &['b'],
+        long: &[],
+        description: "Create new branch",
+        once: true,
+        ty: flag_type::Type::new_bool(ID_VAL_B),
+    };
     const ID_VAL_FILE_OR_COMMIT: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDCheckout(ID::ValFileOrCommit(super::Ctx(()), Ctx(()))));
     const VAL_FILE_OR_COMMIT: Arg<GlobalID> = Arg {
         id: ID_VAL_FILE_OR_COMMIT.into(),
@@ -116,6 +124,9 @@ pub mod checkout {
         pub fn files(&self) -> &[String] {
             self.0.find(ID_VAL_FILES).map(|x| x.values.as_slice()).unwrap_or_default()
         }
+        pub fn b(&self) -> u32 {
+            self.0.find(ID_VAL_B).map(|x| x.count).unwrap_or_default()
+        }
     }
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub enum ID<H = ()> {
@@ -134,7 +145,7 @@ pub mod checkout {
     pub(super) const CMD: Command<GlobalID> = Command {
         name: "checkout",
         description: "",
-        all_flags: &[super::VAL_GIT_DIR],
+        all_flags: &[VAL_B, super::VAL_GIT_DIR],
         args: &[VAL_FILE_OR_COMMIT, VAL_FILES],
         commands: &[],
     };
