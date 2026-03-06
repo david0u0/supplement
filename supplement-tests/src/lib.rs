@@ -33,6 +33,7 @@ mod test {
     }
 
     use super::*;
+    use def::Ctx as Ctx1;
     use def::ID;
     use supplement::{Result, helper::id};
 
@@ -80,17 +81,6 @@ mod test {
         let is_match = matches!(err, GenerateError::UncertainWithoutValue(s) if s == "graph");
         assert!(is_match);
     }
-    #[test]
-    fn test_proc_macro() {
-        let id = id!(def @ext);
-        assert_eq!(id, ID::External);
-
-        let id = id!(def remote add name);
-        assert_eq!(
-            id,
-            ID::CMDRemote(def::remote::ID::CMDAdd(def::remote::add::ID::ValName))
-        );
-    }
 
     #[test]
     fn test_simple() {
@@ -101,7 +91,7 @@ mod test {
         assert_eq!(
             map_unready(&comps),
             (
-                ID::External,
+                id!(def @ext(Ctx1)),
                 "g",
                 vec!["bisect", "bisect2", "checkout", "log", "remote"],
                 ""
@@ -137,21 +127,39 @@ mod test {
 
     #[test]
     fn test_made_uncertain() {
+        use def::bisect2::Ctx as Ctx2;
         let comps = run("git bisect2 x").unwrap();
         assert_eq!(
             map_unready(&comps),
-            (id!(def bisect2 arg), "x", vec!["bad", "good"], "")
+            (
+                id!(def bisect2 arg(Ctx1, Ctx2)),
+                "x",
+                vec!["bad", "good"],
+                ""
+            )
         );
 
         let comps = run("git bisect2 --pretty=z").unwrap();
         assert_eq!(
             map_unready(&comps),
             (
-                id!(def bisect2 pretty),
+                id!(def bisect2 pretty(Ctx1, Ctx2)),
                 "z",
                 vec!["full", "oneline", "short"],
                 "--pretty="
             )
         );
+    }
+
+    #[test]
+    fn test_ctx() {
+        let comps = run("git --git-dir=").unwrap();
+        match comps {
+            CompletionGroup::Unready { id, .. } => match id {
+                id!(def git_dir) => {}
+                _ => panic!(),
+            },
+            _ => panic!(),
+        }
     }
 }

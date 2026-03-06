@@ -9,7 +9,7 @@ pub struct Arg {
     pub git_dir: Option<std::path::PathBuf>,
 
     #[clap(long)]
-    pub external: Option<String>,
+    pub external: Vec<String>,
 
     #[clap(subcommand)]
     pub sub: SubCommand,

@@ -1,7 +1,8 @@
 type GlobalID = ID;
 use supplement::core::*;
+use supplement::history::History;
 
-pub const ID_VAL_GIT_DIR: id::SingleVal<GlobalID> = id::SingleVal::new(ID::ValGitDir);
+pub const ID_VAL_GIT_DIR: id::SingleVal<GlobalID> = id::SingleVal::new(ID::ValGitDir(Ctx));
 const VAL_GIT_DIR: Flag<GlobalID> = Flag {
     short: &[],
     long: &["git-dir"],
@@ -9,7 +10,7 @@ const VAL_GIT_DIR: Flag<GlobalID> = Flag {
     once: false,
     ty: flag_type::Type::new_valued(ID_VAL_GIT_DIR.into(), CompleteWithEqual::NoNeed, &[]),
 };
-pub const ID_VAL_EXTERNAL: id::SingleVal<GlobalID> = id::SingleVal::new(ID::ValExternal);
+pub const ID_VAL_EXTERNAL: id::MultiVal<GlobalID> = id::MultiVal::new(ID::ValExternal(Ctx));
 const VAL_EXTERNAL: Flag<GlobalID> = Flag {
     short: &[],
     long: &["external"],
@@ -17,7 +18,7 @@ const VAL_EXTERNAL: Flag<GlobalID> = Flag {
     once: true,
     ty: flag_type::Type::new_valued(ID_VAL_EXTERNAL.into(), CompleteWithEqual::NoNeed, &[]),
 };
-pub const ID_EXTERNAL: id::MultiVal<GlobalID> = id::MultiVal::new(ID::External);
+pub const ID_EXTERNAL: id::MultiVal<GlobalID> = id::MultiVal::new(ID::External(Ctx));
 const EXTERNAL: Arg<GlobalID> = Arg {
     id: ID_EXTERNAL.into(),
     max_values: 18446744073709551615,
@@ -42,10 +43,23 @@ pub mod bisect {
     };
 }
 pub mod bisect2 {
+    use supplement::History;
+
+    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
+    pub struct Ctx;
+    impl Ctx {
+        pub fn pretty(self, h: &History<GlobalID>) -> Option<&str> {
+            h.find(ID_VAL_PRETTY).map(|h| h.value.as_str())
+        }
+        pub fn arg(self, h: &History<GlobalID>) -> Option<&str> {
+            h.find(ID_VAL_ARG).map(|h| h.value.as_str())
+        }
+    }
+
     use super::GlobalID as GlobalID;
     use supplement::core::*;
 
-    pub const ID_VAL_PRETTY: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDBisect2(ID::ValPretty));
+    pub const ID_VAL_PRETTY: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDBisect2(ID::ValPretty(super::Ctx, Ctx)));
     const VAL_PRETTY: Flag<GlobalID> = Flag {
         short: &[],
         long: &["pretty"],
@@ -53,7 +67,7 @@ pub mod bisect2 {
         once: true,
         ty: flag_type::Type::new_valued(ID_VAL_PRETTY.into(), CompleteWithEqual::Optional, &[("oneline", "<sha1> <title line>"), ("short", "<sha1> / <author> / <title line>)"), ("full", "<sha1> / <author> / <committer> / <title> / <commit msg>")]),
     };
-    pub const ID_VAL_ARG: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDBisect2(ID::ValArg));
+    pub const ID_VAL_ARG: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDBisect2(ID::ValArg(super::Ctx, Ctx)));
     const VAL_ARG: Arg<GlobalID> = Arg {
         id: ID_VAL_ARG.into(),
         max_values: 1,
@@ -61,8 +75,8 @@ pub mod bisect2 {
     };
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub enum ID {
-        ValArg,
-        ValPretty,
+        ValArg(super::Ctx, Ctx),
+        ValPretty(super::Ctx, Ctx),
     }
     pub(super) const CMD: Command<GlobalID> = Command {
         name: "bisect2",
@@ -206,11 +220,23 @@ pub mod remote {
         commands: &[add::CMD, remove::CMD],
     };
 }
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq )]
+pub struct Ctx;
+impl Ctx {
+    pub fn git_dir(self, h: &History<GlobalID>) -> Option<&str>{
+        h.find(ID_VAL_GIT_DIR).map(|h| h.value.as_str())
+    }
+    pub fn external(self, h: &History<GlobalID>) -> &[String]{
+        h.find(ID_EXTERNAL).map(|h| h.values.as_slice()).unwrap_or_default()
+    }
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ID {
-    External,
-    ValGitDir,
-    ValExternal,
+    External(Ctx),
+    ValGitDir(Ctx),
+    ValExternal(Ctx),
     CMDBisect2(bisect2::ID),
     CMDCheckout(checkout::ID),
     CMDLog(log::ID),
