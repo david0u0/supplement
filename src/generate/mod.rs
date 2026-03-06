@@ -165,7 +165,7 @@ impl FlagDisplayHelper<'_> {
             format!("new({value})")
         };
         Ok(format!(
-            "pub const {id_name}: id::{id_type}{global_id} = id::{id_type}::{value};"
+            "const {id_name}: id::{id_type}{global_id} = id::{id_type}::{value};"
         ))
     }
     fn type_str(&self) -> Result<String, GenerateError> {
@@ -250,7 +250,7 @@ fn generate_args_in_cmd(
         writeln!(
             w,
             "\
-{indent}pub const {id_name}: {id_type}<GlobalID> = {id_type}::{id_value};
+{indent}const {id_name}: {id_type}<GlobalID> = {id_type}::{id_value};
 {indent}const {rust_name}: Arg<GlobalID> = Arg {{
 {indent}    id: {id_name}.into(),
 {indent}    max_values: {max_values},
@@ -447,16 +447,13 @@ fn generate_recur(
 
         if cmd_not_empty {
             writeln!(w, "{indent}#[derive(Clone, Copy, PartialEq, Eq, Debug)]")?;
-            writeln!(w, "{indent}pub struct Ctx;")?;
-            writeln!(w, "{indent}impl Ctx {{")?;
+            writeln!(w, "{indent}pub struct Ctx<H>(H);")?;
+            writeln!(w, "{indent}impl<'a> Ctx<&'a History<GlobalID>> {{")?;
             for val in args.iter().chain(flags.iter()) {
                 if let Some((name, ty)) = val.ctx_func.as_ref() {
                     let ctx_func = ctx_func(&val.rust_name, *ty);
                     let rust_ty = ty.get_rust_type();
-                    writeln!(
-                        w,
-                        "{indent}    pub fn {name}(self, h: &History<GlobalID>) -> {rust_ty} {{"
-                    )?;
+                    writeln!(w, "{indent}    pub fn {name}(&self) -> {rust_ty} {{")?;
 
                     writeln!(w, "{indent}        {ctx_func}")?;
                     writeln!(w, "{indent}    }}")?;
@@ -465,8 +462,8 @@ fn generate_recur(
             writeln!(w, "{indent}}}")?;
 
             writeln!(w, "{indent}#[derive(Clone, Copy, PartialEq, Eq, Debug)]")?;
-            writeln!(w, "{indent}pub enum ID {{")?;
-            let ctx_display = CtxDisplay(level);
+            writeln!(w, "{indent}pub enum ID<H = ()> {{")?;
+            let ctx_display = CtxDisplay(level, "<H>");
             for val in args.iter().chain(flags.iter()) {
                 if let Some(enum_name) = val.enum_name.as_ref() {
                     writeln!(w, "{indent}    {enum_name}({ctx_display}),")?;
@@ -475,7 +472,7 @@ fn generate_recur(
             for (mod_name, name, not_empty) in sub_cmds.iter() {
                 if *not_empty {
                     let name = gen_enum_name(NameType::COMMAND, name);
-                    writeln!(w, "{indent}    {name}({mod_name}::ID),")?;
+                    writeln!(w, "{indent}    {name}({mod_name}::ID<H>),")?;
                 }
             }
             writeln!(w, "{indent}}}")?;

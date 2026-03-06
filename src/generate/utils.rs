@@ -116,14 +116,14 @@ i.e. `ls --color <TAB>` results in [always, auto, never], not the file completio
     }
 }
 
-pub struct CtxDisplay(pub usize);
+pub struct CtxDisplay(pub usize, pub &'static str);
 impl std::fmt::Display for CtxDisplay {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         for i in (0..=self.0).rev() {
             for _ in 0..i {
                 write!(f, "super::")?;
             }
-            write!(f, "Ctx")?;
+            write!(f, "Ctx{}", self.1)?;
             if i != 0 {
                 write!(f, ", ")?;
             }
@@ -157,7 +157,7 @@ pub fn get_id_value(prev: &[Trace], ty: NameType, id: &str) -> String {
 
     let mut ret = String::new();
     let mut level = prev.len();
-    let ctxs = CtxDisplay(level);
+    let ctxs = CtxDisplay(level, "(())");
     for trace in prev.iter() {
         let super_str = "super::".repeat(level);
         level -= 1;
@@ -173,10 +173,10 @@ pub fn get_id_value(prev: &[Trace], ty: NameType, id: &str) -> String {
 
 pub fn ctx_func(rust_name: &str, ty: ValType) -> String {
     match ty {
-        ValType::No => format!("h.find(ID_{rust_name}).map(|x| x.count).unwrap_or_default()"),
-        ValType::Single => format!("h.find(ID_{rust_name}).map(|x| x.value.as_ref())"),
+        ValType::No => format!("self.0.find(ID_{rust_name}).map(|x| x.count).unwrap_or_default()"),
+        ValType::Single => format!("self.0.find(ID_{rust_name}).map(|x| x.value.as_ref())"),
         ValType::Multi => {
-            format!("h.find(ID_{rust_name}).map(|x| x.values.as_slice()).unwrap_or_default()")
+            format!("self.0.find(ID_{rust_name}).map(|x| x.values.as_slice()).unwrap_or_default()")
         }
     }
 }
