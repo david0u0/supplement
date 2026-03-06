@@ -2,11 +2,7 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
-use syn::{Error, Result, Token, parenthesized, parse_macro_input, token::Paren};
-
-fn to_snake_case(s: &str) -> String {
-    s.replace('-', "_").to_lowercase() // TODO
-}
+use syn::{Error, Pat, Result, Token, parse_macro_input, token::Paren};
 
 fn to_pascal_case(s: &str) -> String {
     let mut ret = String::new();
@@ -23,52 +19,42 @@ fn to_pascal_case(s: &str) -> String {
     ret
 }
 
-fn to_cmd_enum(ident: &str) -> String {
-    format!("CMD{}", to_pascal_case(ident))
-}
-fn to_val_enum(ident: &str) -> String {
-    if ident == "@ext" {
-        return "External".to_owned();
-    }
-    format!("Val{}", to_pascal_case(ident))
-}
-fn to_cmd_mod(ident: &str) -> String {
-    to_snake_case(ident)
-}
-
-enum IdentOrUnderscore {
-    Ident(String),
-    Underscore,
-}
-impl Parse for IdentOrUnderscore {
-    fn parse(input: ParseStream) -> Result<Self> {
-        Ok(if input.peek(Token![_]) {
-            input.parse::<Token![_]>()?;
-            IdentOrUnderscore::Underscore
-        } else {
-            let ident: syn::Ident = input.parse()?;
-            IdentOrUnderscore::Ident(ident.to_string())
-        })
-    }
-}
-impl std::fmt::Display for IdentOrUnderscore {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            IdentOrUnderscore::Ident(s) => write!(f, "{}", s),
-            IdentOrUnderscore::Underscore => write!(f, "_"),
+fn to_cmd_enum(item: &Item) -> String {
+    match item {
+        Item::Ident(ident) => {
+            format!("CMD{}", to_pascal_case(&ident.to_string()))
         }
+        _ => unreachable!(),
+    }
+}
+fn to_val_enum(item: &Item) -> String {
+    match item {
+        Item::Ident(ident) => {
+            format!("Val{}", to_pascal_case(&ident.to_string()))
+        }
+        _ => "External".to_owned(),
+    }
+}
+fn to_cmd_mod(item: &Item) -> &Ident {
+    match item {
+        Item::Ident(ident) => ident,
+        _ => unreachable!(),
     }
 }
 
+enum Item {
+    Ident(Ident),
+    Ext,
+}
 struct IdList {
     root_mod: syn::Path,
-    items: Vec<String>,
-    ctxs: Vec<String>,
+    items: Vec<Item>,
+    ctxs: Option<Pat>,
 }
 impl Parse for IdList {
     fn parse(input: ParseStream) -> Result<Self> {
         let root_mod: syn::Path = input.parse()?;
-        let mut ctxs = vec![];
+        let mut ctxs = None;
 
         let mut items = Vec::new();
         while !input.is_empty() {
@@ -82,24 +68,16 @@ impl Parse for IdList {
                         format!("Unknown ident @{ident}"),
                     ));
                 }
-                items.push("@ext".to_owned());
+                items.push(Item::Ext);
             } else if input.peek(Paren) {
-                let content;
-                parenthesized!(content in input);
-
-                if content.is_empty() {
-                    return Err(Error::new(Span::call_site(), "Ctx can't be empty"));
-                }
-
-                let content = content.parse_terminated(IdentOrUnderscore::parse, Token![,])?;
-                ctxs = content.iter().map(|ident| ident.to_string()).collect();
+                ctxs = Some(Pat::parse_single(input)?);
 
                 if !input.is_empty() {
                     return Err(Error::new(Span::call_site(), "Ctx must be the last one"));
                 }
             } else {
                 let ident: syn::Ident = input.parse()?;
-                items.push(ident.to_string());
+                items.push(Item::Ident(ident));
             }
         }
 
@@ -108,6 +86,13 @@ impl Parse for IdList {
                 Span::call_site(),
                 "The macro requires at least two elements",
             ));
+        }
+
+        let ext_pos = items.iter().position(|i| matches!(i, Item::Ext));
+        if let Some(ext_pos) = ext_pos
+            && ext_pos != items.len() - 1
+        {
+            return Err(Error::new(Span::call_site(), "@ext must be the last one"));
         }
 
         Ok(IdList {
@@ -173,6 +158,7 @@ impl Parse for IdList {
 /// match e {
 ///     id!(def remote @ext(ctx)) if ctx == 4 => (),
 ///     id!(def remote @ext) => panic!(),
+///     id!(def remote @ext) => panic!(),
 ///     _ => panic!(),
 /// }
 ///
@@ -197,31 +183,24 @@ pub fn id(input: TokenStream) -> TokenStream {
 
 fn build_recur(
     root_mod: &syn::Path,
-    items: &[String],
+    items: &[Item],
     index: usize,
-    ctxs: Vec<String>,
+    ctxs: Option<Pat>,
 ) -> proc_macro2::TokenStream {
-    let mod_path: Vec<_> = items[..index]
-        .iter()
-        .map(|m| Ident::new(&to_cmd_mod(m), Span::call_site()))
-        .collect();
+    let mod_path: Vec<_> = items[..index].iter().map(to_cmd_mod).collect();
 
     if index == items.len() - 1 {
         let val = Ident::new(&to_val_enum(&items[index]), Span::call_site());
         let last = quote! {
             #root_mod::#(#mod_path::)*ID::#val
         };
-        return if ctxs.is_empty() {
+        return if let Some(ctxs) = ctxs {
             quote! {
-                #last(..)
+                #last #ctxs
             }
         } else {
-            let ctxs: Vec<_> = ctxs
-                .iter()
-                .map(|m| Ident::new(m, Span::call_site()))
-                .collect();
             quote! {
-                #last(#(#ctxs, )*)
+                #last(..)
             }
         };
     }

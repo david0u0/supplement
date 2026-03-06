@@ -6,7 +6,7 @@ use clap4 as clap;
 use clap::{CommandFactory, Parser};
 use std::io::stdout;
 use std::process::Command;
-use supplement::{Completion, CompletionGroup, History, Shell, generate, helper::id};
+use supplement::{Completion, CompletionGroup, History, Shell, generate};
 use supplement_example::args::Git;
 
 mod def {
@@ -67,17 +67,16 @@ fn main() {
     }
 }
 
-// TODO: This somehow mess with the `(ctx)` part. Try to fix it.
-// macro_rules! id {
-//     ($($id:tt )+) => {
-//         supplement::helper::id!(def $($id )+)
-//     }
-// }
+macro_rules! id {
+     ($($id:tt )+) => {
+         supplement::helper::id!(def $($id )+)
+     }
+ }
 
 fn handle_comp(id: ID<&History<ID>>, _value: &str) -> Vec<Completion> {
     match id {
-        id!(def git_dir) => std::process::exit(1), // Exit to use default completion
-        id!(def checkout file_or_commit) => {
+        id!(git_dir) => std::process::exit(1), // Exit to use default completion
+        id!(checkout file_or_commit) => {
             // For the first argument, it can either be a git commit or a file
             let mut comps = vec![];
             for line in run_git("log --oneline -10").lines() {
@@ -90,7 +89,7 @@ fn handle_comp(id: ID<&History<ID>>, _value: &str) -> Vec<Completion> {
             }
             comps
         }
-        id!(def checkout files(_, ctx)) => {
+        id!(checkout files(_, ctx)) => {
             // For the second and more arguments, it can only be file
             // Let's also filter out those files we've already seen!
             let prev1: Option<&str> = ctx.file_or_commit();
@@ -112,7 +111,7 @@ fn handle_comp(id: ID<&History<ID>>, _value: &str) -> Vec<Completion> {
                 })
                 .collect()
         }
-        id!(def log commit) => run_git("log --oneline -10")
+        id!(log commit) => run_git("log --oneline -10")
             .lines()
             .map(|line| {
                 let (hash, description) = line.split_once(" ").unwrap();

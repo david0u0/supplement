@@ -154,10 +154,8 @@ mod test {
         let comps = run(&mut h, "git --git-dir=").unwrap();
         let (id, _) = map_unready(&comps);
         match id {
-            // TODO: Uncomment the below line and make it work
-            //id!(def git_dir(ctx)) |
-            id!(def git_dir(ctx)) => {
-                assert_eq!(ctx.git_dir(), None);
+            id!(def checkout files(root, _)) | id!(def git_dir(root)) => {
+                assert_eq!(root.git_dir(), None);
             }
             _ => panic!("id is {id:?}"),
         }
