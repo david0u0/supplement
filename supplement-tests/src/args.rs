@@ -9,7 +9,7 @@ pub struct Arg {
     pub git_dir: Option<std::path::PathBuf>,
 
     #[clap(long)]
-    pub external: Option<String>,
+    pub external: Vec<String>,
 
     #[clap(subcommand)]
     pub sub: SubCommand,
@@ -25,6 +25,8 @@ pub enum SubCommand {
         pretty: Option<Pretty>,
     },
     Checkout {
+        #[clap(short, help = "Create new branch")]
+        b: bool,
         #[clap(long)]
         flag1: Option<String>, // ignored
         file_or_commit: Option<String>,

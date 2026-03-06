@@ -1,6 +1,26 @@
 use super::abstraction::{Arg, Command};
-use super::{NameType, Trace};
+use super::{NameType, Trace, ValType};
 use crate::core::CompleteWithEqual;
+
+pub struct Join<I>(pub I);
+impl<T, I> std::fmt::Display for Join<I>
+where
+    T: std::fmt::Display,
+    I: Iterator<Item = T> + Clone,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let mut first = true;
+        for t in self.0.clone() {
+            if first {
+                first = false;
+            } else {
+                write!(f, ", ")?;
+            }
+            write!(f, "{t}")?;
+        }
+        Ok(())
+    }
+}
 
 pub(super) fn flags<'a>(p: &Command<'a>) -> impl Iterator<Item = Arg<'a>> {
     let custom_help = p.is_disable_help_flag_set();
@@ -96,6 +116,22 @@ i.e. `ls --color <TAB>` results in [always, auto, never], not the file completio
     }
 }
 
+pub struct CtxDisplay(pub usize, pub &'static str);
+impl std::fmt::Display for CtxDisplay {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        for i in (0..=self.0).rev() {
+            for _ in 0..i {
+                write!(f, "super::")?;
+            }
+            write!(f, "Ctx{}", self.1)?;
+            if i != 0 {
+                write!(f, ", ")?;
+            }
+        }
+        Ok(())
+    }
+}
+
 pub fn get_id_value(prev: &[Trace], ty: NameType, id: &str) -> String {
     // pub enum ID {
     //     A,
@@ -121,6 +157,7 @@ pub fn get_id_value(prev: &[Trace], ty: NameType, id: &str) -> String {
 
     let mut ret = String::new();
     let mut level = prev.len();
+    let ctxs = CtxDisplay(level, "(())");
     for trace in prev.iter() {
         let super_str = "super::".repeat(level);
         level -= 1;
@@ -129,7 +166,17 @@ pub fn get_id_value(prev: &[Trace], ty: NameType, id: &str) -> String {
     }
 
     let enum_name = gen_enum_name(ty, id);
-    ret += &format!("ID::{enum_name}");
+    ret += &format!("ID::{enum_name}({ctxs})");
     ret += &")".repeat(prev.len());
     ret
+}
+
+pub fn ctx_func(rust_name: &str, ty: ValType) -> String {
+    match ty {
+        ValType::No => format!("self.0.find(ID_{rust_name}).map(|x| x.count).unwrap_or_default()"),
+        ValType::Single => format!("self.0.find(ID_{rust_name}).map(|x| x.value.as_ref())"),
+        ValType::Multi => {
+            format!("self.0.find(ID_{rust_name}).map(|x| x.values.as_slice()).unwrap_or_default()")
+        }
+    }
 }

@@ -221,9 +221,11 @@ impl Unready {
 /// # fn create_cmd() -> Command<ID> {
 /// #     unimplemented!()
 /// # }
+///
 /// let cmd: Command<ID> = create_cmd();
-/// let (_history, grp) = cmd
-///     .supplement(["git".to_owned(), "log".to_owned()].into_iter())
+/// let mut history = Default::default();
+/// let grp = cmd
+///     .supplement(&mut history, ["git".to_owned(), "log".to_owned()].into_iter())
 ///     .unwrap();
 /// let ready = match grp {
 ///     CompletionGroup::Ready(ready) => ready,

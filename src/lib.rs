@@ -1,5 +1,6 @@
 pub mod completion;
 pub mod error;
+pub mod gen_prelude;
 pub mod history;
 pub mod id;
 

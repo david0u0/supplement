@@ -6,7 +6,10 @@ mod config;
 mod utils;
 use abstraction::{Arg, ArgAction, ClapCommand, Command, CommandMut, PossibleValue};
 pub use config::Config;
-use utils::{gen_enum_name, gen_rust_name, to_screaming_snake_case, to_snake_case};
+use utils::{
+    CtxDisplay, Join, ctx_func, gen_enum_name, gen_rust_name, to_screaming_snake_case,
+    to_snake_case,
+};
 
 #[derive(Clone)]
 pub(crate) struct Trace {
@@ -50,6 +53,16 @@ pub fn generate(
     config.check_unprocessed_config()
 }
 
+struct CmdUnit {
+    mod_name: String,
+    enum_name: Option<String>,
+}
+struct ValUnit {
+    rust_name: String,
+    enum_name: Option<String>,
+    ctx_ty: Option<ValType>,
+}
+
 #[derive(Clone)]
 struct GlobalFlag {
     level: usize,
@@ -67,26 +80,6 @@ impl NameType {
 impl std::fmt::Display for NameType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)
-    }
-}
-
-struct Join<I>(I);
-impl<T, I> std::fmt::Display for Join<I>
-where
-    T: std::fmt::Display,
-    I: Iterator<Item = T> + Clone,
-{
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let mut first = true;
-        for t in self.0.clone() {
-            if first {
-                first = false;
-            } else {
-                write!(f, ", ")?;
-            }
-            write!(f, "{t}")?;
-        }
-        Ok(())
     }
 }
 
@@ -110,14 +103,25 @@ macro_rules! handle_certian {
     };
 }
 
-enum FlagType {
+#[derive(Clone, Copy)]
+enum ValType {
     No,
     Single,
     Multi,
 }
+impl ValType {
+    fn get_rust_type(self) -> &'static str {
+        match self {
+            ValType::No => "u32",
+            ValType::Single => "Option<&str>",
+            ValType::Multi => "&[String]",
+        }
+    }
+}
+
 struct FlagDisplayHelper<'a> {
     id_name: &'a str,
-    ty: FlagType,
+    ty: ValType,
     flag: Arg<'a>,
     strict: bool,
     force_uncertain: bool,
@@ -127,7 +131,7 @@ struct FlagDisplayHelper<'a> {
 impl FlagDisplayHelper<'_> {
     fn is_certain(&self) -> Result<bool, GenerateError> {
         let mut is_certain = match self.ty {
-            FlagType::No => {
+            ValType::No => {
                 if self.force_uncertain {
                     return Err(GenerateError::UncertainWithoutValue(
                         self.flag.get_id().to_string(),
@@ -148,12 +152,12 @@ impl FlagDisplayHelper<'_> {
         let id_name = self.id_name;
         let id = self.flag.get_id().to_string();
         let id_type = match self.ty {
-            FlagType::No => "NoVal",
-            FlagType::Single => "SingleVal",
-            FlagType::Multi => "MultiVal",
+            ValType::No => "NoVal",
+            ValType::Single => "SingleVal",
+            ValType::Multi => "MultiVal",
         };
         let global_id = match self.ty {
-            FlagType::No => "",
+            ValType::No => "",
             _ => "<GlobalID>",
         };
         let is_certain = self.is_certain()?;
@@ -165,14 +169,14 @@ impl FlagDisplayHelper<'_> {
             format!("new({value})")
         };
         Ok(format!(
-            "pub const {id_name}: id::{id_type}{global_id} = id::{id_type}::{value};"
+            "const {id_name}: id::{id_type}{global_id} = id::{id_type}::{value};"
         ))
     }
     fn type_str(&self) -> Result<String, GenerateError> {
         let id_name = self.id_name;
         let id = self.flag.get_id().to_string();
         let s = match self.ty {
-            FlagType::No => {
+            ValType::No => {
                 format!("flag_type::Type::new_bool({id_name})")
             }
             _ => {
@@ -195,7 +199,7 @@ fn generate_args_in_cmd(
     config: &mut Config,
     prev: &[Trace],
     w: &mut impl Write,
-) -> Result<Vec<(String, Option<String>)>, GenerateError> {
+) -> Result<Vec<ValUnit>, GenerateError> {
     let mut args_names = vec![];
 
     let ext_sub = if cmd.is_allow_external_subcommands_set() {
@@ -231,10 +235,10 @@ fn generate_args_in_cmd(
 
     for (name, rust_name, max_values, possible_values, name_type) in args {
         let id_name = to_screaming_snake_case(&format!("id_{rust_name}"));
-        let id_type = if max_values == 1 {
-            "id::SingleVal"
+        let (id_type, ty) = if max_values == 1 {
+            ("id::SingleVal", ValType::Single)
         } else {
-            "id::MultiVal"
+            ("id::MultiVal", ValType::Multi)
         };
         let force_uncertain = config.is_uncertain(prev, &name);
         let mut is_certain = !possible_values.is_empty();
@@ -250,7 +254,7 @@ fn generate_args_in_cmd(
         writeln!(
             w,
             "\
-{indent}pub const {id_name}: {id_type}<GlobalID> = {id_type}::{id_value};
+{indent}const {id_name}: {id_type}<GlobalID> = {id_type}::{id_value};
 {indent}const {rust_name}: Arg<GlobalID> = Arg {{
 {indent}    id: {id_name}.into(),
 {indent}    max_values: {max_values},
@@ -260,7 +264,11 @@ fn generate_args_in_cmd(
 
         let enum_name = gen_enum_name(name_type, &name);
         let enum_name = if is_certain { None } else { Some(enum_name) };
-        args_names.push((rust_name, enum_name));
+        args_names.push(ValUnit {
+            rust_name,
+            enum_name,
+            ctx_ty: Some(ty),
+        });
     }
 
     Ok(args_names)
@@ -273,7 +281,7 @@ fn generate_flags_in_cmd(
     cmd: &Command<'_>,
     global_flags: &mut Vec<GlobalFlag>,
     w: &mut impl Write,
-) -> Result<Vec<(String, Option<String>)>, GenerateError> {
+) -> Result<Vec<ValUnit>, GenerateError> {
     let mut flag_names = vec![];
 
     for flag in utils::flags(cmd) {
@@ -288,9 +296,13 @@ fn generate_flags_in_cmd(
             if let Some(prev_flag) = global_flags.iter().find(|f| f.id == name) {
                 log::info!("get existing global flag {name}");
                 if !prev_flag.ignored && !ignored {
-                    let mut name = "super::".repeat(level - prev_flag.level);
-                    name += &rust_name;
-                    flag_names.push((name, None));
+                    let mut super_name = "super::".repeat(level - prev_flag.level);
+                    super_name += &rust_name;
+                    flag_names.push(ValUnit {
+                        rust_name: super_name,
+                        enum_name: None,
+                        ctx_ty: None,
+                    });
                 }
                 continue;
             } else {
@@ -312,15 +324,15 @@ fn generate_flags_in_cmd(
         let longs = flag.get_long_and_visible_aliases().unwrap_or_default();
 
         let (once, ty) = match flag.get_action() {
-            ArgAction::Count => (false, FlagType::No),
-            ArgAction::Append => (false, FlagType::Multi),
+            ArgAction::Count => (false, ValType::No),
+            ArgAction::Append => (false, ValType::Multi),
             _ => {
                 let once = !flag.is_global_set();
                 if takes_values {
-                    (once, FlagType::Single)
+                    (once, ValType::Single)
                 } else {
                     // TODO: for `once`, should also check override self
-                    (once, FlagType::No)
+                    (once, ValType::No)
                 }
             }
         };
@@ -357,7 +369,11 @@ fn generate_flags_in_cmd(
 {indent}    ty: {type_str},
 {indent}}};"
         )?;
-        flag_names.push((rust_name, enum_name));
+        flag_names.push(ValUnit {
+            rust_name,
+            enum_name,
+            ctx_ty: Some(ty),
+        });
     }
     Ok(flag_names)
 }
@@ -366,16 +382,14 @@ fn generate_mod_name(name: &str) -> String {
     to_snake_case(name)
 }
 
-fn check_cmd_not_empty(
-    sub_cmds: &[(String, String, bool)],
-    flags: &[(String, Option<String>)],
-    args: &[(String, Option<String>)],
-) -> bool {
-    if sub_cmds.iter().any(|(_, _, x)| *x) {
+fn check_cmd_not_empty(sub_cmds: &[CmdUnit], flags: &[ValUnit], args: &[ValUnit]) -> bool {
+    if sub_cmds.iter().any(|c| c.enum_name.is_some()) {
         return true;
     }
-
-    flags.iter().chain(args.iter()).any(|(_, x)| x.is_some())
+    flags
+        .iter()
+        .chain(args.iter())
+        .any(|v| v.enum_name.is_some())
 }
 
 fn generate_recur(
@@ -399,12 +413,12 @@ fn generate_recur(
             let pre = "super::".repeat(level);
             writeln!(w, "{indent}use {pre}GlobalID as GlobalID;")?;
         }
-        writeln!(w, "{indent}use supplement::core::*;\n")?;
+        writeln!(w, "{indent}use supplement::gen_prelude::*;\n")?;
 
         let flags = generate_flags_in_cmd(prev, indent, config, cmd, &mut global_flags, w)?;
         let args = generate_args_in_cmd(indent, cmd, config, prev, w)?;
 
-        let mut sub_cmds: Vec<(String, String, bool)> = vec![];
+        let mut sub_cmds: Vec<CmdUnit> = vec![];
         for sub_cmd in utils::non_help_subcmd(cmd) {
             let cmd_id = sub_cmd.get_name().to_string();
             if config.is_ignored(prev, &cmd_id) {
@@ -419,8 +433,17 @@ fn generate_recur(
             });
             let cur_cmd_not_empty =
                 generate_recur(&prev, indent, config, &sub_cmd, &global_flags, w)?;
-            sub_cmds.push((mod_name, cmd_id, cur_cmd_not_empty));
             writeln!(w, "{indent}}}")?;
+
+            let enum_name = if cur_cmd_not_empty {
+                Some(gen_enum_name(NameType::COMMAND, &cmd_id))
+            } else {
+                None
+            };
+            sub_cmds.push(CmdUnit {
+                mod_name,
+                enum_name,
+            });
         }
 
         let cmd_name = NameType::COMMAND;
@@ -428,24 +451,74 @@ fn generate_recur(
 
         if cmd_not_empty {
             writeln!(w, "{indent}#[derive(Clone, Copy, PartialEq, Eq, Debug)]")?;
-            writeln!(w, "{indent}pub enum ID {{")?;
-            for (_, enum_name) in args.iter().chain(flags.iter()) {
-                if let Some(enum_name) = enum_name {
-                    writeln!(w, "{indent}    {enum_name},")?;
-                }
-            }
-            for (mod_name, name, not_empty) in sub_cmds.iter() {
-                if *not_empty {
-                    let name = gen_enum_name(NameType::COMMAND, name);
-                    writeln!(w, "{indent}    {name}({mod_name}::ID),")?;
+            writeln!(w, "{indent}pub struct Ctx<H>(H);")?;
+            writeln!(w, "{indent}impl Ctx<&History<GlobalID>> {{")?;
+            for val in args.iter().chain(flags.iter()) {
+                if let Some(ty) = val.ctx_ty.as_ref() {
+                    let ctx_func = ctx_func(&val.rust_name, *ty);
+                    let ty = ty.get_rust_type();
+                    let name = to_snake_case(&val.rust_name);
+                    writeln!(w, "{indent}    #[allow(dead_code)]")?;
+                    writeln!(w, "{indent}    pub fn {name}(&self) -> {ty} {{")?;
+
+                    writeln!(w, "{indent}        {ctx_func}")?;
+                    writeln!(w, "{indent}    }}")?;
                 }
             }
             writeln!(w, "{indent}}}")?;
+
+            writeln!(w, "{indent}#[derive(Clone, Copy, PartialEq, Eq, Debug)]")?;
+            writeln!(w, "{indent}pub enum ID<H = ()> {{")?;
+            let ctx_display = CtxDisplay(level, "<H>");
+            for val in args.iter().chain(flags.iter()) {
+                if let Some(enum_name) = val.enum_name.as_ref() {
+                    writeln!(w, "{indent}    {enum_name}({ctx_display}),")?;
+                }
+            }
+            for cmd in sub_cmds.iter() {
+                if let Some(enum_name) = cmd.enum_name.as_ref() {
+                    let mod_name = &cmd.mod_name;
+                    writeln!(w, "{indent}    {enum_name}({mod_name}::ID<H>),")?;
+                }
+            }
+            writeln!(w, "{indent}}}")?;
+
+            writeln!(w, "{indent}impl <'a> HistoryBearer<'a, GlobalID> for ID {{")?;
+            writeln!(w, "{indent}    type Ret = ID<&'a History<GlobalID>>;")?;
+            writeln!(
+                w,
+                "{indent}    fn bear(self, h: &'a History<GlobalID>) -> Self::Ret {{"
+            )?;
+            writeln!(w, "{indent}        match self {{")?;
+            for val in args.iter().chain(flags.iter()) {
+                if let Some(enum_name) = val.enum_name.as_ref() {
+                    let ctx_display = CtxDisplay(level, "(h)");
+                    writeln!(
+                        w,
+                        "{indent}            ID::{enum_name}(..) => ID::{enum_name}({ctx_display}),"
+                    )?;
+                }
+            }
+            for cmd in sub_cmds.iter() {
+                if let Some(enum_name) = cmd.enum_name.as_ref() {
+                    writeln!(
+                        w,
+                        "{indent}            ID::{enum_name}(id) => ID::{enum_name}(id.bear(h)),"
+                    )?;
+                }
+            }
+            writeln!(w, "{indent}        }}")?;
+            writeln!(w, "{indent}    }}")?;
+            writeln!(w, "{indent}}}")?;
         }
 
-        let args = Join(args.iter().map(|x| &x.0));
-        let flags = Join(flags.iter().map(|x| &x.0));
-        let sub_cmds = Join(sub_cmds.iter().map(|(m, _, _)| format!("{m}::{cmd_name}")));
+        let args = Join(args.iter().map(|x| &x.rust_name));
+        let flags = Join(flags.iter().map(|x| &x.rust_name));
+        let sub_cmds = Join(
+            sub_cmds
+                .iter()
+                .map(|x| format!("{}::{}", x.mod_name, cmd_name)),
+        );
         let scope = if level == 0 { "" } else { "(super)" };
 
         writeln!(
