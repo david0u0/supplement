@@ -41,7 +41,7 @@ fn main() {
             log::info!("Mode #1: completion");
             let args = args[2..].iter().map(String::from);
             let mut history = Default::default();
-            let grp = def::CMD.supplement2(&mut history, args).unwrap();
+            let grp = def::CMD.supplement(&mut history, args).unwrap();
             let ready = match grp {
                 CompletionGroup::Ready(r) => {
                     // The easy path. No custom logic needed.

@@ -5,7 +5,7 @@ use supplement::*;
 
 mod def {
     use super::*;
-    use supplement::core::*;
+    use supplement::gen_prelude::*;
 
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub enum ID {
@@ -14,6 +14,12 @@ mod def {
         D,
         OPT2,
         E,
+    }
+    impl<'a> HistoryBearer<'a, ID> for ID {
+        type Ret = ID;
+        fn bear(self, h: &'a History<ID>) -> Self::Ret {
+            self
+        }
     }
 
     pub const C_FLAG_ID: id::NoVal = id::NoVal::new(line!());
@@ -105,7 +111,7 @@ fn try_run(args: &str, last_is_empty: bool) -> (Vec<HistoryUnit<ID>>, Result<Com
     };
     let args = args.chain(last);
     let mut history = History::new();
-    let res = def::ROOT.supplement_with_history(&mut history, args);
+    let res = def::ROOT.supplement(&mut history, args);
     (history.into_inner(), res)
 }
 fn run(args: &str, last_is_empty: bool) -> (Vec<HistoryUnit<ID>>, CompletionGroup<ID>) {

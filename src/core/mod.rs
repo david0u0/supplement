@@ -99,7 +99,8 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     /// let root = create_cmd("qit", &[CHECKOUT, LOG]);
     ///
     /// let args = ["qit", ""].iter().map(|s| s.to_string());
-    /// let (_history, grp) = root.supplement(args).unwrap();
+    /// let mut history = Default::default();
+    /// let grp = root.supplement(&mut history, args).unwrap();
     /// let ready = match grp {
     ///     CompletionGroup::Ready(ready) => ready,
     ///     CompletionGroup::Unready{ .. } => unreachable!(),
@@ -109,31 +110,8 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     /// assert_eq!(comps[0], Completion::new("checkout", "").group("command"));
     /// assert_eq!(comps[1], Completion::new("log", "").group("command"));
     /// ```
-    pub fn supplement(
-        &self,
-        args: impl Iterator<Item = String>,
-    ) -> Result<(History<ID>, CompletionGroup<ID>)> {
-        let mut history = History::<ID>::new();
-        let grp = self.supplement_with_history(&mut history, args)?;
-        Ok((history, grp))
-    }
 
-    pub fn supplement_with_history(
-        &self,
-        history: &mut History<ID>,
-        mut args: impl Iterator<Item = String>,
-    ) -> Result<CompletionGroup<ID>> {
-        args.next(); // ignore the first arg which is the program's name
-
-        let mut args = args.peekable();
-        if args.peek().is_none() {
-            return Err(Error::ArgsTooShort);
-        }
-
-        self.supplement_recur(&mut None, history, &mut args)
-    }
-
-    pub fn supplement2<'a>(
+    pub fn supplement<'a>(
         &self,
         history: &'a mut History<ID>,
         mut args: impl Iterator<Item = String>,

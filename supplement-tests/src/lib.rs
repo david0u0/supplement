@@ -39,7 +39,7 @@ mod test {
 
     fn run<'a>(history: &'a mut History, cmd: &str) -> Result<CompletionGroup<ID<&'a History>>> {
         let cmd = cmd.split(" ").map(|s| s.to_string());
-        def::CMD.supplement2(history, cmd)
+        def::CMD.supplement(history, cmd)
     }
 
     #[test]
