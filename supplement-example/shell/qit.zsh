@@ -21,7 +21,6 @@ _qit() {
     local -a values
     local -a descs
     for line in $candidates; do
-        echo $line >> /tmp/sup.log
         if [[ $line == $'\t'* ]]; then
             parts=(${(@ps:\t:)line})
             values+=("${parts[1]}")

@@ -1,6 +1,5 @@
 use std::fmt::Debug;
 pub mod args;
-pub mod generate;
 use supplement::{Completion, CompletionGroup};
 
 fn map_comps(comps: &[Completion]) -> Vec<&str> {
@@ -29,13 +28,13 @@ pub fn map_unready<ID: Debug + Copy>(grp: &CompletionGroup<ID>) -> (ID, &str, Ve
 
 #[cfg(test)]
 mod test {
+    mod def {
+        include!("def.rs");
+    }
+
     use super::*;
     use def::ID;
     use supplement::{Result, helper::id};
-
-    mod def {
-        include!(concat!(env!("OUT_DIR"), "/definition.rs"));
-    }
 
     fn run(cmd: &str) -> Result<CompletionGroup<def::ID>> {
         let cmd = cmd.split(" ").map(|s| s.to_string());
