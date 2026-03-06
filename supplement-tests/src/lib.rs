@@ -34,7 +34,6 @@ mod test {
 
     use super::*;
     use def::Ctx as Ctx1;
-    use def::ID;
     use supplement::{Result, helper::id};
 
     fn run(cmd: &str) -> Result<CompletionGroup<def::ID>> {

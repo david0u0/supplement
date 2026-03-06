@@ -1,6 +1,5 @@
 type GlobalID = ID;
-use supplement::core::*;
-use supplement::history::History;
+use supplement::gen_prelude::*;
 
 pub const ID_VAL_GIT_DIR: id::SingleVal<GlobalID> = id::SingleVal::new(ID::ValGitDir(Ctx));
 const VAL_GIT_DIR: Flag<GlobalID> = Flag {
@@ -15,7 +14,7 @@ const VAL_EXTERNAL: Flag<GlobalID> = Flag {
     short: &[],
     long: &["external"],
     description: "",
-    once: true,
+    once: false,
     ty: flag_type::Type::new_valued(ID_VAL_EXTERNAL.into(), CompleteWithEqual::NoNeed, &[]),
 };
 pub const ID_EXTERNAL: id::MultiVal<GlobalID> = id::MultiVal::new(ID::External(Ctx));
@@ -26,7 +25,7 @@ const EXTERNAL: Arg<GlobalID> = Arg {
 };
 pub mod bisect {
     use super::GlobalID as GlobalID;
-    use supplement::core::*;
+    use supplement::gen_prelude::*;
 
     pub const ID_VAL_ARG: id::SingleVal<GlobalID> = id::SingleVal::new_certain(line!());
     const VAL_ARG: Arg<GlobalID> = Arg {
@@ -43,21 +42,8 @@ pub mod bisect {
     };
 }
 pub mod bisect2 {
-    use supplement::History;
-
-    #[derive(Clone, Copy, Debug, Eq, PartialEq)]
-    pub struct Ctx;
-    impl Ctx {
-        pub fn pretty(self, h: &History<GlobalID>) -> Option<&str> {
-            h.find(ID_VAL_PRETTY).map(|h| h.value.as_str())
-        }
-        pub fn arg(self, h: &History<GlobalID>) -> Option<&str> {
-            h.find(ID_VAL_ARG).map(|h| h.value.as_str())
-        }
-    }
-
     use super::GlobalID as GlobalID;
-    use supplement::core::*;
+    use supplement::gen_prelude::*;
 
     pub const ID_VAL_PRETTY: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDBisect2(ID::ValPretty(super::Ctx, Ctx)));
     const VAL_PRETTY: Flag<GlobalID> = Flag {
@@ -74,6 +60,16 @@ pub mod bisect2 {
         possible_values: &[("good", ""), ("bad", "")],
     };
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub struct Ctx;
+    impl Ctx {
+        pub fn arg(self, h: &History<GlobalID>) -> Option<&str> {
+            h.find(ID_VAL_ARG).map(|x| x.value.as_ref())
+        }
+        pub fn pretty(self, h: &History<GlobalID>) -> Option<&str> {
+            h.find(ID_VAL_PRETTY).map(|x| x.value.as_ref())
+        }
+    }
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub enum ID {
         ValArg(super::Ctx, Ctx),
         ValPretty(super::Ctx, Ctx),
@@ -88,24 +84,34 @@ pub mod bisect2 {
 }
 pub mod checkout {
     use super::GlobalID as GlobalID;
-    use supplement::core::*;
+    use supplement::gen_prelude::*;
 
-    pub const ID_VAL_FILE_OR_COMMIT: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDCheckout(ID::ValFileOrCommit));
+    pub const ID_VAL_FILE_OR_COMMIT: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDCheckout(ID::ValFileOrCommit(super::Ctx, Ctx)));
     const VAL_FILE_OR_COMMIT: Arg<GlobalID> = Arg {
         id: ID_VAL_FILE_OR_COMMIT.into(),
         max_values: 1,
         possible_values: &[],
     };
-    pub const ID_VAL_FILES: id::MultiVal<GlobalID> = id::MultiVal::new(super::ID::CMDCheckout(ID::ValFiles));
+    pub const ID_VAL_FILES: id::MultiVal<GlobalID> = id::MultiVal::new(super::ID::CMDCheckout(ID::ValFiles(super::Ctx, Ctx)));
     const VAL_FILES: Arg<GlobalID> = Arg {
         id: ID_VAL_FILES.into(),
         max_values: 18446744073709551615,
         possible_values: &[],
     };
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub struct Ctx;
+    impl Ctx {
+        pub fn file_or_commit(self, h: &History<GlobalID>) -> Option<&str> {
+            h.find(ID_VAL_FILE_OR_COMMIT).map(|x| x.value.as_ref())
+        }
+        pub fn files(self, h: &History<GlobalID>) -> &[String] {
+            h.find(ID_VAL_FILES).map(|x| x.values.as_slice()).unwrap_or_default()
+        }
+    }
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub enum ID {
-        ValFileOrCommit,
-        ValFiles,
+        ValFileOrCommit(super::Ctx, Ctx),
+        ValFiles(super::Ctx, Ctx),
     }
     pub(super) const CMD: Command<GlobalID> = Command {
         name: "checkout",
@@ -117,7 +123,7 @@ pub mod checkout {
 }
 pub mod log {
     use super::GlobalID as GlobalID;
-    use supplement::core::*;
+    use supplement::gen_prelude::*;
 
     pub const ID_VAL_GRAPH: id::NoVal = id::NoVal::new_certain(line!());
     const VAL_GRAPH: Flag<GlobalID> = Flag {
@@ -135,7 +141,7 @@ pub mod log {
         once: true,
         ty: flag_type::Type::new_valued(ID_VAL_PRETTY.into(), CompleteWithEqual::Optional, &[("oneline", "<sha1> <title line>"), ("short", "<sha1> / <author> / <title line>)"), ("full", "<sha1> / <author> / <committer> / <title> / <commit msg>")]),
     };
-    pub const ID_VAL_FLAG1: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDLog(ID::ValFlag1));
+    pub const ID_VAL_FLAG1: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDLog(ID::ValFlag1(super::Ctx, Ctx)));
     const VAL_FLAG1: Flag<GlobalID> = Flag {
         short: &[],
         long: &["flag1"],
@@ -143,16 +149,32 @@ pub mod log {
         once: true,
         ty: flag_type::Type::new_valued(ID_VAL_FLAG1.into(), CompleteWithEqual::NoNeed, &[]),
     };
-    pub const ID_VAL_COMMIT: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDLog(ID::ValCommit));
+    pub const ID_VAL_COMMIT: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDLog(ID::ValCommit(super::Ctx, Ctx)));
     const VAL_COMMIT: Arg<GlobalID> = Arg {
         id: ID_VAL_COMMIT.into(),
         max_values: 1,
         possible_values: &[],
     };
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub struct Ctx;
+    impl Ctx {
+        pub fn commit(self, h: &History<GlobalID>) -> Option<&str> {
+            h.find(ID_VAL_COMMIT).map(|x| x.value.as_ref())
+        }
+        pub fn graph(self, h: &History<GlobalID>) -> u32 {
+            h.find(ID_VAL_GRAPH).map(|x| x.count).unwrap_or_default()
+        }
+        pub fn pretty(self, h: &History<GlobalID>) -> Option<&str> {
+            h.find(ID_VAL_PRETTY).map(|x| x.value.as_ref())
+        }
+        pub fn flag1(self, h: &History<GlobalID>) -> Option<&str> {
+            h.find(ID_VAL_FLAG1).map(|x| x.value.as_ref())
+        }
+    }
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub enum ID {
-        ValCommit,
-        ValFlag1,
+        ValCommit(super::Ctx, Ctx),
+        ValFlag1(super::Ctx, Ctx),
     }
     pub(super) const CMD: Command<GlobalID> = Command {
         name: "log",
@@ -164,11 +186,11 @@ pub mod log {
 }
 pub mod remote {
     use super::GlobalID as GlobalID;
-    use supplement::core::*;
+    use supplement::gen_prelude::*;
 
     pub mod add {
         use super::super::GlobalID as GlobalID;
-        use supplement::core::*;
+        use supplement::gen_prelude::*;
 
         pub const ID_VAL_TAGS: id::NoVal = id::NoVal::new_certain(line!());
         const VAL_TAGS: Flag<GlobalID> = Flag {
@@ -178,15 +200,25 @@ pub mod remote {
             once: true,
             ty: flag_type::Type::new_bool(ID_VAL_TAGS),
         };
-        pub const ID_VAL_NAME: id::SingleVal<GlobalID> = id::SingleVal::new(super::super::ID::CMDRemote(super::ID::CMDAdd(ID::ValName)));
+        pub const ID_VAL_NAME: id::SingleVal<GlobalID> = id::SingleVal::new(super::super::ID::CMDRemote(super::ID::CMDAdd(ID::ValName(super::super::Ctx, super::Ctx, Ctx))));
         const VAL_NAME: Arg<GlobalID> = Arg {
             id: ID_VAL_NAME.into(),
             max_values: 1,
             possible_values: &[],
         };
         #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+        pub struct Ctx;
+        impl Ctx {
+            pub fn name(self, h: &History<GlobalID>) -> Option<&str> {
+                h.find(ID_VAL_NAME).map(|x| x.value.as_ref())
+            }
+            pub fn tags(self, h: &History<GlobalID>) -> u32 {
+                h.find(ID_VAL_TAGS).map(|x| x.count).unwrap_or_default()
+            }
+        }
+        #[derive(Clone, Copy, PartialEq, Eq, Debug)]
         pub enum ID {
-            ValName,
+            ValName(super::super::Ctx, super::Ctx, Ctx),
         }
         pub(super) const CMD: Command<GlobalID> = Command {
             name: "add",
@@ -198,7 +230,7 @@ pub mod remote {
     }
     pub mod remove {
         use super::super::GlobalID as GlobalID;
-        use supplement::core::*;
+        use supplement::gen_prelude::*;
 
         pub(super) const CMD: Command<GlobalID> = Command {
             name: "remove",
@@ -207,6 +239,10 @@ pub mod remote {
             args: &[],
             commands: &[],
         };
+    }
+    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
+    pub struct Ctx;
+    impl Ctx {
     }
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub enum ID {
@@ -220,18 +256,16 @@ pub mod remote {
         commands: &[add::CMD, remove::CMD],
     };
 }
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq )]
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct Ctx;
 impl Ctx {
-    pub fn git_dir(self, h: &History<GlobalID>) -> Option<&str>{
-        h.find(ID_VAL_GIT_DIR).map(|h| h.value.as_str())
+    pub fn git_dir(self, h: &History<GlobalID>) -> Option<&str> {
+        h.find(ID_VAL_GIT_DIR).map(|x| x.value.as_ref())
     }
-    pub fn external(self, h: &History<GlobalID>) -> &[String]{
-        h.find(ID_EXTERNAL).map(|h| h.values.as_slice()).unwrap_or_default()
+    pub fn external(self, h: &History<GlobalID>) -> &[String] {
+        h.find(ID_VAL_EXTERNAL).map(|x| x.values.as_slice()).unwrap_or_default()
     }
 }
-
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum ID {
     External(Ctx),

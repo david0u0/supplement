@@ -6,7 +6,7 @@ use clap4 as clap;
 use clap::{CommandFactory, Parser};
 use std::io::stdout;
 use std::process::Command;
-use supplement::{Completion, CompletionGroup, History, Shell, generate};
+use supplement::{Completion, CompletionGroup, History, Shell, generate, helper::id};
 use supplement_example::args::Git;
 
 mod def {
@@ -66,16 +66,17 @@ fn main() {
     }
 }
 
-macro_rules! id {
-    ($($id:tt )+) => {
-        supplement::helper::id!(def $($id )+)
-    };
-}
+// TODO: This somehow mess with the `(ctx)` part. Try to fix it.
+// macro_rules! id {
+//     ($($id:tt )+) => {
+//         supplement::helper::id!(def $($id )+)
+//     }
+// }
 
 fn handle_comp(history: History<ID>, id: ID, _value: &str) -> Vec<Completion> {
     match id {
-        id!(git_dir) => std::process::exit(1), // Exit to use default completion
-        id!(checkout file_or_commit) => {
+        id!(def git_dir) => std::process::exit(1), // Exit to use default completion
+        id!(def checkout file_or_commit) => {
             // For the first argument, it can either be a git commit or a file
             let mut comps = vec![];
             for line in run_git("log --oneline -10").lines() {
@@ -88,23 +89,22 @@ fn handle_comp(history: History<ID>, id: ID, _value: &str) -> Vec<Completion> {
             }
             comps
         }
-        id!(checkout files) => {
+        id!(def checkout files(ctx_dont_care, ctx)) => {
+            // TODO turn `ctx_dont_care` to `_`
             // For the second and more arguments, it can only be file
             // Let's also filter out those files we've already seen!
-            let prev1 = history
-                .find(def::checkout::ID_VAL_FILES)
+            let prev1: Option<&str> = ctx.file_or_commit(&history);
+            let prev2: &[String] = ctx.files(&history);
+            let prev: Vec<_> = prev1
                 .into_iter()
-                .flat_map(|x| x.values.iter());
-            let prev2 = history
-                .find(def::checkout::ID_VAL_FILE_OR_COMMIT)
-                .map(|x| &x.value);
-            let prev: Vec<&String> = prev1.chain(prev2.into_iter()).collect();
+                .chain(prev2.iter().map(|s| s.as_str()))
+                .collect();
 
             run_git("status --porcelain")
                 .lines()
                 .filter_map(|line| {
                     let (_, file) = line.rsplit_once(" ").unwrap();
-                    if prev.iter().any(|p| *p == file) {
+                    if prev.contains(&file) {
                         None
                     } else {
                         Some(Completion::new(file, "").group("Modified file"))
@@ -112,7 +112,7 @@ fn handle_comp(history: History<ID>, id: ID, _value: &str) -> Vec<Completion> {
                 })
                 .collect()
         }
-        id!(log commit) => run_git("log --oneline -10")
+        id!(def log commit) => run_git("log --oneline -10")
             .lines()
             .map(|line| {
                 let (hash, description) = line.split_once(" ").unwrap();
