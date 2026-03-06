@@ -53,6 +53,10 @@ pub fn generate(
     config.check_unprocessed_config()
 }
 
+struct CmdUnit {
+    mod_name: String,
+    enum_name: Option<String>,
+}
 struct ValUnit {
     rust_name: String,
     enum_name: Option<String>,
@@ -383,12 +387,8 @@ fn generate_mod_name(name: &str) -> String {
     to_snake_case(name)
 }
 
-fn check_cmd_not_empty(
-    sub_cmds: &[(String, String, bool)],
-    flags: &[ValUnit],
-    args: &[ValUnit],
-) -> bool {
-    if sub_cmds.iter().any(|(_, _, x)| *x) {
+fn check_cmd_not_empty(sub_cmds: &[CmdUnit], flags: &[ValUnit], args: &[ValUnit]) -> bool {
+    if sub_cmds.iter().any(|c| c.enum_name.is_some()) {
         return true;
     }
     flags
@@ -423,7 +423,7 @@ fn generate_recur(
         let flags = generate_flags_in_cmd(prev, indent, config, cmd, &mut global_flags, w)?;
         let args = generate_args_in_cmd(indent, cmd, config, prev, w)?;
 
-        let mut sub_cmds: Vec<(String, String, bool)> = vec![];
+        let mut sub_cmds: Vec<CmdUnit> = vec![];
         for sub_cmd in utils::non_help_subcmd(cmd) {
             let cmd_id = sub_cmd.get_name().to_string();
             if config.is_ignored(prev, &cmd_id) {
@@ -438,8 +438,17 @@ fn generate_recur(
             });
             let cur_cmd_not_empty =
                 generate_recur(&prev, indent, config, &sub_cmd, &global_flags, w)?;
-            sub_cmds.push((mod_name, cmd_id, cur_cmd_not_empty));
             writeln!(w, "{indent}}}")?;
+
+            let enum_name = if cur_cmd_not_empty {
+                Some(gen_enum_name(NameType::COMMAND, &cmd_id))
+            } else {
+                None
+            };
+            sub_cmds.push(CmdUnit {
+                mod_name,
+                enum_name,
+            });
         }
 
         let cmd_name = NameType::COMMAND;
@@ -469,18 +478,50 @@ fn generate_recur(
                     writeln!(w, "{indent}    {enum_name}({ctx_display}),")?;
                 }
             }
-            for (mod_name, name, not_empty) in sub_cmds.iter() {
-                if *not_empty {
-                    let name = gen_enum_name(NameType::COMMAND, name);
-                    writeln!(w, "{indent}    {name}({mod_name}::ID<H>),")?;
+            for cmd in sub_cmds.iter() {
+                if let Some(enum_name) = cmd.enum_name.as_ref() {
+                    let mod_name = &cmd.mod_name;
+                    writeln!(w, "{indent}    {enum_name}({mod_name}::ID<H>),")?;
                 }
             }
+            writeln!(w, "{indent}}}")?;
+
+            writeln!(w, "{indent}impl <'a> HistoryBearer<'a, GlobalID> for ID {{")?;
+            writeln!(w, "{indent}    type Ret = ID<&'a History<GlobalID>>;")?;
+            writeln!(
+                w,
+                "{indent}    fn bear(self, h: &'a History<GlobalID>) -> Self::Ret {{"
+            )?;
+            writeln!(w, "{indent}        match self {{")?;
+            for val in args.iter().chain(flags.iter()) {
+                if let Some(enum_name) = val.enum_name.as_ref() {
+                    let ctx_display = CtxDisplay(level, "(h)");
+                    writeln!(
+                        w,
+                        "{indent}            ID::{enum_name}(..) => ID::{enum_name}({ctx_display}),"
+                    )?;
+                }
+            }
+            for cmd in sub_cmds.iter() {
+                if let Some(enum_name) = cmd.enum_name.as_ref() {
+                    writeln!(
+                        w,
+                        "{indent}            ID::{enum_name}(id) => ID::{enum_name}(id.bear(h)),"
+                    )?;
+                }
+            }
+            writeln!(w, "{indent}        }}")?;
+            writeln!(w, "{indent}    }}")?;
             writeln!(w, "{indent}}}")?;
         }
 
         let args = Join(args.iter().map(|x| &x.rust_name));
         let flags = Join(flags.iter().map(|x| &x.rust_name));
-        let sub_cmds = Join(sub_cmds.iter().map(|(m, _, _)| format!("{m}::{cmd_name}")));
+        let sub_cmds = Join(
+            sub_cmds
+                .iter()
+                .map(|x| format!("{}::{}", x.mod_name, cmd_name)),
+        );
         let scope = if level == 0 { "" } else { "(super)" };
 
         writeln!(

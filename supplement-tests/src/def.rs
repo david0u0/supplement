@@ -74,6 +74,15 @@ pub mod bisect2 {
         ValArg(super::Ctx<H>, Ctx<H>),
         ValPretty(super::Ctx<H>, Ctx<H>),
     }
+    impl <'a> HistoryBearer<'a, GlobalID> for ID {
+        type Ret = ID<&'a History<GlobalID>>;
+        fn bear(self, h: &'a History<GlobalID>) -> Self::Ret {
+            match self {
+                ID::ValArg(..) => ID::ValArg(super::Ctx(h), Ctx(h)),
+                ID::ValPretty(..) => ID::ValPretty(super::Ctx(h), Ctx(h)),
+            }
+        }
+    }
     pub(super) const CMD: Command<GlobalID> = Command {
         name: "bisect2",
         description: "",
@@ -113,8 +122,7 @@ pub mod checkout {
         ValFileOrCommit(super::Ctx<H>, Ctx<H>),
         ValFiles(super::Ctx<H>, Ctx<H>),
     }
-
-    impl <'a>HistoryBearer<'a, GlobalID> for ID {
+    impl <'a> HistoryBearer<'a, GlobalID> for ID {
         type Ret = ID<&'a History<GlobalID>>;
         fn bear(self, h: &'a History<GlobalID>) -> Self::Ret {
             match self {
@@ -123,7 +131,6 @@ pub mod checkout {
             }
         }
     }
-
     pub(super) const CMD: Command<GlobalID> = Command {
         name: "checkout",
         description: "",
@@ -187,6 +194,15 @@ pub mod log {
         ValCommit(super::Ctx<H>, Ctx<H>),
         ValFlag1(super::Ctx<H>, Ctx<H>),
     }
+    impl <'a> HistoryBearer<'a, GlobalID> for ID {
+        type Ret = ID<&'a History<GlobalID>>;
+        fn bear(self, h: &'a History<GlobalID>) -> Self::Ret {
+            match self {
+                ID::ValCommit(..) => ID::ValCommit(super::Ctx(h), Ctx(h)),
+                ID::ValFlag1(..) => ID::ValFlag1(super::Ctx(h), Ctx(h)),
+            }
+        }
+    }
     pub(super) const CMD: Command<GlobalID> = Command {
         name: "log",
         description: "log",
@@ -231,6 +247,14 @@ pub mod remote {
         pub enum ID<H = ()> {
             ValName(super::super::Ctx<H>, super::Ctx<H>, Ctx<H>),
         }
+        impl <'a> HistoryBearer<'a, GlobalID> for ID {
+            type Ret = ID<&'a History<GlobalID>>;
+            fn bear(self, h: &'a History<GlobalID>) -> Self::Ret {
+                match self {
+                    ID::ValName(..) => ID::ValName(super::super::Ctx(h), super::Ctx(h), Ctx(h)),
+                }
+            }
+        }
         pub(super) const CMD: Command<GlobalID> = Command {
             name: "add",
             description: "",
@@ -258,6 +282,14 @@ pub mod remote {
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub enum ID<H = ()> {
         CMDAdd(add::ID<H>),
+    }
+    impl <'a> HistoryBearer<'a, GlobalID> for ID {
+        type Ret = ID<&'a History<GlobalID>>;
+        fn bear(self, h: &'a History<GlobalID>) -> Self::Ret {
+            match self {
+                ID::CMDAdd(id) => ID::CMDAdd(id.bear(h)),
+            }
+        }
     }
     pub(super) const CMD: Command<GlobalID> = Command {
         name: "remote",
@@ -287,6 +319,20 @@ pub enum ID<H = ()> {
     CMDLog(log::ID<H>),
     CMDRemote(remote::ID<H>),
 }
+impl <'a> HistoryBearer<'a, GlobalID> for ID {
+    type Ret = ID<&'a History<GlobalID>>;
+    fn bear(self, h: &'a History<GlobalID>) -> Self::Ret {
+        match self {
+            ID::External(..) => ID::External(Ctx(h)),
+            ID::ValGitDir(..) => ID::ValGitDir(Ctx(h)),
+            ID::ValExternal(..) => ID::ValExternal(Ctx(h)),
+            ID::CMDBisect2(id) => ID::CMDBisect2(id.bear(h)),
+            ID::CMDCheckout(id) => ID::CMDCheckout(id.bear(h)),
+            ID::CMDLog(id) => ID::CMDLog(id.bear(h)),
+            ID::CMDRemote(id) => ID::CMDRemote(id.bear(h)),
+        }
+    }
+}
 pub const CMD: Command<GlobalID> = Command {
     name: "supplement-tests",
     description: "",
@@ -294,15 +340,3 @@ pub const CMD: Command<GlobalID> = Command {
     args: &[EXTERNAL],
     commands: &[bisect::CMD, bisect2::CMD, checkout::CMD, log::CMD, remote::CMD],
 };
-
-impl <'a>HistoryBearer<'a, GlobalID> for ID {
-    type Ret = ID<&'a History<GlobalID>>;
-    fn bear(self, h: &'a History<GlobalID>) -> Self::Ret {
-        match self {
-            ID::External(..) => ID::External(Ctx(h)),
-            ID::ValGitDir(..) => ID::ValGitDir(Ctx(h)),
-            ID::CMDCheckout(id) => ID::CMDCheckout(id.bear(h)),
-            _ => panic!(),
-        }
-    }
-}

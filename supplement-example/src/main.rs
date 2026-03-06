@@ -40,7 +40,8 @@ fn main() {
         Ok(shell) => {
             log::info!("Mode #1: completion");
             let args = args[2..].iter().map(String::from);
-            let (history, grp) = def::CMD.supplement(args).unwrap();
+            let mut history = Default::default();
+            let grp = def::CMD.supplement2(&mut history, args).unwrap();
             let ready = match grp {
                 CompletionGroup::Ready(r) => {
                     // The easy path. No custom logic needed.
@@ -49,7 +50,7 @@ fn main() {
                     r
                 }
                 CompletionGroup::Unready { unready, id, value } => {
-                    let comps = handle_comp(history, id, &value);
+                    let comps = handle_comp(id, &value);
                     unready.to_ready(comps)
                 }
             };
@@ -73,7 +74,7 @@ fn main() {
 //     }
 // }
 
-fn handle_comp(history: History<ID>, id: ID, _value: &str) -> Vec<Completion> {
+fn handle_comp(id: ID<&History<ID>>, _value: &str) -> Vec<Completion> {
     match id {
         id!(def git_dir) => std::process::exit(1), // Exit to use default completion
         id!(def checkout file_or_commit) => {
@@ -89,12 +90,12 @@ fn handle_comp(history: History<ID>, id: ID, _value: &str) -> Vec<Completion> {
             }
             comps
         }
+        // TODO turn `ctx_dont_care` to `_`
         id!(def checkout files(ctx_dont_care, ctx)) => {
-            // TODO turn `ctx_dont_care` to `_`
             // For the second and more arguments, it can only be file
             // Let's also filter out those files we've already seen!
-            let prev1: Option<&str> = ctx.file_or_commit(&history);
-            let prev2: &[String] = ctx.files(&history);
+            let prev1: Option<&str> = ctx.file_or_commit();
+            let prev2: &[String] = ctx.files();
             let prev: Vec<_> = prev1
                 .into_iter()
                 .chain(prev2.iter().map(|s| s.as_str()))
