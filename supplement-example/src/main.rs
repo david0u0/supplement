@@ -49,8 +49,7 @@ fn main() {
                     r
                 }
                 CompletionGroup::Unready { unready, id, value } => {
-                    let id = id.with_ctx(&history);
-                    let comps = handle_comp(id, &value);
+                    let comps = handle_comp(id, &history, &value);
                     unready.to_ready(comps)
                 }
             };
@@ -73,7 +72,8 @@ macro_rules! id {
      }
  }
 
-fn handle_comp(id: ID<&History<ID>>, _value: &str) -> Vec<Completion> {
+fn handle_comp(id: ID, history: &History<ID>, _value: &str) -> Vec<Completion> {
+    let id: ID<&History<ID>> = id.with_ctx(history);
     match id {
         id!(git_dir) => std::process::exit(1), // Exit to use default completion
         id!(checkout file_or_commit) => {
@@ -89,11 +89,11 @@ fn handle_comp(id: ID<&History<ID>>, _value: &str) -> Vec<Completion> {
             }
             comps
         }
-        id!(checkout files(_, ctx)) => {
+        id!(checkout files(_root_ctx, chk_ctx)) => {
             // For the second and more arguments, it can only be file
             // Let's also filter out those files we've already seen!
-            let prev1: Option<&str> = ctx.val_file_or_commit();
-            let prev2: &[String] = ctx.val_files();
+            let prev1: Option<&str> = chk_ctx.val_file_or_commit();
+            let prev2: &[String] = chk_ctx.val_files();
             let prev: Vec<_> = prev1
                 .into_iter()
                 .chain(prev2.iter().map(|s| s.as_str()))

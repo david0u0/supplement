@@ -46,7 +46,7 @@ let ready = match grp {
         r
     }
     CompletionGroup::Unready { unready, id, value } => {
-        let comps = handle_comp(history, id, &value);
+        let comps = handle_comp(id, &history, &value);
         unready.to_ready(comps)
     }
 };
@@ -73,7 +73,7 @@ In [src/main.rs](src/main.rs) I wrote a function `handle_comp` for the custom lo
 For example, `id!(git_dir)` should use default completion, and `id!(checkout files)` should be completed with a list of commit hash.
 
 ### Ready::print
-The final step. Tell it which shell you're using and fire!
+The final step. Tell it which shell to use and fire!
 
 ```mermaid
 flowchart TD
@@ -83,6 +83,40 @@ flowchart TD
     D -->|Unready::to_ready| C
     C --> E(Ready::print)
 ```
+
+### History
+Sometimes the completion depends on the CLI context, e.g. knowing the flag value `--git-dir` on CLI.
+
+`supplement` generates a convenient helper function `with_ctx`, which makes the context type safe.
+For example, when you're completing an argument for `checkout`,
+you can only get the root flags/args (`--git-dir`) and the flags/args of `checkout` (`FILE_OR_COMMIT` and `FILES`).
+You can **NEVER** get anything from `log` (e.g. `--pretty`).
+
+Refer to this code in [src/main.rs](src/main.rs):
+
+```rs
+let id: ID<&History<ID>> = id.with_ctx(&history);
+match id {
+    // ...
+
+    id!(checkout files(_root_ctx, ctx)) => {
+        // For the second and more arguments, it can only be file
+        // Let's also filter out those files we've already seen!
+        let prev1: Option<&str> = ctx.val_file_or_commit();
+        let prev2: &[String] = ctx.val_files();
+
+        // ...
+    }
+}
+
+```
+
+The function `with_ctx` converts a plain `ID` into a context-aware `ID<&History>`.
+Because of this, when we're later matching the ID, we can also get the context `_root_ctx` and `chk_ctx`.
+
+`_root_ctx` means the root flags/args, and `chk_ctx` means the flags/args of `checkout`.
+
+We can get the values by calling their functions, like `chk_ctx.val_files()` and `chk_ctx.val_file_or_commit()`
 
 ## Install
 If you like, you can actually install this toy app `qit` to your system along with its completion.

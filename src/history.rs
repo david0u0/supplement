@@ -59,8 +59,66 @@ impl<ID: PartialEq> Getter<ID> for id::MultiVal<ID> {
     }
 }
 
-/// A structures that records all seen CLI objects, along with their value if they have some.
-/// You can search in the history by their IDs using the [`History::find`] function.
+/// A structure that records all seen CLI objects, along with their value if they have some.
+///
+/// In the code-gen workflow, you can call function `ID::with_ctx` to get a strongly typed context,
+/// which encodes the command structure with its enum structure.
+///
+/// ```no_run
+/// # mod def {
+/// #     pub enum ID<T = ()> {
+/// #         CMDCheckout(checkout::ID<T>)
+/// #     }
+/// #     impl<T> ID<T> {
+/// #         pub fn with_ctx<U>(self, u: U) -> ID<U> {
+/// #             unimplemented!()
+/// #         }
+/// #     }
+/// #     pub struct Ctx<T>(T);
+/// #     impl<T> Ctx<T> {
+/// #         pub fn val_git_dir(&self) -> Option<&str> {
+/// #             unimplemented!()
+/// #         }
+/// #     }
+/// #     pub mod checkout {
+/// #         pub enum ID<T> {
+/// #             ValFiles(super::Ctx<T>, Ctx<T>)
+/// #         }
+/// #         pub struct Ctx<T>(T);
+/// #         impl<T> Ctx<T> {
+/// #             pub fn val_files(&self) -> Option<&str> {
+/// #                 unimplemented!()
+/// #             }
+/// #             pub fn val_file_or_commit(&self) -> &[String] {
+/// #                 unimplemented!()
+/// #             }
+/// #         }
+/// #     }
+/// # }
+/// # use def::ID;
+/// use supplement::History;
+/// use supplement::helper::id;
+///
+/// fn handle_comp(id: ID, history: History<ID>) {
+///     let id_with_ctx: ID<&History<ID>> = id.with_ctx(&history);
+///
+///     match id_with_ctx {
+///         id!(def checkout files(root_ctx, chk_ctx)) => {
+///             // `root_ctx` contains the root args/flags
+///             let _git_dir: Option<&str> = root_ctx.val_git_dir();
+///
+///             // `chk_ctx` contains the args/flags for `checkout` sub-command
+///             let _files: Option<&str> = chk_ctx.val_files();
+///             let _file_or_commit: &[String] = chk_ctx.val_file_or_commit();
+///
+///             // NOTE: the type system guarantees that you can **NEVER** get anything from other subcommands!
+///         }
+///     }
+/// }
+/// ```
+///
+///
+/// Alternatively, you can search in the history by IDs using [`History::find`].
 #[derive(Debug, Eq, PartialEq)]
 pub struct History<ID>(Vec<HistoryUnit<ID>>);
 
@@ -135,7 +193,14 @@ impl<ID: PartialEq + std::fmt::Debug> History<ID> {
         }
     }
 
-    /// Find the history of flags/args/commands by their ID.
+    /// Find the history of flags/args by their ID.
+    ///
+    /// In the code-gen workflow, you probably don't want to call this function directly,
+    /// but instead would prefer the generated `ID::with_ctx` function.
+    /// (Refer to [`History`] for more information)
+    ///
+    /// ----
+    ///
     /// Based on the type of ID, the returned `HistoryUnit` will contain different types of value.
     /// - [`id::NoVal`]: An integer that represents how many times it's seen in the CLI command
     /// - [`id::SingleVal`]: A single string
