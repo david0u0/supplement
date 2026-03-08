@@ -40,8 +40,7 @@ fn main() {
         Ok(shell) => {
             log::info!("Mode #1: completion");
             let args = args[2..].iter().map(String::from);
-            let mut history = Default::default();
-            let grp = def::CMD.supplement2(&mut history, args).unwrap();
+            let (history, grp) = def::CMD.supplement(args).unwrap();
             let ready = match grp {
                 CompletionGroup::Ready(r) => {
                     // The easy path. No custom logic needed.
@@ -50,6 +49,7 @@ fn main() {
                     r
                 }
                 CompletionGroup::Unready { unready, id, value } => {
+                    let id = id.with_ctx(&history);
                     let comps = handle_comp(id, &value);
                     unready.to_ready(comps)
                 }

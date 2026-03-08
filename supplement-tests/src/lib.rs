@@ -37,9 +37,13 @@ mod test {
     use supplement::{Result, helper::id};
     type History = supplement::History<ID>;
 
-    fn run<'a>(history: &'a mut History, cmd: &str) -> Result<CompletionGroup<ID<&'a History>>> {
+    fn run_with_history(cmd: &str) -> Result<(History, CompletionGroup<ID>)> {
         let cmd = cmd.split(" ").map(|s| s.to_string());
-        def::CMD.supplement2(history, cmd)
+        def::CMD.supplement(cmd)
+    }
+    fn run(cmd: &str) -> Result<CompletionGroup<ID>> {
+        let (_, c) = run_with_history(cmd)?;
+        Ok(c)
     }
 
     #[test]
@@ -83,12 +87,10 @@ mod test {
 
     #[test]
     fn test_simple() {
-        let mut h = History::new();
-        let comps = run(&mut h, "git -").unwrap();
+        let comps = run("git -").unwrap();
         assert_eq!(vec!["--external", "--git-dir"], map_ready(&comps));
 
-        let mut h = History::new();
-        let comps = run(&mut h, "git g").unwrap();
+        let comps = run("git g").unwrap();
         let (id, comps) = map_unready(&comps);
         assert!(matches!(id, id!(def @ext)));
         assert_eq!(
@@ -100,49 +102,41 @@ mod test {
             )
         );
 
-        let mut h = History::new();
-        let comps = run(&mut h, "git remote g").unwrap();
+        let comps = run("git remote g").unwrap();
         assert_eq!(map_ready(&comps), vec!["add", "remove"]);
 
-        let mut h = History::new();
-        let comps = run(&mut h, "git log -").unwrap();
+        let comps = run("git log -").unwrap();
         assert_eq!(
             vec!["--flag1", "--git-dir", "--graph", "--pretty", "--pretty="],
             map_ready(&comps)
         );
 
-        let mut h = History::new();
-        let comps = run(&mut h, "git checkout -").unwrap();
+        let comps = run("git checkout -").unwrap();
         assert_eq!(vec!["--git-dir", "-b"], map_ready(&comps));
 
-        let mut h = History::new();
-        let comps = run(&mut h, "git log --pretty=").unwrap();
+        let comps = run("git log --pretty=").unwrap();
         assert_eq!(
             vec!["--pretty=full", "--pretty=oneline", "--pretty=short"],
             map_ready(&comps)
         );
 
         // test possible value for arg
-        let mut h = History::new();
-        let comps = run(&mut h, "git bisect x").unwrap();
+        let comps = run("git bisect x").unwrap();
         assert_eq!(vec!["bad", "good"], map_ready(&comps));
 
         // test ignoring global flags
-        let mut h = History::new();
-        let comps = run(&mut h, "git remote add -").unwrap();
+        let comps = run("git remote add -").unwrap();
         assert_eq!(vec!["--tags"], map_ready(&comps));
     }
 
     #[test]
     fn test_made_uncertain() {
-        let mut h = History::new();
-        let comps = run(&mut h, "git bisect2 x").unwrap();
+        let comps = run("git bisect2 x").unwrap();
         let (id, comps) = map_unready(&comps);
         assert!(matches!(id, id!(def bisect2 arg)));
         assert_eq!(comps, ("x", vec!["bad", "good"], ""));
 
-        let mut h = History::new();
-        let comps = run(&mut h, "git bisect2 --pretty=z").unwrap();
+        let comps = run("git bisect2 --pretty=z").unwrap();
         let (id, comps) = map_unready(&comps);
         assert!(matches!(id, id!(def bisect2 pretty)));
         assert_eq!(comps, ("z", vec!["full", "oneline", "short"], "--pretty="));
@@ -150,10 +144,9 @@ mod test {
 
     #[test]
     fn test_ctx() {
-        let mut h = History::new();
-        let comps = run(&mut h, "git --external e --git-dir=").unwrap();
+        let (h, comps) = run_with_history("git --external e --git-dir=").unwrap();
         let (id, _) = map_unready(&comps);
-        match id {
+        match id.with_ctx(&h) {
             id!(def checkout files(root, _)) | id!(def git_dir(root)) => {
                 assert_eq!(root.val_git_dir(), None);
                 assert_eq!(root.val_external(), &["e"]);
@@ -161,10 +154,9 @@ mod test {
             _ => panic!("id is {id:?}"),
         }
 
-        let mut h = History::new();
-        let comps = run(&mut h, "git --git-dir mydir checkout ww xx yy zz").unwrap();
+        let (h, comps) = run_with_history("git --git-dir mydir checkout ww xx yy zz").unwrap();
         let (id, _) = map_unready(&comps);
-        match id {
+        match id.with_ctx(&h) {
             id!(def checkout files(root, chk)) => {
                 assert_eq!(root.val_git_dir(), Some("mydir"));
                 assert_eq!(chk.val_file_or_commit(), Some("ww"));
@@ -174,10 +166,9 @@ mod test {
             _ => panic!("id is {id:?}"),
         }
 
-        let mut h = History::new();
-        let comps = run(&mut h, "git --external e time for some ext").unwrap();
+        let (h, comps) = run_with_history("git --external e time for some ext").unwrap();
         let (id, _) = map_unready(&comps);
-        match id {
+        match id.with_ctx(&h) {
             id!(def @ext(root)) => {
                 assert_eq!(root.val_git_dir(), None);
                 assert_eq!(root.val_external(), &["e"]);

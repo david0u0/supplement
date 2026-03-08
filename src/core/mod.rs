@@ -11,7 +11,6 @@ pub use flag::{CompleteWithEqual, Flag, flag_type};
 use crate::arg_context::ArgsContext;
 use crate::completion::{CompletionGroup, Unready};
 use crate::error::Error;
-use crate::gen_prelude::HistoryBearer;
 use crate::parsed_flag::ParsedFlag;
 use crate::{Completion, History, Result};
 use std::fmt::Debug;
@@ -131,33 +130,6 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
         }
 
         self.supplement_recur(&mut None, history, &mut args)
-    }
-
-    pub fn supplement2<'a>(
-        &self,
-        history: &'a mut History<ID>,
-        mut args: impl Iterator<Item = String>,
-    ) -> Result<CompletionGroup<ID::Ret>>
-    where
-        ID: HistoryBearer<'a, ID>,
-    {
-        args.next(); // ignore the first arg which is the program's name
-
-        let mut args = args.peekable();
-        if args.peek().is_none() {
-            return Err(Error::ArgsTooShort);
-        }
-
-        let grp = self.supplement_recur(&mut None, history, &mut args)?;
-        let grp = match grp {
-            CompletionGroup::Ready(r) => CompletionGroup::Ready(r),
-            CompletionGroup::Unready { id, value, unready } => CompletionGroup::Unready {
-                id: id.bear(history),
-                value,
-                unready,
-            },
-        };
-        Ok(grp)
     }
 
     fn doing_external(&self, ctx: &ArgsContext<'_, ID>) -> bool {

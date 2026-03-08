@@ -483,11 +483,11 @@ fn generate_recur(
             }
             writeln!(w, "{indent}}}")?;
 
-            writeln!(w, "{indent}impl <'a> HistoryBearer<'a, GlobalID> for ID {{")?;
-            writeln!(w, "{indent}    type Ret = ID<&'a History<GlobalID>>;")?;
+            writeln!(w, "{indent}impl ID<()> {{")?;
+            writeln!(w, "{indent}    #[allow(dead_code)]")?;
             writeln!(
                 w,
-                "{indent}    fn bear(self, h: &'a History<GlobalID>) -> Self::Ret {{"
+                "{indent}    pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {{"
             )?;
             writeln!(w, "{indent}        match self {{")?;
             for val in args.iter().chain(flags.iter()) {
@@ -503,7 +503,7 @@ fn generate_recur(
                 if let Some(enum_name) = cmd.enum_name.as_ref() {
                     writeln!(
                         w,
-                        "{indent}            ID::{enum_name}(id) => ID::{enum_name}(id.bear(h)),"
+                        "{indent}            ID::{enum_name}(id) => ID::{enum_name}(id.with_ctx(h)),"
                     )?;
                 }
             }

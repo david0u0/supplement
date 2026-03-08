@@ -76,9 +76,9 @@ pub mod bisect2 {
         ValArg(super::Ctx<H>, Ctx<H>),
         ValPretty(super::Ctx<H>, Ctx<H>),
     }
-    impl <'a> HistoryBearer<'a, GlobalID> for ID {
-        type Ret = ID<&'a History<GlobalID>>;
-        fn bear(self, h: &'a History<GlobalID>) -> Self::Ret {
+    impl ID<()> {
+        #[allow(dead_code)]
+        pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
             match self {
                 ID::ValArg(..) => ID::ValArg(super::Ctx(h), Ctx(h)),
                 ID::ValPretty(..) => ID::ValPretty(super::Ctx(h), Ctx(h)),
@@ -138,9 +138,9 @@ pub mod checkout {
         ValFileOrCommit(super::Ctx<H>, Ctx<H>),
         ValFiles(super::Ctx<H>, Ctx<H>),
     }
-    impl <'a> HistoryBearer<'a, GlobalID> for ID {
-        type Ret = ID<&'a History<GlobalID>>;
-        fn bear(self, h: &'a History<GlobalID>) -> Self::Ret {
+    impl ID<()> {
+        #[allow(dead_code)]
+        pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
             match self {
                 ID::ValFileOrCommit(..) => ID::ValFileOrCommit(super::Ctx(h), Ctx(h)),
                 ID::ValFiles(..) => ID::ValFiles(super::Ctx(h), Ctx(h)),
@@ -214,9 +214,9 @@ pub mod log {
         ValCommit(super::Ctx<H>, Ctx<H>),
         ValFlag1(super::Ctx<H>, Ctx<H>),
     }
-    impl <'a> HistoryBearer<'a, GlobalID> for ID {
-        type Ret = ID<&'a History<GlobalID>>;
-        fn bear(self, h: &'a History<GlobalID>) -> Self::Ret {
+    impl ID<()> {
+        #[allow(dead_code)]
+        pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
             match self {
                 ID::ValCommit(..) => ID::ValCommit(super::Ctx(h), Ctx(h)),
                 ID::ValFlag1(..) => ID::ValFlag1(super::Ctx(h), Ctx(h)),
@@ -269,9 +269,9 @@ pub mod remote {
         pub enum ID<H = ()> {
             ValName(super::super::Ctx<H>, super::Ctx<H>, Ctx<H>),
         }
-        impl <'a> HistoryBearer<'a, GlobalID> for ID {
-            type Ret = ID<&'a History<GlobalID>>;
-            fn bear(self, h: &'a History<GlobalID>) -> Self::Ret {
+        impl ID<()> {
+            #[allow(dead_code)]
+            pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
                 match self {
                     ID::ValName(..) => ID::ValName(super::super::Ctx(h), super::Ctx(h), Ctx(h)),
                 }
@@ -305,11 +305,11 @@ pub mod remote {
     pub enum ID<H = ()> {
         CMDAdd(add::ID<H>),
     }
-    impl <'a> HistoryBearer<'a, GlobalID> for ID {
-        type Ret = ID<&'a History<GlobalID>>;
-        fn bear(self, h: &'a History<GlobalID>) -> Self::Ret {
+    impl ID<()> {
+        #[allow(dead_code)]
+        pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
             match self {
-                ID::CMDAdd(id) => ID::CMDAdd(id.bear(h)),
+                ID::CMDAdd(id) => ID::CMDAdd(id.with_ctx(h)),
             }
         }
     }
@@ -347,17 +347,17 @@ pub enum ID<H = ()> {
     CMDLog(log::ID<H>),
     CMDRemote(remote::ID<H>),
 }
-impl <'a> HistoryBearer<'a, GlobalID> for ID {
-    type Ret = ID<&'a History<GlobalID>>;
-    fn bear(self, h: &'a History<GlobalID>) -> Self::Ret {
+impl ID<()> {
+    #[allow(dead_code)]
+    pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
         match self {
             ID::External(..) => ID::External(Ctx(h)),
             ID::ValGitDir(..) => ID::ValGitDir(Ctx(h)),
             ID::ValExternal(..) => ID::ValExternal(Ctx(h)),
-            ID::CMDBisect2(id) => ID::CMDBisect2(id.bear(h)),
-            ID::CMDCheckout(id) => ID::CMDCheckout(id.bear(h)),
-            ID::CMDLog(id) => ID::CMDLog(id.bear(h)),
-            ID::CMDRemote(id) => ID::CMDRemote(id.bear(h)),
+            ID::CMDBisect2(id) => ID::CMDBisect2(id.with_ctx(h)),
+            ID::CMDCheckout(id) => ID::CMDCheckout(id.with_ctx(h)),
+            ID::CMDLog(id) => ID::CMDLog(id.with_ctx(h)),
+            ID::CMDRemote(id) => ID::CMDRemote(id.with_ctx(h)),
         }
     }
 }
