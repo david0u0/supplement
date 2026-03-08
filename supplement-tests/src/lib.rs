@@ -16,11 +16,11 @@ pub fn map_ready<ID: Debug>(grp: &CompletionGroup<ID>) -> Vec<&str> {
     map_comps(v)
 }
 
-pub fn map_unready<ID: Debug + Copy>(grp: &CompletionGroup<ID>) -> (ID, &str, Vec<&str>, &str) {
+pub fn map_unready<ID: Debug + Copy>(grp: &CompletionGroup<ID>) -> (ID, (&str, Vec<&str>, &str)) {
     match grp {
         CompletionGroup::Unready { unready, id, value } => {
             let preexist = map_comps(&unready.preexist);
-            (*id, value, preexist, &unready.prefix)
+            (*id, (value, preexist, &unready.prefix))
         }
         _ => panic!("{:?} is ready", grp),
     }
@@ -35,11 +35,15 @@ mod test {
     use super::*;
     use def::ID;
     use supplement::{Result, helper::id};
+    type History = supplement::History<ID>;
 
-    fn run(cmd: &str) -> Result<CompletionGroup<def::ID>> {
+    fn run_with_history(cmd: &str) -> Result<(History, CompletionGroup<ID>)> {
         let cmd = cmd.split(" ").map(|s| s.to_string());
-        let (_, grp) = def::CMD.supplement(cmd)?;
-        Ok(grp)
+        def::CMD.supplement(cmd)
+    }
+    fn run(cmd: &str) -> Result<CompletionGroup<ID>> {
+        let (_, c) = run_with_history(cmd)?;
+        Ok(c)
     }
 
     #[test]
@@ -80,17 +84,6 @@ mod test {
         let is_match = matches!(err, GenerateError::UncertainWithoutValue(s) if s == "graph");
         assert!(is_match);
     }
-    #[test]
-    fn test_proc_macro() {
-        let id = id!(def @ext);
-        assert_eq!(id, ID::External);
-
-        let id = id!(def remote add name);
-        assert_eq!(
-            id,
-            ID::CMDRemote(def::remote::ID::CMDAdd(def::remote::add::ID::ValName))
-        );
-    }
 
     #[test]
     fn test_simple() {
@@ -98,10 +91,11 @@ mod test {
         assert_eq!(vec!["--external", "--git-dir"], map_ready(&comps));
 
         let comps = run("git g").unwrap();
+        let (id, comps) = map_unready(&comps);
+        assert!(matches!(id, id!(def @ext)));
         assert_eq!(
-            map_unready(&comps),
+            comps,
             (
-                ID::External,
                 "g",
                 vec!["bisect", "bisect2", "checkout", "log", "remote"],
                 ""
@@ -118,7 +112,7 @@ mod test {
         );
 
         let comps = run("git checkout -").unwrap();
-        assert_eq!(vec!["--git-dir"], map_ready(&comps));
+        assert_eq!(vec!["--git-dir", "-b"], map_ready(&comps));
 
         let comps = run("git log --pretty=").unwrap();
         assert_eq!(
@@ -138,20 +132,49 @@ mod test {
     #[test]
     fn test_made_uncertain() {
         let comps = run("git bisect2 x").unwrap();
-        assert_eq!(
-            map_unready(&comps),
-            (id!(def bisect2 arg), "x", vec!["bad", "good"], "")
-        );
+        let (id, comps) = map_unready(&comps);
+        assert!(matches!(id, id!(def bisect2 arg)));
+        assert_eq!(comps, ("x", vec!["bad", "good"], ""));
 
         let comps = run("git bisect2 --pretty=z").unwrap();
-        assert_eq!(
-            map_unready(&comps),
-            (
-                id!(def bisect2 pretty),
-                "z",
-                vec!["full", "oneline", "short"],
-                "--pretty="
-            )
-        );
+        let (id, comps) = map_unready(&comps);
+        assert!(matches!(id, id!(def bisect2 pretty)));
+        assert_eq!(comps, ("z", vec!["full", "oneline", "short"], "--pretty="));
+    }
+
+    #[test]
+    fn test_ctx() {
+        let (h, comps) = run_with_history("git --external e --git-dir=").unwrap();
+        let (id, _) = map_unready(&comps);
+        match id.with_ctx(&h) {
+            id!(def checkout files(root, _)) | id!(def git_dir(root)) => {
+                assert_eq!(root.val_git_dir(), None);
+                assert_eq!(root.val_external(), &["e"]);
+            }
+            _ => panic!("id is {id:?}"),
+        }
+
+        let (h, comps) = run_with_history("git --git-dir mydir checkout ww xx yy zz").unwrap();
+        let (id, _) = map_unready(&comps);
+        match id.with_ctx(&h) {
+            id!(def checkout files(root, chk)) => {
+                assert_eq!(root.val_git_dir(), Some("mydir"));
+                assert_eq!(chk.val_file_or_commit(), Some("ww"));
+                assert_eq!(chk.val_files(), &["xx", "yy"]);
+                assert_eq!(chk.val_b(), 0);
+            }
+            _ => panic!("id is {id:?}"),
+        }
+
+        let (h, comps) = run_with_history("git --external e time for some ext").unwrap();
+        let (id, _) = map_unready(&comps);
+        match id.with_ctx(&h) {
+            id!(def @ext(root)) => {
+                assert_eq!(root.val_git_dir(), None);
+                assert_eq!(root.val_external(), &["e"]);
+                assert_eq!(root.external(), &["time", "for", "some"]);
+            }
+            _ => panic!("id is {id:?}"),
+        }
     }
 }

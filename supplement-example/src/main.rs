@@ -49,7 +49,8 @@ fn main() {
                     r
                 }
                 CompletionGroup::Unready { unready, id, value } => {
-                    let comps = handle_comp(history, id, &value);
+                    let id = id.with_ctx(&history);
+                    let comps = handle_comp(id, &value);
                     unready.to_ready(comps)
                 }
             };
@@ -67,12 +68,12 @@ fn main() {
 }
 
 macro_rules! id {
-    ($($id:tt )+) => {
-        supplement::helper::id!(def $($id )+)
-    };
-}
+     ($($id:tt )+) => {
+         supplement::helper::id!(def $($id )+)
+     }
+ }
 
-fn handle_comp(history: History<ID>, id: ID, _value: &str) -> Vec<Completion> {
+fn handle_comp(id: ID<&History<ID>>, _value: &str) -> Vec<Completion> {
     match id {
         id!(git_dir) => std::process::exit(1), // Exit to use default completion
         id!(checkout file_or_commit) => {
@@ -88,23 +89,21 @@ fn handle_comp(history: History<ID>, id: ID, _value: &str) -> Vec<Completion> {
             }
             comps
         }
-        id!(checkout files) => {
+        id!(checkout files(_, ctx)) => {
             // For the second and more arguments, it can only be file
             // Let's also filter out those files we've already seen!
-            let prev1 = history
-                .find(def::checkout::ID_VAL_FILES)
+            let prev1: Option<&str> = ctx.val_file_or_commit();
+            let prev2: &[String] = ctx.val_files();
+            let prev: Vec<_> = prev1
                 .into_iter()
-                .flat_map(|x| x.values.iter());
-            let prev2 = history
-                .find(def::checkout::ID_VAL_FILE_OR_COMMIT)
-                .map(|x| &x.value);
-            let prev: Vec<&String> = prev1.chain(prev2.into_iter()).collect();
+                .chain(prev2.iter().map(|s| s.as_str()))
+                .collect();
 
             run_git("status --porcelain")
                 .lines()
                 .filter_map(|line| {
                     let (_, file) = line.rsplit_once(" ").unwrap();
-                    if prev.iter().any(|p| *p == file) {
+                    if prev.contains(&file) {
                         None
                     } else {
                         Some(Completion::new(file, "").group("Modified file"))
