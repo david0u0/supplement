@@ -110,8 +110,8 @@ impl ValType {
     fn get_rust_type(self) -> &'static str {
         match self {
             ValType::No => "u32",
-            ValType::Single => "Option<&str>",
-            ValType::Multi => "&[String]",
+            ValType::Single => "Option<&'a str>",
+            ValType::Multi => "&'a [String]",
         }
     }
 }
@@ -462,13 +462,13 @@ fn generate_recur(
             }
             writeln!(w, "{indent}}}")?;
 
-            writeln!(w, "{indent}impl ID<&History<GlobalID>> {{")?;
+            writeln!(w, "{indent}#[allow(dead_code)]")?;
+            writeln!(w, "{indent}impl<'a> ID<&'a History<GlobalID>> {{")?;
             for val in args.iter().chain(flags.iter()) {
                 if let Some(ty) = val.ctx_ty.as_ref() {
                     let ctx_func = ctx_func(&val.rust_name, *ty);
                     let ty = ty.get_rust_type();
                     let name = to_snake_case(&val.rust_name);
-                    writeln!(w, "{indent}    #[allow(dead_code)]")?;
                     writeln!(w, "{indent}    pub fn {name}(&self) -> {ty} {{")?;
 
                     writeln!(w, "{indent}        {ctx_func}")?;
@@ -477,6 +477,7 @@ fn generate_recur(
             }
             writeln!(w, "{indent}}}")?;
 
+            writeln!(w, "{indent}#[allow(dead_code)]")?;
             writeln!(w, "{indent}impl<H> ID<H> {{")?;
             let inner = format!("{indent}    ");
             write_with_ctx(w, &inner, &sub_cmds, args.iter().chain(flags.iter()))?;
@@ -514,7 +515,6 @@ fn write_with_ctx<'a>(
     sub_cmds: &[CmdUnit],
     vals: impl Iterator<Item = &'a ValUnit>,
 ) -> Result<(), std::io::Error> {
-    writeln!(w, "{indent}#[allow(dead_code)]")?;
     writeln!(
         w,
         "{indent}pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {{"
@@ -547,7 +547,6 @@ fn write_get_ctx<'a>(
     sub_cmds: &[CmdUnit],
     vals: impl Iterator<Item = &'a ValUnit>,
 ) -> Result<(), std::io::Error> {
-    writeln!(w, "{indent}#[allow(dead_code)]")?;
     writeln!(w, "{indent}fn ctx(self) -> H {{")?;
     writeln!(w, "{indent}    match self {{")?;
     for val in vals {

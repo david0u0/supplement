@@ -64,25 +64,23 @@ pub mod bisect2 {
         ValArg(H),
         ValPretty(H),
     }
-    impl ID<&History<GlobalID>> {
-        #[allow(dead_code)]
-        pub fn val_arg(&self) -> Option<&str> {
+    #[allow(dead_code)]
+    impl<'a> ID<&'a History<GlobalID>> {
+        pub fn val_arg(&self) -> Option<&'a str> {
             self.ctx().find(ID_VAL_ARG).map(|x| x.value.as_ref())
         }
-        #[allow(dead_code)]
-        pub fn val_pretty(&self) -> Option<&str> {
+        pub fn val_pretty(&self) -> Option<&'a str> {
             self.ctx().find(ID_VAL_PRETTY).map(|x| x.value.as_ref())
         }
     }
+    #[allow(dead_code)]
     impl<H> ID<H> {
-        #[allow(dead_code)]
         pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
             match self {
                 ID::ValArg(..) => ID::ValArg(h),
                 ID::ValPretty(..) => ID::ValPretty(h),
             }
         }
-        #[allow(dead_code)]
         fn ctx(self) -> H {
             match self {
                 ID::ValArg(c) => c,
@@ -127,29 +125,26 @@ pub mod checkout {
         ValFileOrCommit(H),
         ValFiles(H),
     }
-    impl ID<&History<GlobalID>> {
-        #[allow(dead_code)]
-        pub fn val_file_or_commit(&self) -> Option<&str> {
+    #[allow(dead_code)]
+    impl<'a> ID<&'a History<GlobalID>> {
+        pub fn val_file_or_commit(&self) -> Option<&'a str> {
             self.ctx().find(ID_VAL_FILE_OR_COMMIT).map(|x| x.value.as_ref())
         }
-        #[allow(dead_code)]
-        pub fn val_files(&self) -> &[String] {
+        pub fn val_files(&self) -> &'a [String] {
             self.ctx().find(ID_VAL_FILES).map(|x| x.values.as_slice()).unwrap_or_default()
         }
-        #[allow(dead_code)]
         pub fn val_b(&self) -> u32 {
             self.ctx().find(ID_VAL_B).map(|x| x.count).unwrap_or_default()
         }
     }
+    #[allow(dead_code)]
     impl<H> ID<H> {
-        #[allow(dead_code)]
         pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
             match self {
                 ID::ValFileOrCommit(..) => ID::ValFileOrCommit(h),
                 ID::ValFiles(..) => ID::ValFiles(h),
             }
         }
-        #[allow(dead_code)]
         fn ctx(self) -> H {
             match self {
                 ID::ValFileOrCommit(c) => c,
@@ -204,33 +199,29 @@ pub mod log {
         ValCommit(H),
         ValFlag1(H),
     }
-    impl ID<&History<GlobalID>> {
-        #[allow(dead_code)]
-        pub fn val_commit(&self) -> Option<&str> {
+    #[allow(dead_code)]
+    impl<'a> ID<&'a History<GlobalID>> {
+        pub fn val_commit(&self) -> Option<&'a str> {
             self.ctx().find(ID_VAL_COMMIT).map(|x| x.value.as_ref())
         }
-        #[allow(dead_code)]
         pub fn val_graph(&self) -> u32 {
             self.ctx().find(ID_VAL_GRAPH).map(|x| x.count).unwrap_or_default()
         }
-        #[allow(dead_code)]
-        pub fn val_pretty(&self) -> Option<&str> {
+        pub fn val_pretty(&self) -> Option<&'a str> {
             self.ctx().find(ID_VAL_PRETTY).map(|x| x.value.as_ref())
         }
-        #[allow(dead_code)]
-        pub fn val_flag1(&self) -> Option<&str> {
+        pub fn val_flag1(&self) -> Option<&'a str> {
             self.ctx().find(ID_VAL_FLAG1).map(|x| x.value.as_ref())
         }
     }
+    #[allow(dead_code)]
     impl<H> ID<H> {
-        #[allow(dead_code)]
         pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
             match self {
                 ID::ValCommit(..) => ID::ValCommit(h),
                 ID::ValFlag1(..) => ID::ValFlag1(h),
             }
         }
-        #[allow(dead_code)]
         fn ctx(self) -> H {
             match self {
                 ID::ValCommit(c) => c,
@@ -272,24 +263,22 @@ pub mod remote {
         pub enum ID<H = ()> {
             ValName(H),
         }
-        impl ID<&History<GlobalID>> {
-            #[allow(dead_code)]
-            pub fn val_name(&self) -> Option<&str> {
+        #[allow(dead_code)]
+        impl<'a> ID<&'a History<GlobalID>> {
+            pub fn val_name(&self) -> Option<&'a str> {
                 self.ctx().find(ID_VAL_NAME).map(|x| x.value.as_ref())
             }
-            #[allow(dead_code)]
             pub fn val_tags(&self) -> u32 {
                 self.ctx().find(ID_VAL_TAGS).map(|x| x.count).unwrap_or_default()
             }
         }
+        #[allow(dead_code)]
         impl<H> ID<H> {
-            #[allow(dead_code)]
             pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
                 match self {
                     ID::ValName(..) => ID::ValName(h),
                 }
             }
-            #[allow(dead_code)]
             fn ctx(self) -> H {
                 match self {
                     ID::ValName(c) => c,
@@ -320,16 +309,16 @@ pub mod remote {
     pub enum ID<H = ()> {
         CMDAdd(H, add::ID<H>),
     }
-    impl ID<&History<GlobalID>> {
+    #[allow(dead_code)]
+    impl<'a> ID<&'a History<GlobalID>> {
     }
+    #[allow(dead_code)]
     impl<H> ID<H> {
-        #[allow(dead_code)]
         pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
             match self {
                 ID::CMDAdd(_, id) => ID::CMDAdd(h, id.with_ctx(h)),
             }
         }
-        #[allow(dead_code)]
         fn ctx(self) -> H {
             match self {
                 ID::CMDAdd(c, _) => c,
@@ -354,22 +343,20 @@ pub enum ID<H = ()> {
     CMDLog(H, log::ID<H>),
     CMDRemote(H, remote::ID<H>),
 }
-impl ID<&History<GlobalID>> {
-    #[allow(dead_code)]
-    pub fn external(&self) -> &[String] {
+#[allow(dead_code)]
+impl<'a> ID<&'a History<GlobalID>> {
+    pub fn external(&self) -> &'a [String] {
         self.ctx().find(ID_EXTERNAL).map(|x| x.values.as_slice()).unwrap_or_default()
     }
-    #[allow(dead_code)]
-    pub fn val_git_dir(&self) -> Option<&str> {
+    pub fn val_git_dir(&self) -> Option<&'a str> {
         self.ctx().find(ID_VAL_GIT_DIR).map(|x| x.value.as_ref())
     }
-    #[allow(dead_code)]
-    pub fn val_external(&self) -> &[String] {
+    pub fn val_external(&self) -> &'a [String] {
         self.ctx().find(ID_VAL_EXTERNAL).map(|x| x.values.as_slice()).unwrap_or_default()
     }
 }
+#[allow(dead_code)]
 impl<H> ID<H> {
-    #[allow(dead_code)]
     pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
         match self {
             ID::External(..) => ID::External(h),
@@ -381,7 +368,6 @@ impl<H> ID<H> {
             ID::CMDRemote(_, id) => ID::CMDRemote(h, id.with_ctx(h)),
         }
     }
-    #[allow(dead_code)]
     fn ctx(self) -> H {
         match self {
             ID::External(c) => c,
