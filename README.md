@@ -1,4 +1,5 @@
-# Supplement
+![Supplement](logo.svg)
+
 > Shell-agnostic, extensible CLI completion for Rust 💊
 
 [![Crates.io](https://img.shields.io/crates/v/supplement?style=flat-square)](https://crates.io/crates/supplement)
