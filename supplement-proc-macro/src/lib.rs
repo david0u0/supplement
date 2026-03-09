@@ -2,7 +2,7 @@ use proc_macro::TokenStream;
 use proc_macro2::{Ident, Span};
 use quote::quote;
 use syn::parse::{Parse, ParseStream};
-use syn::{Error, Pat, Result, Token, parenthesized, parse_macro_input, token::Paren};
+use syn::{Error, Result, Token, parenthesized, parse_macro_input, token::Paren};
 
 fn to_pascal_case(s: &str) -> String {
     let mut ret = String::new();
@@ -48,12 +48,12 @@ enum Item {
 }
 struct IdList {
     root_mod: syn::Path,
-    items: Vec<(Item, Option<Pat>)>,
+    items: Vec<(Item, Option<Ident>)>,
 }
 impl Parse for IdList {
     fn parse(input: ParseStream) -> Result<Self> {
         let root_mod: syn::Path = input.parse()?;
-        let mut ctx: Option<Pat> = None;
+        let mut binding: Option<Ident> = None;
 
         let mut items = Vec::new();
         while !input.is_empty() {
@@ -67,18 +67,25 @@ impl Parse for IdList {
                         format!("Unknown ident @{ident}"),
                     ));
                 }
-                items.push((Item::Ext, ctx.take()));
+                items.push((Item::Ext, binding.take()));
             } else if input.peek(Paren) {
-                if ctx.is_some() {
-                    return Err(Error::new(Span::call_site(), "Ctx cannot be consecutive"));
+                if binding.is_some() {
+                    return Err(Error::new(
+                        Span::call_site(),
+                        "Bindings cannot be consecutive",
+                    ));
                 }
 
                 let content;
                 parenthesized!(content in input);
-                ctx = Some(Pat::parse_single(&content)?);
+                let ident: syn::Ident = content.parse()?;
+                if !content.is_empty() {
+                    return Err(Error::new(Span::call_site(), "Binding must be unique"));
+                }
+                binding = Some(ident);
             } else {
                 let ident: syn::Ident = input.parse()?;
-                items.push((Item::Ident(ident), ctx.take()));
+                items.push((Item::Ident(ident), binding.take()));
             }
         }
 
@@ -88,8 +95,11 @@ impl Parse for IdList {
                 "The macro requires at least two elements",
             ));
         }
-        if ctx.is_some() {
-            return Err(Error::new(Span::call_site(), "Ctx mustn't be the last one"));
+        if binding.is_some() {
+            return Err(Error::new(
+                Span::call_site(),
+                "Binding must not be the last element",
+            ));
         }
 
         let ext_pos = items.iter().position(|i| matches!(i.0, Item::Ext));
@@ -137,33 +147,41 @@ impl Parse for IdList {
 /// // Root flag or arg
 /// let e = def::ID::ValGitDir(1);
 /// match e {
-///     // To get the context, add `(ctx)` in the macro
-///     id!(def(ctx) git_dir) if ctx == 1 => (),
-///     // Or to ignore the context
-///     id!(def git_dir) => (),
+///     // To bind to the ID, add `(id)` in the macro
+///     id!(def(id) git_dir) => {
+///         let _tmp: def::ID = id; // `id` binds to the root ID
+///     }
+///     // Or to make no binding
+///     id!(def git_dir) => panic!(),
 ///     _ => panic!(),
 /// }
 ///
 /// // Flag or arg within subcommand
 /// let e = def::ID::CMDRemote(1, def::remote::ID::CMDSetUrl(2, def::remote::set_url::ID::ValUrl(3)));
 /// match e {
-///     id!(def(1) remote(2) set_url(3) url) => (),
-///     // Or to ignore some (but not all) context
-///     id!(def remote set_url(3) url) => (),
+///     id!(def(id1) remote(id2) set_url(id3) url) => {
+///         let _tmp: def::ID = id1; // `id1` binds to the root ID
+///         let _tmp: def::remote::ID = id2; // `id2` binds to the inner ID
+///         let _tmp: def::remote::set_url::ID = id3; // `id3` binds to the inner most ID
+///     }
+///     // Or to only bind to some id
+///     id!(def remote set_url(id3) url) => panic!(),
 ///     _ => panic!(),
 /// }
 ///
 /// // External subcommands
 /// let e = def::ID::CMDRemote(1, def::remote::ID::External(2));
 /// match e {
-///     id!(def(1) remote(2) @ext) => (),
+///     id!(def(id1) remote(id2) @ext) => (),
 ///     _ => panic!(),
 /// }
 ///
 /// // Start with different module def::remote
-/// let e = def::remote::ID::CMDSetUrl(2, def::remote::set_url::ID::ValUrl(3));
+/// let e = def::remote::ID::CMDSetUrl(1, def::remote::set_url::ID::ValUrl(2));
 /// match e {
-///     id!(def::remote(2) set_url(3) url) => (),
+///     id!(def::remote(id1) set_url url) => {
+///         let _tmp: def::remote::ID = id1; // `id` binds to `def::remote::ID`
+///     }
 ///     _ => panic!(),
 /// }
 ///
@@ -177,34 +195,34 @@ pub fn id(input: TokenStream) -> TokenStream {
 
 fn build_recur(
     root_mod: &syn::Path,
-    items: &[(Item, Option<Pat>)],
+    items: &[(Item, Option<Ident>)],
     index: usize,
 ) -> proc_macro2::TokenStream {
     let mod_path: Vec<_> = items[..index].iter().map(|i| to_cmd_mod(&i.0)).collect();
 
-    let (item, ctx) = &items[index];
+    let (item, binding) = &items[index];
     if index == items.len() - 1 {
-        let (item, ctx) = &items[index];
+        let (item, binding) = &items[index];
         let val = Ident::new(&to_val_enum(item), Span::call_site());
         let last = quote! {
-            #root_mod::#(#mod_path::)*ID::#val
+            #root_mod::#(#mod_path::)*ID::#val(_)
         };
-        return if let Some(ctx) = ctx {
+        return if let Some(binding) = binding {
             quote! {
-                #last(#ctx)
+                #binding @ #last
             }
         } else {
             quote! {
-                #last(_)
+                #last
             }
         };
     }
 
     let cmd = Ident::new(&to_cmd_enum(item), Span::call_site());
     let inner = build_recur(root_mod, items, index + 1);
-    if let Some(ctx) = ctx {
+    if let Some(binding) = binding {
         quote! {
-            #root_mod::#(#mod_path::)*ID::#cmd(#ctx, #inner)
+            #binding @ #root_mod::#(#mod_path::)*ID::#cmd(_, #inner)
         }
     } else {
         quote! {

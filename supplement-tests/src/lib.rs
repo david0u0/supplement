@@ -176,11 +176,5 @@ mod test {
             }
             _ => panic!("id is {id:?}"),
         }
-
-        // test for `get_ctx`
-        let root = id.with_ctx(&h).get_ctx();
-        assert_eq!(root.val_git_dir(), None);
-        assert_eq!(root.val_external(), &["e"]);
-        assert_eq!(root.external(), &["time", "for", "some"]);
     }
 }

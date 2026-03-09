@@ -145,21 +145,25 @@ pub fn get_id_value(prev: &[Trace], ty: NameType, id: &str) -> String {
         let super_str = "super::".repeat(level);
         level -= 1;
         let enum_name = gen_enum_name(NameType::COMMAND, &trace.cmd_id);
-        ret += &format!("{super_str}ID::{enum_name}({super_str}Ctx(()), ");
+        ret += &format!("{super_str}ID::{enum_name}((), ");
     }
 
     let enum_name = gen_enum_name(ty, id);
-    ret += &format!("ID::{enum_name}(Ctx(()))");
+    ret += &format!("ID::{enum_name}(())");
     ret += &")".repeat(prev.len());
     ret
 }
 
 pub fn ctx_func(rust_name: &str, ty: ValType) -> String {
     match ty {
-        ValType::No => format!("self.0.find(ID_{rust_name}).map(|x| x.count).unwrap_or_default()"),
-        ValType::Single => format!("self.0.find(ID_{rust_name}).map(|x| x.value.as_ref())"),
+        ValType::No => {
+            format!("self.ctx().find(ID_{rust_name}).map(|x| x.count).unwrap_or_default()")
+        }
+        ValType::Single => format!("self.ctx().find(ID_{rust_name}).map(|x| x.value.as_ref())"),
         ValType::Multi => {
-            format!("self.0.find(ID_{rust_name}).map(|x| x.values.as_slice()).unwrap_or_default()")
+            format!(
+                "self.ctx().find(ID_{rust_name}).map(|x| x.values.as_slice()).unwrap_or_default()"
+            )
         }
     }
 }

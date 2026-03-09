@@ -1,7 +1,7 @@
 type GlobalID = ID;
 use supplement::gen_prelude::*;
 
-const ID_VAL_GIT_DIR: id::SingleVal<GlobalID> = id::SingleVal::new(ID::ValGitDir(Ctx(())));
+const ID_VAL_GIT_DIR: id::SingleVal<GlobalID> = id::SingleVal::new(ID::ValGitDir(()));
 const VAL_GIT_DIR: Flag<GlobalID> = Flag {
     short: &[],
     long: &["git-dir"],
@@ -9,7 +9,7 @@ const VAL_GIT_DIR: Flag<GlobalID> = Flag {
     once: false,
     ty: flag_type::Type::new_valued(ID_VAL_GIT_DIR.into(), CompleteWithEqual::NoNeed, &[]),
 };
-const ID_VAL_EXTERNAL: id::MultiVal<GlobalID> = id::MultiVal::new(ID::ValExternal(Ctx(())));
+const ID_VAL_EXTERNAL: id::MultiVal<GlobalID> = id::MultiVal::new(ID::ValExternal(()));
 const VAL_EXTERNAL: Flag<GlobalID> = Flag {
     short: &[],
     long: &["external"],
@@ -17,7 +17,7 @@ const VAL_EXTERNAL: Flag<GlobalID> = Flag {
     once: false,
     ty: flag_type::Type::new_valued(ID_VAL_EXTERNAL.into(), CompleteWithEqual::NoNeed, &[]),
 };
-const ID_EXTERNAL: id::MultiVal<GlobalID> = id::MultiVal::new(ID::External(Ctx(())));
+const ID_EXTERNAL: id::MultiVal<GlobalID> = id::MultiVal::new(ID::External(()));
 const EXTERNAL: Arg<GlobalID> = Arg {
     id: ID_EXTERNAL.into(),
     max_values: 18446744073709551615,
@@ -45,7 +45,7 @@ pub mod bisect2 {
     use super::GlobalID as GlobalID;
     use supplement::gen_prelude::*;
 
-    const ID_VAL_PRETTY: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDBisect2(super::Ctx(()), ID::ValPretty(Ctx(()))));
+    const ID_VAL_PRETTY: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDBisect2((), ID::ValPretty(())));
     const VAL_PRETTY: Flag<GlobalID> = Flag {
         short: &[],
         long: &["pretty"],
@@ -53,39 +53,37 @@ pub mod bisect2 {
         once: true,
         ty: flag_type::Type::new_valued(ID_VAL_PRETTY.into(), CompleteWithEqual::Optional, &[("oneline", "<sha1> <title line>"), ("short", "<sha1> / <author> / <title line>)"), ("full", "<sha1> / <author> / <committer> / <title> / <commit msg>")]),
     };
-    const ID_VAL_ARG: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDBisect2(super::Ctx(()), ID::ValArg(Ctx(()))));
+    const ID_VAL_ARG: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDBisect2((), ID::ValArg(())));
     const VAL_ARG: Arg<GlobalID> = Arg {
         id: ID_VAL_ARG.into(),
         max_values: 1,
         possible_values: &[("good", ""), ("bad", "")],
     };
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-    pub struct Ctx<H>(H);
-    impl Ctx<&History<GlobalID>> {
+    pub enum ID<H = ()> {
+        ValArg(H),
+        ValPretty(H),
+    }
+    impl ID<&History<GlobalID>> {
         #[allow(dead_code)]
         pub fn val_arg(&self) -> Option<&str> {
-            self.0.find(ID_VAL_ARG).map(|x| x.value.as_ref())
+            self.ctx().find(ID_VAL_ARG).map(|x| x.value.as_ref())
         }
         #[allow(dead_code)]
         pub fn val_pretty(&self) -> Option<&str> {
-            self.0.find(ID_VAL_PRETTY).map(|x| x.value.as_ref())
+            self.ctx().find(ID_VAL_PRETTY).map(|x| x.value.as_ref())
         }
-    }
-    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-    pub enum ID<H = ()> {
-        ValArg(Ctx<H>),
-        ValPretty(Ctx<H>),
     }
     impl<H> ID<H> {
         #[allow(dead_code)]
         pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
             match self {
-                ID::ValArg(..) => ID::ValArg(Ctx(h)),
-                ID::ValPretty(..) => ID::ValPretty(Ctx(h)),
+                ID::ValArg(..) => ID::ValArg(h),
+                ID::ValPretty(..) => ID::ValPretty(h),
             }
         }
         #[allow(dead_code)]
-        pub fn get_ctx(self) -> Ctx<H> {
+        fn ctx(self) -> H {
             match self {
                 ID::ValArg(c) => c,
                 ID::ValPretty(c) => c,
@@ -112,49 +110,47 @@ pub mod checkout {
         once: true,
         ty: flag_type::Type::new_bool(ID_VAL_B),
     };
-    const ID_VAL_FILE_OR_COMMIT: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDCheckout(super::Ctx(()), ID::ValFileOrCommit(Ctx(()))));
+    const ID_VAL_FILE_OR_COMMIT: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDCheckout((), ID::ValFileOrCommit(())));
     const VAL_FILE_OR_COMMIT: Arg<GlobalID> = Arg {
         id: ID_VAL_FILE_OR_COMMIT.into(),
         max_values: 1,
         possible_values: &[],
     };
-    const ID_VAL_FILES: id::MultiVal<GlobalID> = id::MultiVal::new(super::ID::CMDCheckout(super::Ctx(()), ID::ValFiles(Ctx(()))));
+    const ID_VAL_FILES: id::MultiVal<GlobalID> = id::MultiVal::new(super::ID::CMDCheckout((), ID::ValFiles(())));
     const VAL_FILES: Arg<GlobalID> = Arg {
         id: ID_VAL_FILES.into(),
         max_values: 18446744073709551615,
         possible_values: &[],
     };
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-    pub struct Ctx<H>(H);
-    impl Ctx<&History<GlobalID>> {
+    pub enum ID<H = ()> {
+        ValFileOrCommit(H),
+        ValFiles(H),
+    }
+    impl ID<&History<GlobalID>> {
         #[allow(dead_code)]
         pub fn val_file_or_commit(&self) -> Option<&str> {
-            self.0.find(ID_VAL_FILE_OR_COMMIT).map(|x| x.value.as_ref())
+            self.ctx().find(ID_VAL_FILE_OR_COMMIT).map(|x| x.value.as_ref())
         }
         #[allow(dead_code)]
         pub fn val_files(&self) -> &[String] {
-            self.0.find(ID_VAL_FILES).map(|x| x.values.as_slice()).unwrap_or_default()
+            self.ctx().find(ID_VAL_FILES).map(|x| x.values.as_slice()).unwrap_or_default()
         }
         #[allow(dead_code)]
         pub fn val_b(&self) -> u32 {
-            self.0.find(ID_VAL_B).map(|x| x.count).unwrap_or_default()
+            self.ctx().find(ID_VAL_B).map(|x| x.count).unwrap_or_default()
         }
-    }
-    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-    pub enum ID<H = ()> {
-        ValFileOrCommit(Ctx<H>),
-        ValFiles(Ctx<H>),
     }
     impl<H> ID<H> {
         #[allow(dead_code)]
         pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
             match self {
-                ID::ValFileOrCommit(..) => ID::ValFileOrCommit(Ctx(h)),
-                ID::ValFiles(..) => ID::ValFiles(Ctx(h)),
+                ID::ValFileOrCommit(..) => ID::ValFileOrCommit(h),
+                ID::ValFiles(..) => ID::ValFiles(h),
             }
         }
         #[allow(dead_code)]
-        pub fn get_ctx(self) -> Ctx<H> {
+        fn ctx(self) -> H {
             match self {
                 ID::ValFileOrCommit(c) => c,
                 ID::ValFiles(c) => c,
@@ -189,7 +185,7 @@ pub mod log {
         once: true,
         ty: flag_type::Type::new_valued(ID_VAL_PRETTY.into(), CompleteWithEqual::Optional, &[("oneline", "<sha1> <title line>"), ("short", "<sha1> / <author> / <title line>)"), ("full", "<sha1> / <author> / <committer> / <title> / <commit msg>")]),
     };
-    const ID_VAL_FLAG1: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDLog(super::Ctx(()), ID::ValFlag1(Ctx(()))));
+    const ID_VAL_FLAG1: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDLog((), ID::ValFlag1(())));
     const VAL_FLAG1: Flag<GlobalID> = Flag {
         short: &[],
         long: &["flag1"],
@@ -197,47 +193,45 @@ pub mod log {
         once: true,
         ty: flag_type::Type::new_valued(ID_VAL_FLAG1.into(), CompleteWithEqual::NoNeed, &[]),
     };
-    const ID_VAL_COMMIT: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDLog(super::Ctx(()), ID::ValCommit(Ctx(()))));
+    const ID_VAL_COMMIT: id::SingleVal<GlobalID> = id::SingleVal::new(super::ID::CMDLog((), ID::ValCommit(())));
     const VAL_COMMIT: Arg<GlobalID> = Arg {
         id: ID_VAL_COMMIT.into(),
         max_values: 1,
         possible_values: &[],
     };
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-    pub struct Ctx<H>(H);
-    impl Ctx<&History<GlobalID>> {
+    pub enum ID<H = ()> {
+        ValCommit(H),
+        ValFlag1(H),
+    }
+    impl ID<&History<GlobalID>> {
         #[allow(dead_code)]
         pub fn val_commit(&self) -> Option<&str> {
-            self.0.find(ID_VAL_COMMIT).map(|x| x.value.as_ref())
+            self.ctx().find(ID_VAL_COMMIT).map(|x| x.value.as_ref())
         }
         #[allow(dead_code)]
         pub fn val_graph(&self) -> u32 {
-            self.0.find(ID_VAL_GRAPH).map(|x| x.count).unwrap_or_default()
+            self.ctx().find(ID_VAL_GRAPH).map(|x| x.count).unwrap_or_default()
         }
         #[allow(dead_code)]
         pub fn val_pretty(&self) -> Option<&str> {
-            self.0.find(ID_VAL_PRETTY).map(|x| x.value.as_ref())
+            self.ctx().find(ID_VAL_PRETTY).map(|x| x.value.as_ref())
         }
         #[allow(dead_code)]
         pub fn val_flag1(&self) -> Option<&str> {
-            self.0.find(ID_VAL_FLAG1).map(|x| x.value.as_ref())
+            self.ctx().find(ID_VAL_FLAG1).map(|x| x.value.as_ref())
         }
-    }
-    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-    pub enum ID<H = ()> {
-        ValCommit(Ctx<H>),
-        ValFlag1(Ctx<H>),
     }
     impl<H> ID<H> {
         #[allow(dead_code)]
         pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
             match self {
-                ID::ValCommit(..) => ID::ValCommit(Ctx(h)),
-                ID::ValFlag1(..) => ID::ValFlag1(Ctx(h)),
+                ID::ValCommit(..) => ID::ValCommit(h),
+                ID::ValFlag1(..) => ID::ValFlag1(h),
             }
         }
         #[allow(dead_code)]
-        pub fn get_ctx(self) -> Ctx<H> {
+        fn ctx(self) -> H {
             match self {
                 ID::ValCommit(c) => c,
                 ID::ValFlag1(c) => c,
@@ -268,37 +262,35 @@ pub mod remote {
             once: true,
             ty: flag_type::Type::new_bool(ID_VAL_TAGS),
         };
-        const ID_VAL_NAME: id::SingleVal<GlobalID> = id::SingleVal::new(super::super::ID::CMDRemote(super::super::Ctx(()), super::ID::CMDAdd(super::Ctx(()), ID::ValName(Ctx(())))));
+        const ID_VAL_NAME: id::SingleVal<GlobalID> = id::SingleVal::new(super::super::ID::CMDRemote((), super::ID::CMDAdd((), ID::ValName(()))));
         const VAL_NAME: Arg<GlobalID> = Arg {
             id: ID_VAL_NAME.into(),
             max_values: 1,
             possible_values: &[],
         };
         #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-        pub struct Ctx<H>(H);
-        impl Ctx<&History<GlobalID>> {
+        pub enum ID<H = ()> {
+            ValName(H),
+        }
+        impl ID<&History<GlobalID>> {
             #[allow(dead_code)]
             pub fn val_name(&self) -> Option<&str> {
-                self.0.find(ID_VAL_NAME).map(|x| x.value.as_ref())
+                self.ctx().find(ID_VAL_NAME).map(|x| x.value.as_ref())
             }
             #[allow(dead_code)]
             pub fn val_tags(&self) -> u32 {
-                self.0.find(ID_VAL_TAGS).map(|x| x.count).unwrap_or_default()
+                self.ctx().find(ID_VAL_TAGS).map(|x| x.count).unwrap_or_default()
             }
-        }
-        #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-        pub enum ID<H = ()> {
-            ValName(Ctx<H>),
         }
         impl<H> ID<H> {
             #[allow(dead_code)]
             pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
                 match self {
-                    ID::ValName(..) => ID::ValName(Ctx(h)),
+                    ID::ValName(..) => ID::ValName(h),
                 }
             }
             #[allow(dead_code)]
-            pub fn get_ctx(self) -> Ctx<H> {
+            fn ctx(self) -> H {
                 match self {
                     ID::ValName(c) => c,
                 }
@@ -325,22 +317,20 @@ pub mod remote {
         };
     }
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-    pub struct Ctx<H>(H);
-    impl Ctx<&History<GlobalID>> {
-    }
-    #[derive(Clone, Copy, PartialEq, Eq, Debug)]
     pub enum ID<H = ()> {
-        CMDAdd(Ctx<H>, add::ID<H>),
+        CMDAdd(H, add::ID<H>),
+    }
+    impl ID<&History<GlobalID>> {
     }
     impl<H> ID<H> {
         #[allow(dead_code)]
         pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
             match self {
-                ID::CMDAdd(_, id) => ID::CMDAdd(Ctx(h), id.with_ctx(h)),
+                ID::CMDAdd(_, id) => ID::CMDAdd(h, id.with_ctx(h)),
             }
         }
         #[allow(dead_code)]
-        pub fn get_ctx(self) -> Ctx<H> {
+        fn ctx(self) -> H {
             match self {
                 ID::CMDAdd(c, _) => c,
             }
@@ -355,46 +345,44 @@ pub mod remote {
     };
 }
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct Ctx<H>(H);
-impl Ctx<&History<GlobalID>> {
+pub enum ID<H = ()> {
+    External(H),
+    ValGitDir(H),
+    ValExternal(H),
+    CMDBisect2(H, bisect2::ID<H>),
+    CMDCheckout(H, checkout::ID<H>),
+    CMDLog(H, log::ID<H>),
+    CMDRemote(H, remote::ID<H>),
+}
+impl ID<&History<GlobalID>> {
     #[allow(dead_code)]
     pub fn external(&self) -> &[String] {
-        self.0.find(ID_EXTERNAL).map(|x| x.values.as_slice()).unwrap_or_default()
+        self.ctx().find(ID_EXTERNAL).map(|x| x.values.as_slice()).unwrap_or_default()
     }
     #[allow(dead_code)]
     pub fn val_git_dir(&self) -> Option<&str> {
-        self.0.find(ID_VAL_GIT_DIR).map(|x| x.value.as_ref())
+        self.ctx().find(ID_VAL_GIT_DIR).map(|x| x.value.as_ref())
     }
     #[allow(dead_code)]
     pub fn val_external(&self) -> &[String] {
-        self.0.find(ID_VAL_EXTERNAL).map(|x| x.values.as_slice()).unwrap_or_default()
+        self.ctx().find(ID_VAL_EXTERNAL).map(|x| x.values.as_slice()).unwrap_or_default()
     }
-}
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum ID<H = ()> {
-    External(Ctx<H>),
-    ValGitDir(Ctx<H>),
-    ValExternal(Ctx<H>),
-    CMDBisect2(Ctx<H>, bisect2::ID<H>),
-    CMDCheckout(Ctx<H>, checkout::ID<H>),
-    CMDLog(Ctx<H>, log::ID<H>),
-    CMDRemote(Ctx<H>, remote::ID<H>),
 }
 impl<H> ID<H> {
     #[allow(dead_code)]
     pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {
         match self {
-            ID::External(..) => ID::External(Ctx(h)),
-            ID::ValGitDir(..) => ID::ValGitDir(Ctx(h)),
-            ID::ValExternal(..) => ID::ValExternal(Ctx(h)),
-            ID::CMDBisect2(_, id) => ID::CMDBisect2(Ctx(h), id.with_ctx(h)),
-            ID::CMDCheckout(_, id) => ID::CMDCheckout(Ctx(h), id.with_ctx(h)),
-            ID::CMDLog(_, id) => ID::CMDLog(Ctx(h), id.with_ctx(h)),
-            ID::CMDRemote(_, id) => ID::CMDRemote(Ctx(h), id.with_ctx(h)),
+            ID::External(..) => ID::External(h),
+            ID::ValGitDir(..) => ID::ValGitDir(h),
+            ID::ValExternal(..) => ID::ValExternal(h),
+            ID::CMDBisect2(_, id) => ID::CMDBisect2(h, id.with_ctx(h)),
+            ID::CMDCheckout(_, id) => ID::CMDCheckout(h, id.with_ctx(h)),
+            ID::CMDLog(_, id) => ID::CMDLog(h, id.with_ctx(h)),
+            ID::CMDRemote(_, id) => ID::CMDRemote(h, id.with_ctx(h)),
         }
     }
     #[allow(dead_code)]
-    pub fn get_ctx(self) -> Ctx<H> {
+    fn ctx(self) -> H {
         match self {
             ID::External(c) => c,
             ID::ValGitDir(c) => c,

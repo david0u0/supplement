@@ -99,7 +99,7 @@ let id: ID<&History<ID>> = id.with_ctx(&history);
 match id {
     // ...
 
-    id!((_root_ctx) checkout(chk_ctx) files) => {
+    id!((root_id) checkout(chk_id) files) => {
         // For the second and more arguments, it can only be file
         // Let's also filter out those files we've already seen!
         let prev1: Option<&str> = ctx.val_file_or_commit();
@@ -108,15 +108,12 @@ match id {
         // ...
     }
 }
-
 ```
 
 The function `with_ctx` converts a plain `ID` into a context-aware `ID<&History>`.
-Because of this, when we're later matching the ID, we can also get the context `_root_ctx` and `chk_ctx`.
+When we're later matching the ID, we can also bind to the ID: `root_id` and `chk_id`.
 
-`_root_ctx` means the root flags/args, and `chk_ctx` means the flags/args of `checkout`.
-
-We can get the values by calling their functions, like `chk_ctx.val_files()` and `chk_ctx.val_file_or_commit()`
+Because they are context-aware, we can get the values by calling their functions, e.g. `chk_id.val_files()` for argument `FILES`.
 
 ## Install
 If you like, you can actually install this toy app `qit` to your system along with its completion.

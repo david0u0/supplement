@@ -66,26 +66,24 @@ impl<ID: PartialEq> Getter<ID> for id::MultiVal<ID> {
 ///
 /// ```no_run
 /// # mod def {
+/// #     #[derive(Clone, Copy)]
 /// #     pub enum ID<T = ()> {
-/// #         CMDCheckout(Ctx<T>, checkout::ID<T>)
+/// #         CMDCheckout(T, checkout::ID<T>)
 /// #     }
-/// #     impl<T> ID<T> {
+/// #     impl <T> ID<T> {
 /// #         pub fn with_ctx<U>(self, u: U) -> ID<U> {
 /// #             unimplemented!()
 /// #         }
-/// #     }
-/// #     pub struct Ctx<T>(T);
-/// #     impl<T> Ctx<T> {
 /// #         pub fn val_git_dir(&self) -> Option<&str> {
 /// #             unimplemented!()
 /// #         }
 /// #     }
 /// #     pub mod checkout {
+/// #         #[derive(Clone, Copy)]
 /// #         pub enum ID<T> {
-/// #             ValFiles(Ctx<T>)
+/// #             ValFiles(T)
 /// #         }
-/// #         pub struct Ctx<T>(T);
-/// #         impl<T> Ctx<T> {
+/// #         impl<T> ID<T> {
 /// #             pub fn val_files(&self) -> Option<&str> {
 /// #                 unimplemented!()
 /// #             }
@@ -101,15 +99,14 @@ impl<ID: PartialEq> Getter<ID> for id::MultiVal<ID> {
 ///
 /// fn handle_comp(id: ID, history: History<ID>) {
 ///     let id_with_ctx: ID<&History<ID>> = id.with_ctx(&history);
-///
 ///     match id_with_ctx {
-///         id!(def(root_ctx) checkout(chk_ctx) files) => {
-///             // `root_ctx` contains the root args/flags
-///             let _git_dir: Option<&str> = root_ctx.val_git_dir();
+///         id!(def(root_id) checkout(chk_id) files) => {
+///             // use `root_id` to get the root args/flags
+///             let _git_dir: Option<&str> = root_id.val_git_dir();
 ///
-///             // `chk_ctx` contains the args/flags for `checkout` sub-command
-///             let _files: Option<&str> = chk_ctx.val_files();
-///             let _file_or_commit: &[String] = chk_ctx.val_file_or_commit();
+///             // use `chk_id` to get the args/flags for `checkout` sub-command
+///             let _files: Option<&str> = chk_id.val_files();
+///             let _file_or_commit: &[String] = chk_id.val_file_or_commit();
 ///
 ///             // NOTE: the type system guarantees that you can **NEVER** get anything from other subcommands!
 ///         }

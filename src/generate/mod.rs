@@ -448,8 +448,21 @@ fn generate_recur(
 
         if cmd_not_empty {
             writeln!(w, "{indent}#[derive(Clone, Copy, PartialEq, Eq, Debug)]")?;
-            writeln!(w, "{indent}pub struct Ctx<H>(H);")?;
-            writeln!(w, "{indent}impl Ctx<&History<GlobalID>> {{")?;
+            writeln!(w, "{indent}pub enum ID<H = ()> {{")?;
+            for val in args.iter().chain(flags.iter()) {
+                if let Some(enum_name) = val.enum_name.as_ref() {
+                    writeln!(w, "{indent}    {enum_name}(H),")?;
+                }
+            }
+            for cmd in sub_cmds.iter() {
+                if let Some(enum_name) = cmd.enum_name.as_ref() {
+                    let mod_name = &cmd.mod_name;
+                    writeln!(w, "{indent}    {enum_name}(H, {mod_name}::ID<H>),")?;
+                }
+            }
+            writeln!(w, "{indent}}}")?;
+
+            writeln!(w, "{indent}impl ID<&History<GlobalID>> {{")?;
             for val in args.iter().chain(flags.iter()) {
                 if let Some(ty) = val.ctx_ty.as_ref() {
                     let ctx_func = ctx_func(&val.rust_name, *ty);
@@ -460,21 +473,6 @@ fn generate_recur(
 
                     writeln!(w, "{indent}        {ctx_func}")?;
                     writeln!(w, "{indent}    }}")?;
-                }
-            }
-            writeln!(w, "{indent}}}")?;
-
-            writeln!(w, "{indent}#[derive(Clone, Copy, PartialEq, Eq, Debug)]")?;
-            writeln!(w, "{indent}pub enum ID<H = ()> {{")?;
-            for val in args.iter().chain(flags.iter()) {
-                if let Some(enum_name) = val.enum_name.as_ref() {
-                    writeln!(w, "{indent}    {enum_name}(Ctx<H>),")?;
-                }
-            }
-            for cmd in sub_cmds.iter() {
-                if let Some(enum_name) = cmd.enum_name.as_ref() {
-                    let mod_name = &cmd.mod_name;
-                    writeln!(w, "{indent}    {enum_name}(Ctx<H>, {mod_name}::ID<H>),")?;
                 }
             }
             writeln!(w, "{indent}}}")?;
@@ -526,7 +524,7 @@ fn write_with_ctx<'a>(
         if let Some(enum_name) = val.enum_name.as_ref() {
             writeln!(
                 w,
-                "{indent}        ID::{enum_name}(..) => ID::{enum_name}(Ctx(h)),"
+                "{indent}        ID::{enum_name}(..) => ID::{enum_name}(h),"
             )?;
         }
     }
@@ -534,7 +532,7 @@ fn write_with_ctx<'a>(
         if let Some(enum_name) = cmd.enum_name.as_ref() {
             writeln!(
                 w,
-                "{indent}        ID::{enum_name}(_, id) => ID::{enum_name}(Ctx(h), id.with_ctx(h)),"
+                "{indent}        ID::{enum_name}(_, id) => ID::{enum_name}(h, id.with_ctx(h)),"
             )?;
         }
     }
@@ -550,7 +548,7 @@ fn write_get_ctx<'a>(
     vals: impl Iterator<Item = &'a ValUnit>,
 ) -> Result<(), std::io::Error> {
     writeln!(w, "{indent}#[allow(dead_code)]")?;
-    writeln!(w, "{indent}pub fn get_ctx(self) -> Ctx<H> {{")?;
+    writeln!(w, "{indent}fn ctx(self) -> H {{")?;
     writeln!(w, "{indent}    match self {{")?;
     for val in vals {
         if let Some(enum_name) = val.enum_name.as_ref() {

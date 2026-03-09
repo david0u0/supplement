@@ -89,15 +89,17 @@ fn handle_comp(id: ID, history: &History<ID>, _value: &str) -> Vec<Completion> {
             }
             comps
         }
-        id!((_root_ctx) checkout(chk_ctx) files) => {
+        id!((root_id) checkout(chk_id) files) => {
             // For the second and more arguments, it can only be file
             // Let's also filter out those files we've already seen!
-            let prev1: Option<&str> = chk_ctx.val_file_or_commit();
-            let prev2: &[String] = chk_ctx.val_files();
+            let prev1: Option<&str> = chk_id.val_file_or_commit();
+            let prev2: &[String] = chk_id.val_files();
             let prev: Vec<_> = prev1
                 .into_iter()
                 .chain(prev2.iter().map(|s| s.as_str()))
                 .collect();
+
+            let _ = root_id; // This is only for demo
 
             run_git("status --porcelain")
                 .lines()
