@@ -67,7 +67,7 @@ impl<ID: PartialEq> Getter<ID> for id::MultiVal<ID> {
 /// ```no_run
 /// # mod def {
 /// #     pub enum ID<T = ()> {
-/// #         CMDCheckout(checkout::ID<T>)
+/// #         CMDCheckout(Ctx<T>, checkout::ID<T>)
 /// #     }
 /// #     impl<T> ID<T> {
 /// #         pub fn with_ctx<U>(self, u: U) -> ID<U> {
@@ -82,7 +82,7 @@ impl<ID: PartialEq> Getter<ID> for id::MultiVal<ID> {
 /// #     }
 /// #     pub mod checkout {
 /// #         pub enum ID<T> {
-/// #             ValFiles(super::Ctx<T>, Ctx<T>)
+/// #             ValFiles(Ctx<T>)
 /// #         }
 /// #         pub struct Ctx<T>(T);
 /// #         impl<T> Ctx<T> {
@@ -103,7 +103,7 @@ impl<ID: PartialEq> Getter<ID> for id::MultiVal<ID> {
 ///     let id_with_ctx: ID<&History<ID>> = id.with_ctx(&history);
 ///
 ///     match id_with_ctx {
-///         id!(def checkout files(root_ctx, chk_ctx)) => {
+///         id!(def(root_ctx) checkout(chk_ctx) files) => {
 ///             // `root_ctx` contains the root args/flags
 ///             let _git_dir: Option<&str> = root_ctx.val_git_dir();
 ///

@@ -89,7 +89,7 @@ fn handle_comp(id: ID, history: &History<ID>, _value: &str) -> Vec<Completion> {
             }
             comps
         }
-        id!(checkout files(_root_ctx, chk_ctx)) => {
+        id!((_root_ctx) checkout(chk_ctx) files) => {
             // For the second and more arguments, it can only be file
             // Let's also filter out those files we've already seen!
             let prev1: Option<&str> = chk_ctx.val_file_or_commit();

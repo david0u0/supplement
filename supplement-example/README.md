@@ -99,7 +99,7 @@ let id: ID<&History<ID>> = id.with_ctx(&history);
 match id {
     // ...
 
-    id!(checkout files(_root_ctx, ctx)) => {
+    id!((_root_ctx) checkout(chk_ctx) files) => {
         // For the second and more arguments, it can only be file
         // Let's also filter out those files we've already seen!
         let prev1: Option<&str> = ctx.val_file_or_commit();

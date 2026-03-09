@@ -6,10 +6,7 @@ mod config;
 mod utils;
 use abstraction::{Arg, ArgAction, ClapCommand, Command, CommandMut, PossibleValue};
 pub use config::Config;
-use utils::{
-    CtxDisplay, Join, ctx_func, gen_enum_name, gen_rust_name, to_screaming_snake_case,
-    to_snake_case,
-};
+use utils::{Join, ctx_func, gen_enum_name, gen_rust_name, to_screaming_snake_case, to_snake_case};
 
 #[derive(Clone)]
 pub(crate) struct Trace {
@@ -469,46 +466,23 @@ fn generate_recur(
 
             writeln!(w, "{indent}#[derive(Clone, Copy, PartialEq, Eq, Debug)]")?;
             writeln!(w, "{indent}pub enum ID<H = ()> {{")?;
-            let ctx_display = CtxDisplay(level, "<H>");
             for val in args.iter().chain(flags.iter()) {
                 if let Some(enum_name) = val.enum_name.as_ref() {
-                    writeln!(w, "{indent}    {enum_name}({ctx_display}),")?;
+                    writeln!(w, "{indent}    {enum_name}(Ctx<H>),")?;
                 }
             }
             for cmd in sub_cmds.iter() {
                 if let Some(enum_name) = cmd.enum_name.as_ref() {
                     let mod_name = &cmd.mod_name;
-                    writeln!(w, "{indent}    {enum_name}({mod_name}::ID<H>),")?;
+                    writeln!(w, "{indent}    {enum_name}(Ctx<H>, {mod_name}::ID<H>),")?;
                 }
             }
             writeln!(w, "{indent}}}")?;
 
-            writeln!(w, "{indent}impl ID<()> {{")?;
-            writeln!(w, "{indent}    #[allow(dead_code)]")?;
-            writeln!(
-                w,
-                "{indent}    pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {{"
-            )?;
-            writeln!(w, "{indent}        match self {{")?;
-            for val in args.iter().chain(flags.iter()) {
-                if let Some(enum_name) = val.enum_name.as_ref() {
-                    let ctx_display = CtxDisplay(level, "(h)");
-                    writeln!(
-                        w,
-                        "{indent}            ID::{enum_name}(..) => ID::{enum_name}({ctx_display}),"
-                    )?;
-                }
-            }
-            for cmd in sub_cmds.iter() {
-                if let Some(enum_name) = cmd.enum_name.as_ref() {
-                    writeln!(
-                        w,
-                        "{indent}            ID::{enum_name}(id) => ID::{enum_name}(id.with_ctx(h)),"
-                    )?;
-                }
-            }
-            writeln!(w, "{indent}        }}")?;
-            writeln!(w, "{indent}    }}")?;
+            writeln!(w, "{indent}impl<H> ID<H> {{")?;
+            let inner = format!("{indent}    ");
+            write_with_ctx(w, &inner, &sub_cmds, args.iter().chain(flags.iter()))?;
+            write_get_ctx(w, &inner, &sub_cmds, args.iter().chain(flags.iter()))?;
             writeln!(w, "{indent}}}")?;
         }
 
@@ -534,4 +508,61 @@ fn generate_recur(
         )?;
     }
     Ok(cmd_not_empty)
+}
+
+fn write_with_ctx<'a>(
+    w: &mut impl Write,
+    indent: &str,
+    sub_cmds: &[CmdUnit],
+    vals: impl Iterator<Item = &'a ValUnit>,
+) -> Result<(), std::io::Error> {
+    writeln!(w, "{indent}#[allow(dead_code)]")?;
+    writeln!(
+        w,
+        "{indent}pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {{"
+    )?;
+    writeln!(w, "{indent}    match self {{")?;
+    for val in vals {
+        if let Some(enum_name) = val.enum_name.as_ref() {
+            writeln!(
+                w,
+                "{indent}        ID::{enum_name}(..) => ID::{enum_name}(Ctx(h)),"
+            )?;
+        }
+    }
+    for cmd in sub_cmds.iter() {
+        if let Some(enum_name) = cmd.enum_name.as_ref() {
+            writeln!(
+                w,
+                "{indent}        ID::{enum_name}(_, id) => ID::{enum_name}(Ctx(h), id.with_ctx(h)),"
+            )?;
+        }
+    }
+    writeln!(w, "{indent}    }}")?;
+    writeln!(w, "{indent}}}")?;
+    Ok(())
+}
+
+fn write_get_ctx<'a>(
+    w: &mut impl Write,
+    indent: &str,
+    sub_cmds: &[CmdUnit],
+    vals: impl Iterator<Item = &'a ValUnit>,
+) -> Result<(), std::io::Error> {
+    writeln!(w, "{indent}#[allow(dead_code)]")?;
+    writeln!(w, "{indent}pub fn get_ctx(self) -> Ctx<H> {{")?;
+    writeln!(w, "{indent}    match self {{")?;
+    for val in vals {
+        if let Some(enum_name) = val.enum_name.as_ref() {
+            writeln!(w, "{indent}        ID::{enum_name}(c) => c,")?;
+        }
+    }
+    for cmd in sub_cmds.iter() {
+        if let Some(enum_name) = cmd.enum_name.as_ref() {
+            writeln!(w, "{indent}        ID::{enum_name}(c, _) => c,")?;
+        }
+    }
+    writeln!(w, "{indent}    }}")?;
+    writeln!(w, "{indent}}}")?;
+    Ok(())
 }

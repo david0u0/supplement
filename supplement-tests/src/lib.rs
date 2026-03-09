@@ -147,7 +147,7 @@ mod test {
         let (h, comps) = run_with_history("git --external e --git-dir=").unwrap();
         let (id, _) = map_unready(&comps);
         match id.with_ctx(&h) {
-            id!(def checkout files(root, _)) | id!(def git_dir(root)) => {
+            id!(def(root) checkout files) | id!(def(root) git_dir) => {
                 assert_eq!(root.val_git_dir(), None);
                 assert_eq!(root.val_external(), &["e"]);
             }
@@ -157,7 +157,7 @@ mod test {
         let (h, comps) = run_with_history("git --git-dir mydir checkout ww xx yy zz").unwrap();
         let (id, _) = map_unready(&comps);
         match id.with_ctx(&h) {
-            id!(def checkout files(root, chk)) => {
+            id!(def(root) checkout(chk) files) => {
                 assert_eq!(root.val_git_dir(), Some("mydir"));
                 assert_eq!(chk.val_file_or_commit(), Some("ww"));
                 assert_eq!(chk.val_files(), &["xx", "yy"]);
@@ -169,12 +169,18 @@ mod test {
         let (h, comps) = run_with_history("git --external e time for some ext").unwrap();
         let (id, _) = map_unready(&comps);
         match id.with_ctx(&h) {
-            id!(def @ext(root)) => {
+            id!(def(root) @ext) => {
                 assert_eq!(root.val_git_dir(), None);
                 assert_eq!(root.val_external(), &["e"]);
                 assert_eq!(root.external(), &["time", "for", "some"]);
             }
             _ => panic!("id is {id:?}"),
         }
+
+        // test for `get_ctx`
+        let root = id.with_ctx(&h).get_ctx();
+        assert_eq!(root.val_git_dir(), None);
+        assert_eq!(root.val_external(), &["e"]);
+        assert_eq!(root.external(), &["time", "for", "some"]);
     }
 }
