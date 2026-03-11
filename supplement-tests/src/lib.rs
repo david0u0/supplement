@@ -1,5 +1,6 @@
-use std::fmt::Debug;
 pub mod args;
+pub mod my_gen;
+use std::fmt::Debug;
 use supplement::{Completion, CompletionGroup};
 
 fn map_comps(comps: &[Completion]) -> Vec<&str> {
