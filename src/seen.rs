@@ -142,8 +142,7 @@ impl<ID: PartialEq + std::fmt::Debug> Seen<ID> {
             }
         }
 
-        self.0
-            .push(SeenUnit::No(SeenUnitNoVal { id, count: 1 }));
+        self.0.push(SeenUnit::No(SeenUnitNoVal { id, count: 1 }));
     }
     pub(crate) fn push_single_val(&mut self, id: id::SingleVal<ID>, value: String) {
         log::debug!("push single val {:?} {}", id, value);

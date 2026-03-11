@@ -12,7 +12,7 @@ use crate::arg_context::ArgsContext;
 use crate::completion::{CompletionGroup, Unready};
 use crate::error::Error;
 use crate::parsed_flag::ParsedFlag;
-use crate::{Completion, Seen, Result};
+use crate::{Completion, Result, Seen};
 use std::fmt::Debug;
 use std::iter::Peekable;
 

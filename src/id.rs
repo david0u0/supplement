@@ -1,18 +1,18 @@
 //! Module for IDs of CLI objects that can be used to lookup values in [`Seen`].
 //!
-//! There are two aspect for an ID: the amount of value it can take, and whether it is certain.
+//! There are two aspect for an ID: the amount of value it can take, and whether it is customizable.
 //! Each is represented by a different type or enum variant.
 //!
 //! - The amount of value affects the data type it gets from [`Seen::find`].
-//! - An ID is *certain* if and only if it never needs custom completion logic.
+//! - An ID is *customizable* if and only if it needs custom completion logic.
 //!   It will always return [`CompletionGroup::Ready`] during completion.
 //!
-//! |                  | no value  | single value             | multi value             |
-//! |------------------|-----------|--------------------------|-------------------------|
-//! | **Is certain**   | [`NoVal`] | [`SingleVal::Certain`]   | [`MultiVal::Certain`]   |
-//! | **Not certain**  | N/A       | [`SingleVal::Uncertain`] | [`MultiVal::Uncertain`] |
+//! |                  | no value  | single value          | multi value          |
+//! |------------------|-----------|-----------------------|----------------------|
+//! | **Customizable** | N/A       | [`SingleVal::Custom`] | [`MultiVal::Custom`] |
+//! | **Static**       | [`NoVal`] | [`SingleVal::Static`] | [`MultiVal::Static`] |
 //!
-//! An ID that takes no value never needs a completion logic, hence is always certain.
+//! An ID that takes no value never needs a completion logic, hence is always static.
 
 #[cfg(doc)]
 use crate::CompletionGroup;
@@ -42,8 +42,8 @@ pub struct NoVal(u32);
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SingleVal<ID> {
-    Uncertain(ID),
-    Certain(u32),
+    Custom(ID),
+    Static(u32),
 }
 
 /// Id for things that can have more than one value.
@@ -56,8 +56,8 @@ pub enum SingleVal<ID> {
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MultiVal<ID> {
-    Uncertain(ID),
-    Certain(u32),
+    Custom(ID),
+    Static(u32),
 }
 
 #[doc(hidden)]
@@ -71,16 +71,16 @@ impl NoVal {
     pub const fn new(id: u32) -> Self {
         NoVal(id)
     }
-    pub const fn new_certain(id: u32) -> Self {
+    pub const fn new_static(id: u32) -> Self {
         NoVal(id)
     }
 }
 impl<ID> SingleVal<ID> {
     pub const fn new(id: ID) -> Self {
-        SingleVal::Uncertain(id)
+        SingleVal::Custom(id)
     }
-    pub const fn new_certain(id: u32) -> Self {
-        SingleVal::Certain(id)
+    pub const fn new_static(id: u32) -> Self {
+        SingleVal::Static(id)
     }
     pub const fn into(self) -> Valued<ID> {
         Valued::Single(self)
@@ -88,10 +88,10 @@ impl<ID> SingleVal<ID> {
 }
 impl<ID> MultiVal<ID> {
     pub const fn new(id: ID) -> Self {
-        MultiVal::Uncertain(id)
+        MultiVal::Custom(id)
     }
-    pub const fn new_certain(id: u32) -> Self {
-        MultiVal::Certain(id)
+    pub const fn new_static(id: u32) -> Self {
+        MultiVal::Static(id)
     }
     pub const fn into(self) -> Valued<ID> {
         Valued::Multi(self)
@@ -101,8 +101,8 @@ impl<ID> MultiVal<ID> {
 impl<ID> Valued<ID> {
     pub fn id(self) -> Option<ID> {
         match self {
-            Valued::Single(SingleVal::Uncertain(id)) => Some(id),
-            Valued::Multi(MultiVal::Uncertain(id)) => Some(id),
+            Valued::Single(SingleVal::Custom(id)) => Some(id),
+            Valued::Multi(MultiVal::Custom(id)) => Some(id),
             _ => None,
         }
     }

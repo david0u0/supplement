@@ -9,8 +9,8 @@ pub fn my_gen<C: CommandFactory>(w: &mut impl Write) -> Result<(), GenerateError
         .ignore(&["log", "flag2"])
         .ignore(&["flag3"])
         .ignore(&["remote", "add", "git_dir"])
-        .make_uncertain(&["bisect2", "arg"])
-        .make_uncertain(&["bisect2", "pretty"]);
+        .make_custom(&["bisect2", "arg"])
+        .make_custom(&["bisect2", "pretty"]);
 
     generate(&mut C::command(), config, w)
 }

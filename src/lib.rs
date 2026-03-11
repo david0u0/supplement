@@ -1,8 +1,8 @@
 pub mod completion;
 pub mod error;
 pub mod gen_prelude;
-pub mod seen;
 pub mod id;
+pub mod seen;
 
 pub mod core;
 pub use completion::{Completion, CompletionGroup};

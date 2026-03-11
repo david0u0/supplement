@@ -2,7 +2,7 @@ use super::{PossibleValues, comp_with_possible, parse_flag};
 use crate::completion::{CompletionGroup, Unready};
 use crate::error::Error;
 use crate::parsed_flag::ParsedFlag;
-use crate::{Completion, Seen, Result, id};
+use crate::{Completion, Result, Seen, id};
 use std::fmt::Debug;
 use std::iter::Peekable;
 

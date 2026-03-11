@@ -65,7 +65,7 @@ mod def {
         possible_values: &[("p1", "")],
     };
 
-    pub const OPT_FLAG_ID: id::SingleVal<ID> = id::SingleVal::new_certain(line!());
+    pub const OPT_FLAG_ID: id::SingleVal<ID> = id::SingleVal::new_static(line!());
     pub const OPT_FLAG: Flag<ID> = Flag {
         ty: flag_type::Type::new_valued(
             OPT_FLAG_ID.into(),
@@ -376,7 +376,7 @@ fn test_optional_flag() {
 }
 
 #[test]
-fn test_uncertain_with_possible() {
+fn test_custom_with_possible() {
     let (h, r) = run("sub -", false);
     assert_eq!(h, vec![]);
     assert_eq!(map_comp_values(&r), vec!["--long-b", "--opt", "--opt="]);
