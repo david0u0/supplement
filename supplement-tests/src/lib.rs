@@ -35,15 +35,14 @@ mod test {
 
     use super::*;
     use def::ID;
-    use supplement::{Result, helper::id};
-    type History = supplement::History<ID>;
+    use supplement::{Result, helper::id, Seen};
 
-    fn run_with_history(cmd: &str) -> Result<(History, CompletionGroup<ID>)> {
+    fn run_with_seen(cmd: &str) -> Result<(Seen<ID>, CompletionGroup<ID>)> {
         let cmd = cmd.split(" ").map(|s| s.to_string());
         def::CMD.supplement(cmd)
     }
     fn run(cmd: &str) -> Result<CompletionGroup<ID>> {
-        let (_, c) = run_with_history(cmd)?;
+        let (_, c) = run_with_seen(cmd)?;
         Ok(c)
     }
 
@@ -145,9 +144,9 @@ mod test {
 
     #[test]
     fn test_ctx() {
-        let (h, comps) = run_with_history("git --external e --git-dir=").unwrap();
+        let (h, comps) = run_with_seen("git --external e --git-dir=").unwrap();
         let (id, _) = map_unready(&comps);
-        match id.with_ctx(&h) {
+        match id.with_seen(&h) {
             id!(def(root) checkout files) | id!(def(root) git_dir) => {
                 assert_eq!(root.val_git_dir(), None);
                 assert_eq!(root.val_external(), &["e"]);
@@ -155,9 +154,9 @@ mod test {
             _ => panic!("id is {id:?}"),
         }
 
-        let (h, comps) = run_with_history("git --git-dir mydir checkout ww xx yy zz").unwrap();
+        let (h, comps) = run_with_seen("git --git-dir mydir checkout ww xx yy zz").unwrap();
         let (id, _) = map_unready(&comps);
-        match id.with_ctx(&h) {
+        match id.with_seen(&h) {
             id!(def(root) checkout(chk) files) => {
                 assert_eq!(root.val_git_dir(), Some("mydir"));
                 assert_eq!(chk.val_file_or_commit(), Some("ww"));
@@ -167,9 +166,9 @@ mod test {
             _ => panic!("id is {id:?}"),
         }
 
-        let (h, comps) = run_with_history("git --external e time for some ext").unwrap();
+        let (h, comps) = run_with_seen("git --external e time for some ext").unwrap();
         let (id, _) = map_unready(&comps);
-        match id.with_ctx(&h) {
+        match id.with_seen(&h) {
             id!(def(root) @ext) => {
                 assert_eq!(root.val_git_dir(), None);
                 assert_eq!(root.val_external(), &["e"]);

@@ -6,7 +6,7 @@ use clap4 as clap;
 use clap::{CommandFactory, Parser};
 use std::io::stdout;
 use std::process::Command;
-use supplement::{Completion, CompletionGroup, History, Shell, generate};
+use supplement::{Completion, CompletionGroup, Seen, Shell, generate};
 use supplement_example::args::Git;
 
 mod def {
@@ -40,7 +40,7 @@ fn main() {
         Ok(shell) => {
             log::info!("Mode #1: completion");
             let args = args[2..].iter().map(String::from);
-            let (history, grp) = def::CMD.supplement(args).unwrap();
+            let (seen, grp) = def::CMD.supplement(args).unwrap();
             let ready = match grp {
                 CompletionGroup::Ready(r) => {
                     // The easy path. No custom logic needed.
@@ -49,7 +49,7 @@ fn main() {
                     r
                 }
                 CompletionGroup::Unready { unready, id, value } => {
-                    let comps = handle_comp(id, &history, &value);
+                    let comps = handle_comp(id, &seen, &value);
                     unready.to_ready(comps)
                 }
             };
@@ -72,8 +72,8 @@ macro_rules! id {
      }
  }
 
-fn handle_comp(id: ID, history: &History<ID>, _value: &str) -> Vec<Completion> {
-    let id: ID<&History<ID>> = id.with_ctx(history);
+fn handle_comp(id: ID, seen: &Seen<ID>, _value: &str) -> Vec<Completion> {
+    let id: ID<&Seen<ID>> = id.with_seen(seen);
     match id {
         id!(git_dir) => std::process::exit(1), // Exit to use default completion
         id!(checkout file_or_commit) => {

@@ -1,9 +1,9 @@
-//! Module for IDs of CLI objects that can be used to lookup history in [`History`].
+//! Module for IDs of CLI objects that can be used to lookup values in [`Seen`].
 //!
 //! There are two aspect for an ID: the amount of value it can take, and whether it is certain.
 //! Each is represented by a different type or enum variant.
 //!
-//! - The amount of value affects the data type it gets from [`History::find`].
+//! - The amount of value affects the data type it gets from [`Seen::find`].
 //! - An ID is *certain* if and only if it never needs custom completion logic.
 //!   It will always return [`CompletionGroup::Ready`] during completion.
 //!
@@ -17,28 +17,28 @@
 #[cfg(doc)]
 use crate::CompletionGroup;
 #[cfg(doc)]
-use crate::History;
+use crate::Seen;
 
 /// Id for things that cannot have value.
 ///
-/// When searching for it in [`History`], it will still have an integer value `count`,
+/// When searching for it in [`Seen`], it will still have an integer value `count`,
 /// which represents how many times it's seen in the CLI command
 /// ```no_run
-/// use supplement::{History, id};
-/// let history = History::<()>::new();
+/// use supplement::{Seen, id};
+/// let seen = Seen::<()>::new();
 /// let id = id::NoVal::new(0);
-/// let c: u32 = history.find(id).unwrap().count; // Represents how many times it's seen in the CLI command
+/// let c: u32 = seen.find(id).unwrap().count; // Represents how many times it's seen in the CLI command
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub struct NoVal(u32);
 
 /// Id for things that have at most one value.
-/// When searching for it in [`History`], it will have a single string `value`
+/// When searching for it in [`Seen`], it will have a single string `value`
 /// ```no_run
-/// use supplement::{History, id};
-/// let history = History::new();
+/// use supplement::{Seen, id};
+/// let seen = Seen::new();
 /// let id = id::SingleVal::new(());
-/// let v: &str = &history.find(id).unwrap().value;
+/// let v: &str = &seen.find(id).unwrap().value;
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum SingleVal<ID> {
@@ -47,12 +47,12 @@ pub enum SingleVal<ID> {
 }
 
 /// Id for things that can have more than one value.
-/// When searching for it in [`History`], it will have a vector of string `values`
+/// When searching for it in [`Seen`], it will have a vector of string `values`
 /// ```no_run
-/// use supplement::{History, id};
-/// let history = History::new();
+/// use supplement::{Seen, id};
+/// let seen = Seen::new();
 /// let id = id::MultiVal::new(());
-/// let v: &[String] = &history.find(id).unwrap().values;
+/// let v: &[String] = &seen.find(id).unwrap().values;
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum MultiVal<ID> {

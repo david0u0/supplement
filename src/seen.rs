@@ -1,59 +1,59 @@
-//! The module for CLI history.
+//! The module for values seen in the CLI.
 //!
-//! Define a collection of history [`History`], and the simplest unit of hisoty [`HistoryUnit`].
+//! Define a collection of seen values [`Seen`], and the simplest unit [`SeenUnit`].
 
 use crate::id;
 
 #[derive(Debug, Eq, PartialEq)]
-pub struct HistoryUnitNoVal {
+pub struct SeenUnitNoVal {
     pub id: id::NoVal,
     pub count: u32,
 }
 #[derive(Debug, Eq, PartialEq)]
-pub struct HistoryUnitSingleVal<ID> {
+pub struct SeenUnitSingleVal<ID> {
     pub id: id::SingleVal<ID>,
     pub value: String,
 }
 #[derive(Debug, Eq, PartialEq)]
-pub struct HistoryUnitMultiVal<ID> {
+pub struct SeenUnitMultiVal<ID> {
     pub id: id::MultiVal<ID>,
     pub values: Vec<String>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum HistoryUnit<ID> {
-    No(HistoryUnitNoVal),
-    Single(HistoryUnitSingleVal<ID>),
-    Multi(HistoryUnitMultiVal<ID>),
+pub enum SeenUnit<ID> {
+    No(SeenUnitNoVal),
+    Single(SeenUnitSingleVal<ID>),
+    Multi(SeenUnitMultiVal<ID>),
 }
 
 pub trait Getter<ID> {
     type Ret;
-    fn match_and_cast<'a>(&self, h: &'a HistoryUnit<ID>) -> Option<&'a Self::Ret>;
+    fn match_and_cast<'a>(&self, h: &'a SeenUnit<ID>) -> Option<&'a Self::Ret>;
 }
 impl<ID> Getter<ID> for id::NoVal {
-    type Ret = HistoryUnitNoVal;
-    fn match_and_cast<'a>(&self, h: &'a HistoryUnit<ID>) -> Option<&'a Self::Ret> {
+    type Ret = SeenUnitNoVal;
+    fn match_and_cast<'a>(&self, h: &'a SeenUnit<ID>) -> Option<&'a Self::Ret> {
         match h {
-            HistoryUnit::No(h) if &h.id == self => Some(h),
+            SeenUnit::No(h) if &h.id == self => Some(h),
             _ => None,
         }
     }
 }
 impl<ID: PartialEq> Getter<ID> for id::SingleVal<ID> {
-    type Ret = HistoryUnitSingleVal<ID>;
-    fn match_and_cast<'a>(&self, h: &'a HistoryUnit<ID>) -> Option<&'a Self::Ret> {
+    type Ret = SeenUnitSingleVal<ID>;
+    fn match_and_cast<'a>(&self, h: &'a SeenUnit<ID>) -> Option<&'a Self::Ret> {
         match h {
-            HistoryUnit::Single(h) if &h.id == self => Some(h),
+            SeenUnit::Single(h) if &h.id == self => Some(h),
             _ => None,
         }
     }
 }
 impl<ID: PartialEq> Getter<ID> for id::MultiVal<ID> {
-    type Ret = HistoryUnitMultiVal<ID>;
-    fn match_and_cast<'a>(&self, h: &'a HistoryUnit<ID>) -> Option<&'a Self::Ret> {
+    type Ret = SeenUnitMultiVal<ID>;
+    fn match_and_cast<'a>(&self, h: &'a SeenUnit<ID>) -> Option<&'a Self::Ret> {
         match h {
-            HistoryUnit::Multi(h) if &h.id == self => Some(h),
+            SeenUnit::Multi(h) if &h.id == self => Some(h),
             _ => None,
         }
     }
@@ -61,7 +61,7 @@ impl<ID: PartialEq> Getter<ID> for id::MultiVal<ID> {
 
 /// A structure that records all seen CLI objects, along with their value if they have some.
 ///
-/// In the code-gen workflow, you can call function `ID::with_ctx` to get a strongly typed context,
+/// In the code-gen workflow, you can call function `ID::with_seen` to get a strongly typed context,
 /// which encodes the command structure with its enum structure.
 ///
 /// ```no_run
@@ -71,7 +71,7 @@ impl<ID: PartialEq> Getter<ID> for id::MultiVal<ID> {
 /// #         CMDCheckout(T, checkout::ID<T>)
 /// #     }
 /// #     impl <T> ID<T> {
-/// #         pub fn with_ctx<U>(self, u: U) -> ID<U> {
+/// #         pub fn with_seen<U>(self, u: U) -> ID<U> {
 /// #             unimplemented!()
 /// #         }
 /// #         pub fn val_git_dir(&self) -> Option<&str> {
@@ -94,11 +94,11 @@ impl<ID: PartialEq> Getter<ID> for id::MultiVal<ID> {
 /// #     }
 /// # }
 /// # use def::ID;
-/// use supplement::History;
+/// use supplement::Seen;
 /// use supplement::helper::id;
 ///
-/// fn handle_comp(id: ID, history: History<ID>) {
-///     let id_with_ctx: ID<&History<ID>> = id.with_ctx(&history);
+/// fn handle_comp(id: ID, seen: Seen<ID>) {
+///     let id_with_ctx: ID<&Seen<ID>> = id.with_seen(&seen);
 ///     match id_with_ctx {
 ///         id!(def(root_id) checkout(chk_id) files) => {
 ///             // use `root_id` to get the root args/flags
@@ -115,17 +115,17 @@ impl<ID: PartialEq> Getter<ID> for id::MultiVal<ID> {
 /// ```
 ///
 ///
-/// Alternatively, you can search in the history by IDs using [`History::find`].
+/// Alternatively, you can search in the seen arguments by IDs using [`Seen::find`].
 #[derive(Debug, Eq, PartialEq)]
-pub struct History<ID>(Vec<HistoryUnit<ID>>);
+pub struct Seen<ID>(Vec<SeenUnit<ID>>);
 
-impl<ID> Default for History<ID> {
+impl<ID> Default for Seen<ID> {
     fn default() -> Self {
-        History(vec![])
+        Seen(vec![])
     }
 }
 
-impl<ID: PartialEq + std::fmt::Debug> History<ID> {
+impl<ID: PartialEq + std::fmt::Debug> Seen<ID> {
     pub fn new() -> Self {
         Default::default()
     }
@@ -134,7 +134,7 @@ impl<ID: PartialEq + std::fmt::Debug> History<ID> {
         log::debug!("push no value {:?}", id);
         for h in self.0.iter_mut() {
             match h {
-                HistoryUnit::No(h) if h.id == id => {
+                SeenUnit::No(h) if h.id == id => {
                     h.count += 1;
                     return;
                 }
@@ -143,13 +143,13 @@ impl<ID: PartialEq + std::fmt::Debug> History<ID> {
         }
 
         self.0
-            .push(HistoryUnit::No(HistoryUnitNoVal { id, count: 1 }));
+            .push(SeenUnit::No(SeenUnitNoVal { id, count: 1 }));
     }
     pub(crate) fn push_single_val(&mut self, id: id::SingleVal<ID>, value: String) {
         log::debug!("push single val {:?} {}", id, value);
         for h in self.0.iter_mut() {
             match h {
-                HistoryUnit::Single(h) if h.id == id => {
+                SeenUnit::Single(h) if h.id == id => {
                     log::info!(
                         "push single val {:?}: {} where old value exists: {}",
                         id,
@@ -164,13 +164,13 @@ impl<ID: PartialEq + std::fmt::Debug> History<ID> {
         }
 
         self.0
-            .push(HistoryUnit::Single(HistoryUnitSingleVal { id, value }));
+            .push(SeenUnit::Single(SeenUnitSingleVal { id, value }));
     }
     pub(crate) fn push_multi_val(&mut self, id: id::MultiVal<ID>, value: String) {
         log::debug!("push multi val {:?} {}", id, value);
         for h in self.0.iter_mut() {
             match h {
-                HistoryUnit::Multi(h) if h.id == id => {
+                SeenUnit::Multi(h) if h.id == id => {
                     h.values.push(value);
                     return;
                 }
@@ -180,7 +180,7 @@ impl<ID: PartialEq + std::fmt::Debug> History<ID> {
 
         let values = vec![value];
         self.0
-            .push(HistoryUnit::Multi(HistoryUnitMultiVal { id, values }));
+            .push(SeenUnit::Multi(SeenUnitMultiVal { id, values }));
     }
 
     pub(crate) fn push_valued(&mut self, id: id::Valued<ID>, value: String) {
@@ -190,31 +190,31 @@ impl<ID: PartialEq + std::fmt::Debug> History<ID> {
         }
     }
 
-    /// Find the history of flags/args by their ID.
+    /// Find the seen values by their ID.
     ///
     /// In the code-gen workflow, you probably don't want to call this function directly,
-    /// but instead would prefer the generated `ID::with_ctx` function.
-    /// (Refer to [`History`] for more information)
+    /// but instead would prefer the generated `ID::with_seen` function.
+    /// (Refer to [`Seen`] for more information)
     ///
     /// ----
     ///
-    /// Based on the type of ID, the returned `HistoryUnit` will contain different types of value.
+    /// Based on the type of ID, the returned `SeenUnit` will contain different types of value.
     /// - [`id::NoVal`]: An integer that represents how many times it's seen in the CLI command
     /// - [`id::SingleVal`]: A single string
     /// - [`id::MultiVal`]: A vector of string
     ///
     /// ```no_run
-    /// use supplement::{History, id};
-    /// let history = History::<()>::new();
+    /// use supplement::{Seen, id};
+    /// let seen = Seen::<()>::new();
     ///
     /// let id = id::NoVal::new(0);
-    /// let c: u32 = history.find(id).unwrap().count;
+    /// let c: u32 = seen.find(id).unwrap().count;
     ///
     /// let id = id::SingleVal::new(());
-    /// let v: &String = &history.find(id).unwrap().value;
+    /// let v: &String = &seen.find(id).unwrap().value;
     ///
     /// let id = id::MultiVal::new(());
-    /// let v: &[String] = &history.find(id).unwrap().values;
+    /// let v: &[String] = &seen.find(id).unwrap().values;
     /// ```
     pub fn find<I: Getter<ID>>(&self, id: I) -> Option<&I::Ret> {
         for h in self.0.iter() {
@@ -227,11 +227,7 @@ impl<ID: PartialEq + std::fmt::Debug> History<ID> {
     }
 
     #[doc(hidden)]
-    pub fn from_vec(value: Vec<HistoryUnit<ID>>) -> Self {
-        History(value)
-    }
-    #[doc(hidden)]
-    pub fn into_inner(self) -> Vec<HistoryUnit<ID>> {
+    pub fn into_inner(self) -> Vec<SeenUnit<ID>> {
         self.0
     }
 }

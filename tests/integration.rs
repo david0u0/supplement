@@ -1,5 +1,5 @@
 use error::Error;
-use history::*;
+use seen::*;
 use supplement::completion::CompletionGroup;
 use supplement::*;
 
@@ -93,7 +93,7 @@ mod def {
 }
 use def::ID;
 
-fn try_run(args: &str, last_is_empty: bool) -> (Vec<HistoryUnit<ID>>, Result<CompletionGroup<ID>>) {
+fn try_run(args: &str, last_is_empty: bool) -> (Vec<SeenUnit<ID>>, Result<CompletionGroup<ID>>) {
     let _ = env_logger::try_init();
 
     let args = args.split(' ').map(|s| s.to_owned());
@@ -104,11 +104,11 @@ fn try_run(args: &str, last_is_empty: bool) -> (Vec<HistoryUnit<ID>>, Result<Com
         None
     };
     let args = args.chain(last);
-    let mut history = History::new();
-    let res = def::ROOT.supplement_with_history(&mut history, args);
-    (history.into_inner(), res)
+    let mut seen = Seen::new();
+    let res = def::ROOT.supplement_with_seen(&mut seen, args);
+    (seen.into_inner(), res)
 }
-fn run(args: &str, last_is_empty: bool) -> (Vec<HistoryUnit<ID>>, CompletionGroup<ID>) {
+fn run(args: &str, last_is_empty: bool) -> (Vec<SeenUnit<ID>>, CompletionGroup<ID>) {
     let (h, r) = try_run(args, last_is_empty);
     (h, r.unwrap())
 }
@@ -139,7 +139,7 @@ fn map_comp_values(grp: &CompletionGroup<ID>) -> Vec<&str> {
 
 macro_rules! no {
     ($id:ident) => {
-        HistoryUnit::No(HistoryUnitNoVal {
+        SeenUnit::No(SeenUnitNoVal {
             id: def::$id,
             count: 1,
         })
@@ -147,7 +147,7 @@ macro_rules! no {
 }
 macro_rules! single {
     ($id:ident, $value:expr) => {
-        HistoryUnit::Single(HistoryUnitSingleVal {
+        SeenUnit::Single(SeenUnitSingleVal {
             id: def::$id,
             value: $value.to_owned(),
         })
@@ -155,7 +155,7 @@ macro_rules! single {
 }
 macro_rules! multi {
     ($id:ident, $value:expr) => {
-        HistoryUnit::Multi(HistoryUnitMultiVal {
+        SeenUnit::Multi(SeenUnitMultiVal {
             id: def::$id,
             values: $value.iter().map(|s| s.to_string()).collect(),
         })

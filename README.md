@@ -116,7 +116,7 @@ fn main() {
     // `args` looks like ["the-binary-name", "git", "log", "--graph"]
     // so we should skip the first arg
     let args = std::env::args().skip(1);
-    let (history, grp) = def::CMD.supplement(args).unwrap();
+    let (seen, grp) = def::CMD.supplement(args).unwrap();
     let ready = match grp {
         CompletionGroup::Ready(ready) => {
             // The easy path. No custom logic needed.
@@ -128,7 +128,7 @@ fn main() {
             // The hard path. You should write completion logic for each possible variant.
             match id {
                 id!(def git_dir) => {
-                    let comps: Vec<Completion> = complete_git_dir(history, value);
+                    let comps: Vec<Completion> = complete_git_dir(seen, value);
                     unready.to_ready(comps)
                 }
                 id!(def log commit) => {

@@ -222,7 +222,7 @@ impl Unready {
 /// #     unimplemented!()
 /// # }
 /// let cmd: Command<ID> = create_cmd();
-/// let (_history, grp) = cmd
+/// let (_seen, grp) = cmd
 ///     .supplement(["git".to_owned(), "log".to_owned()].into_iter())
 ///     .unwrap();
 /// let ready = match grp {

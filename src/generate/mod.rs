@@ -463,7 +463,7 @@ fn generate_recur(
             writeln!(w, "{indent}}}")?;
 
             writeln!(w, "{indent}#[allow(dead_code)]")?;
-            writeln!(w, "{indent}impl<'a> ID<&'a History<GlobalID>> {{")?;
+            writeln!(w, "{indent}impl<'a> ID<&'a Seen<GlobalID>> {{")?;
             for val in args.iter().chain(flags.iter()) {
                 if let Some(ty) = val.ctx_ty.as_ref() {
                     let ctx_func = ctx_func(&val.rust_name, *ty);
@@ -517,7 +517,7 @@ fn write_with_ctx<'a>(
 ) -> Result<(), std::io::Error> {
     writeln!(
         w,
-        "{indent}pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {{"
+        "{indent}pub fn with_seen(self, h: &Seen<GlobalID>) -> ID<&Seen<GlobalID>> {{"
     )?;
     writeln!(w, "{indent}    match self {{")?;
     for val in vals {
@@ -532,7 +532,7 @@ fn write_with_ctx<'a>(
         if let Some(enum_name) = cmd.enum_name.as_ref() {
             writeln!(
                 w,
-                "{indent}        ID::{enum_name}(_, id) => ID::{enum_name}(h, id.with_ctx(h)),"
+                "{indent}        ID::{enum_name}(_, id) => ID::{enum_name}(h, id.with_seen(h)),"
             )?;
         }
     }
