@@ -71,6 +71,12 @@ pub mod flag_type {
 
 use flag_type::*;
 
+/// The object to represent a CLI flag.
+///
+/// NOTE: this includes boolean flags (e.g. ls -l) **AND** valued flags (e.g. ls --color).
+/// The later is often called "option", but that creates confusion with Rust's `Option` type.
+///
+/// For the difference between boolean and valued flags, check the field [`Flag::ty`].
 pub struct Flag<ID> {
     pub ty: Type<ID>,
     pub short: &'static [char],
