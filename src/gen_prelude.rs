@@ -1,2 +1,2 @@
 pub use crate::core::*;
-pub use crate::history::History;
+pub use crate::seen::Seen;

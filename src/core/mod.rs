@@ -12,7 +12,7 @@ use crate::arg_context::ArgsContext;
 use crate::completion::{CompletionGroup, Unready};
 use crate::error::Error;
 use crate::parsed_flag::ParsedFlag;
-use crate::{Completion, History, Result};
+use crate::{Completion, Result, Seen};
 use std::fmt::Debug;
 use std::iter::Peekable;
 
@@ -49,14 +49,14 @@ pub struct Command<ID: 'static> {
 }
 
 fn supplement_arg<ID: PartialEq + Copy + Debug>(
-    history: &mut History<ID>,
+    seen: &mut Seen<ID>,
     ctx: &mut ArgsContext<ID>,
     arg: String,
 ) -> Result {
     let Some(arg_obj) = ctx.next_arg() else {
         return Err(Error::UnexpectedArg(arg));
     };
-    history.push_valued(arg_obj.id, arg);
+    seen.push_valued(arg_obj.id, arg);
     Ok(())
 }
 fn parse_flag(s: &str, disable_flag: bool) -> ParsedFlag<'_> {
@@ -98,7 +98,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     /// let root = create_cmd("qit", &[CHECKOUT, LOG]);
     ///
     /// let args = ["qit", ""].iter().map(|s| s.to_string());
-    /// let (_history, grp) = root.supplement(args).unwrap();
+    /// let (_seen, grp) = root.supplement(args).unwrap();
     /// let ready = match grp {
     ///     CompletionGroup::Ready(ready) => ready,
     ///     CompletionGroup::Unready{ .. } => unreachable!(),
@@ -111,15 +111,15 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     pub fn supplement(
         &self,
         args: impl Iterator<Item = String>,
-    ) -> Result<(History<ID>, CompletionGroup<ID>)> {
-        let mut history = History::<ID>::new();
-        let grp = self.supplement_with_history(&mut history, args)?;
-        Ok((history, grp))
+    ) -> Result<(Seen<ID>, CompletionGroup<ID>)> {
+        let mut seen = Seen::<ID>::new();
+        let grp = self.supplement_with_seen(&mut seen, args)?;
+        Ok((seen, grp))
     }
 
-    pub fn supplement_with_history(
+    pub fn supplement_with_seen(
         &self,
-        history: &mut History<ID>,
+        seen: &mut Seen<ID>,
         mut args: impl Iterator<Item = String>,
     ) -> Result<CompletionGroup<ID>> {
         args.next(); // ignore the first arg which is the program's name
@@ -129,19 +129,19 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
             return Err(Error::ArgsTooShort);
         }
 
-        self.supplement_recur(&mut None, history, &mut args)
+        self.supplement_recur(&mut None, seen, &mut args)
     }
 
     fn doing_external(&self, ctx: &ArgsContext<'_, ID>) -> bool {
         let has_subcmd = !self.commands.is_empty();
         has_subcmd && ctx.has_seen_arg()
     }
-    fn flags(&self, history: &History<ID>) -> impl Iterator<Item = &Flag<ID>> {
+    fn flags(&self, seen: &Seen<ID>) -> impl Iterator<Item = &Flag<ID>> {
         self.all_flags.iter().filter(|f| {
             if !f.once {
                 true
             } else {
-                let exists = f.exists_in_history(history);
+                let exists = f.exists_in_seen(seen);
                 if exists {
                     log::debug!("flag {:?} already exists", f.name());
                 }
@@ -153,26 +153,26 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     fn find_flag<F: FnMut(&Flag<ID>) -> bool>(
         &self,
         arg: &str,
-        history: &History<ID>,
+        seen: &Seen<ID>,
         mut filter: F,
     ) -> Result<&Flag<ID>> {
-        match self.flags(history).find(|f| filter(f)) {
+        match self.flags(seen).find(|f| filter(f)) {
             Some(flag) => Ok(flag),
             None => Err(Error::FlagNotFound(arg.to_owned())),
         }
     }
 
-    fn find_long_flag(&self, flag: &str, history: &History<ID>) -> Result<&Flag<ID>> {
-        self.find_flag(flag, history, |f| f.long.contains(&flag))
+    fn find_long_flag(&self, flag: &str, seen: &Seen<ID>) -> Result<&Flag<ID>> {
+        self.find_flag(flag, seen, |f| f.long.contains(&flag))
     }
-    fn find_short_flag(&self, flag: char, history: &History<ID>) -> Result<&Flag<ID>> {
-        self.find_flag(&flag.to_string(), history, |f| f.short.contains(&flag))
+    fn find_short_flag(&self, flag: char, seen: &Seen<ID>) -> Result<&Flag<ID>> {
+        self.find_flag(&flag.to_string(), seen, |f| f.short.contains(&flag))
     }
 
     fn supplement_recur(
         &self,
         args_ctx_opt: &mut Option<ArgsContext<'_, ID>>,
-        history: &mut History<ID>,
+        seen: &mut Seen<ID>,
         args: &mut Peekable<impl Iterator<Item = String>>,
     ) -> Result<CompletionGroup<ID>> {
         let arg = args.next().unwrap();
@@ -185,18 +185,18 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
         };
 
         if args.peek().is_none() {
-            return self.supplement_last(args_ctx, history, arg);
+            return self.supplement_last(args_ctx, seen, arg);
         }
 
         macro_rules! handle_flag {
-            ($flag:expr, $equal:expr, $history:expr) => {
+            ($flag:expr, $equal:expr, $seen:expr) => {
                 if let Some(equal) = $equal {
                     match $flag.ty {
-                        flag_type::Type::Valued(flag) => flag.push($history, equal.to_string()),
+                        flag_type::Type::Valued(flag) => flag.push($seen, equal.to_string()),
                         _ => return Err(Error::BoolFlagEqualsValue(arg)),
                     }
                 } else {
-                    let res = $flag.supplement($history, args)?;
+                    let res = $flag.supplement($seen, args)?;
                     if let Some(res) = res {
                         return Ok(res);
                     }
@@ -206,7 +206,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
 
         match parse_flag(&arg, self.doing_external(args_ctx)) {
             ParsedFlag::SingleDash | ParsedFlag::DoubleDash | ParsedFlag::Empty => {
-                supplement_arg(history, args_ctx, arg)?;
+                supplement_arg(seen, args_ctx, arg)?;
             }
             ParsedFlag::NotFlag => {
                 let command = if args_ctx.has_seen_arg() {
@@ -216,31 +216,31 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                 };
                 match command {
                     Some(command) => {
-                        return command.supplement_recur(&mut None, history, args);
+                        return command.supplement_recur(&mut None, seen, args);
                     }
                     None => {
                         log::info!("No subcommand. Try fallback args.");
-                        supplement_arg(history, args_ctx, arg)?;
+                        supplement_arg(seen, args_ctx, arg)?;
                     }
                 }
             }
             ParsedFlag::Long { body, equal } => {
-                let flag = self.find_long_flag(body, history)?;
-                handle_flag!(flag, equal, history);
+                let flag = self.find_long_flag(body, seen)?;
+                handle_flag!(flag, equal, seen);
             }
             ParsedFlag::Shorts => {
-                let resolved = self.resolve_shorts(history, &arg)?;
-                handle_flag!(resolved.last_flag, resolved.value, history);
+                let resolved = self.resolve_shorts(seen, &arg)?;
+                handle_flag!(resolved.last_flag, resolved.value, seen);
             }
         }
 
-        self.supplement_recur(args_ctx_opt, history, args)
+        self.supplement_recur(args_ctx_opt, seen, args)
     }
 
     fn supplement_last(
         &self,
         args_ctx: &mut ArgsContext<'_, ID>,
-        history: &mut History<ID>,
+        seen: &mut Seen<ID>,
         arg: String,
     ) -> Result<CompletionGroup<ID>> {
         let ret: CompletionGroup<ID> = match parse_flag(&arg, self.doing_external(args_ctx)) {
@@ -269,13 +269,13 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
             }
             ParsedFlag::DoubleDash | ParsedFlag::Long { equal: None, .. } => check_no_flag(
                 arg,
-                self.flags(history)
+                self.flags(seen)
                     .flat_map(|f| f.gen_completion(Some(true)))
                     .collect(),
             )?,
             ParsedFlag::SingleDash => check_no_flag(
                 arg,
-                self.flags(history)
+                self.flags(seen)
                     .flat_map(|f| f.gen_completion(None))
                     .collect(),
             )?,
@@ -283,7 +283,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                 equal: Some(value),
                 body,
             } => {
-                let flag = self.find_long_flag(body, history)?;
+                let flag = self.find_long_flag(body, seen)?;
                 let valued = match flag.ty {
                     flag_type::Type::Valued(valued) => valued,
                     _ => return Err(Error::BoolFlagEqualsValue(arg)),
@@ -293,14 +293,14 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                 let unready = Unready::new(prefix, arg);
                 comp_with_possible(unready, valued.possible_values, value, valued.id)
             }
-            ParsedFlag::Shorts => self.supplement_last_short_flags(history, arg)?,
+            ParsedFlag::Shorts => self.supplement_last_short_flags(seen, arg)?,
         };
         Ok(ret)
     }
 
     fn resolve_shorts<'a, 'b>(
         &'b self,
-        history: &mut History<ID>,
+        seen: &mut Seen<ID>,
         shorts: &'a str,
     ) -> Result<ResolvedMultiShort<'a, 'b, ID>> {
         let mut chars = shorts.chars().peekable();
@@ -309,7 +309,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
         loop {
             len += 1;
             let ch = chars.next().unwrap();
-            let flag = self.find_short_flag(ch, history)?;
+            let flag = self.find_short_flag(ch, seen)?;
             match chars.peek() {
                 None => {
                     return Ok(ResolvedMultiShort {
@@ -332,7 +332,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                 _ => {
                     let valued = match flag.ty {
                         flag_type::Type::Bool(inner) => {
-                            inner.push(history);
+                            inner.push(seen);
                             continue;
                         }
                         flag_type::Type::Valued(valued) => valued,
@@ -345,10 +345,10 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                         CompleteWithEqual::Optional => {
                             // TODO: Maybe one day clap will tell us.
                             log::info!(
-                                "Optional flag {} doesn't have value. Push an empty string to history because we don't know its default value (clap wouldn't tell us).",
+                                "Optional flag {} doesn't have value. Push an empty string to seen because we don't know its default value (clap wouldn't tell us).",
                                 flag.name(),
                             );
-                            valued.push(history, String::new());
+                            valued.push(seen, String::new());
                         }
                         CompleteWithEqual::NoNeed => {
                             return Ok(ResolvedMultiShort {
@@ -365,10 +365,10 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
 
     fn supplement_last_short_flags(
         &self,
-        history: &mut History<ID>,
+        seen: &mut Seen<ID>,
         arg: String,
     ) -> Result<CompletionGroup<ID>> {
-        let resolved = self.resolve_shorts(history, &arg)?;
+        let resolved = self.resolve_shorts(seen, &arg)?;
         let flag = resolved.last_flag;
         let ret = match flag.ty {
             flag_type::Type::Valued(valued) => {
@@ -391,10 +391,10 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                 comp_with_possible(unready, valued.possible_values, value, valued.id)
             }
             flag_type::Type::Bool(inner) => {
-                log::debug!("list short flags with history {:?}", history);
-                inner.push(history);
+                log::debug!("list short flags with seen {:?}", seen);
+                inner.push(seen);
                 let comps = self
-                    .flags(history)
+                    .flags(seen)
                     .flat_map(|f| f.gen_completion(Some(false)))
                     .map(|c| {
                         c.value(|v| {

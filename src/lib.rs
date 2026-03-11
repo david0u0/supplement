@@ -1,12 +1,12 @@
 pub mod completion;
 pub mod error;
 pub mod gen_prelude;
-pub mod history;
 pub mod id;
+pub mod seen;
 
 pub mod core;
 pub use completion::{Completion, CompletionGroup};
-pub use history::History;
+pub use seen::Seen;
 
 pub(crate) mod arg_context;
 pub(crate) mod parsed_flag;

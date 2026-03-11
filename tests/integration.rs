@@ -1,5 +1,5 @@
 use error::Error;
-use history::*;
+use seen::*;
 use supplement::completion::CompletionGroup;
 use supplement::*;
 
@@ -65,7 +65,7 @@ mod def {
         possible_values: &[("p1", "")],
     };
 
-    pub const OPT_FLAG_ID: id::SingleVal<ID> = id::SingleVal::new_certain(line!());
+    pub const OPT_FLAG_ID: id::SingleVal<ID> = id::SingleVal::new_static(line!());
     pub const OPT_FLAG: Flag<ID> = Flag {
         ty: flag_type::Type::new_valued(
             OPT_FLAG_ID.into(),
@@ -93,7 +93,7 @@ mod def {
 }
 use def::ID;
 
-fn try_run(args: &str, last_is_empty: bool) -> (Vec<HistoryUnit<ID>>, Result<CompletionGroup<ID>>) {
+fn try_run(args: &str, last_is_empty: bool) -> (Vec<SeenUnit<ID>>, Result<CompletionGroup<ID>>) {
     let _ = env_logger::try_init();
 
     let args = args.split(' ').map(|s| s.to_owned());
@@ -104,11 +104,11 @@ fn try_run(args: &str, last_is_empty: bool) -> (Vec<HistoryUnit<ID>>, Result<Com
         None
     };
     let args = args.chain(last);
-    let mut history = History::new();
-    let res = def::ROOT.supplement_with_history(&mut history, args);
-    (history.into_inner(), res)
+    let mut seen = Seen::new();
+    let res = def::ROOT.supplement_with_seen(&mut seen, args);
+    (seen.into_inner(), res)
 }
-fn run(args: &str, last_is_empty: bool) -> (Vec<HistoryUnit<ID>>, CompletionGroup<ID>) {
+fn run(args: &str, last_is_empty: bool) -> (Vec<SeenUnit<ID>>, CompletionGroup<ID>) {
     let (h, r) = try_run(args, last_is_empty);
     (h, r.unwrap())
 }
@@ -139,7 +139,7 @@ fn map_comp_values(grp: &CompletionGroup<ID>) -> Vec<&str> {
 
 macro_rules! no {
     ($id:ident) => {
-        HistoryUnit::No(HistoryUnitNoVal {
+        SeenUnit::No(SeenUnitNoVal {
             id: def::$id,
             count: 1,
         })
@@ -147,7 +147,7 @@ macro_rules! no {
 }
 macro_rules! single {
     ($id:ident, $value:expr) => {
-        HistoryUnit::Single(HistoryUnitSingleVal {
+        SeenUnit::Single(SeenUnitSingleVal {
             id: def::$id,
             value: $value.to_owned(),
         })
@@ -155,7 +155,7 @@ macro_rules! single {
 }
 macro_rules! multi {
     ($id:ident, $value:expr) => {
-        HistoryUnit::Multi(HistoryUnitMultiVal {
+        SeenUnit::Multi(SeenUnitMultiVal {
             id: def::$id,
             values: $value.iter().map(|s| s.to_string()).collect(),
         })
@@ -376,7 +376,7 @@ fn test_optional_flag() {
 }
 
 #[test]
-fn test_uncertain_with_possible() {
+fn test_custom_with_possible() {
     let (h, r) = run("sub -", false);
     assert_eq!(h, vec![]);
     assert_eq!(map_comp_values(&r), vec!["--long-b", "--opt", "--opt="]);

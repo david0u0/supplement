@@ -35,15 +35,14 @@ mod test {
 
     use super::*;
     use def::ID;
-    use supplement::{Result, helper::id};
-    type History = supplement::History<ID>;
+    use supplement::{Result, Seen, helper::id};
 
-    fn run_with_history(cmd: &str) -> Result<(History, CompletionGroup<ID>)> {
+    fn run_with_seen(cmd: &str) -> Result<(Seen<ID>, CompletionGroup<ID>)> {
         let cmd = cmd.split(" ").map(|s| s.to_string());
         def::CMD.supplement(cmd)
     }
     fn run(cmd: &str) -> Result<CompletionGroup<ID>> {
-        let (_, c) = run_with_history(cmd)?;
+        let (_, c) = run_with_seen(cmd)?;
         Ok(c)
     }
 
@@ -68,21 +67,21 @@ mod test {
         do_assrt(err);
     }
     #[test]
-    fn test_gen_uncertain() {
+    fn test_gen_custom() {
         use crate::args::Arg;
         use clap::CommandFactory;
         use supplement::error::GenerateError;
         use supplement::{Config, generate};
 
         let mut s: Vec<u8> = vec![];
-        let cfg = Config::new().make_uncertain(&["log", "commit"]);
+        let cfg = Config::new().make_custom(&["log", "commit"]);
         let err = generate(&mut Arg::command(), cfg.clone(), &mut s).unwrap_err();
-        let is_match = matches!(err, GenerateError::AlreadyUncertain(s) if s == "commit");
+        let is_match = matches!(err, GenerateError::AlreadyCustom(s) if s == "commit");
         assert!(is_match);
 
-        let cfg = Config::new().make_uncertain(&["log", "graph"]);
+        let cfg = Config::new().make_custom(&["log", "graph"]);
         let err = generate(&mut Arg::command(), cfg.clone(), &mut s).unwrap_err();
-        let is_match = matches!(err, GenerateError::UncertainWithoutValue(s) if s == "graph");
+        let is_match = matches!(err, GenerateError::CustomWithoutValue(s) if s == "graph");
         assert!(is_match);
     }
 
@@ -131,7 +130,7 @@ mod test {
     }
 
     #[test]
-    fn test_made_uncertain() {
+    fn test_made_custom() {
         let comps = run("git bisect2 x").unwrap();
         let (id, comps) = map_unready(&comps);
         assert!(matches!(id, id!(def bisect2 arg)));
@@ -145,9 +144,9 @@ mod test {
 
     #[test]
     fn test_ctx() {
-        let (h, comps) = run_with_history("git --external e --git-dir=").unwrap();
+        let (h, comps) = run_with_seen("git --external e --git-dir=").unwrap();
         let (id, _) = map_unready(&comps);
-        match id.with_ctx(&h) {
+        match id.with_seen(&h) {
             id!(def(root) checkout files) | id!(def(root) git_dir) => {
                 assert_eq!(root.val_git_dir(), None);
                 assert_eq!(root.val_external(), &["e"]);
@@ -155,9 +154,9 @@ mod test {
             _ => panic!("id is {id:?}"),
         }
 
-        let (h, comps) = run_with_history("git --git-dir mydir checkout ww xx yy zz").unwrap();
+        let (h, comps) = run_with_seen("git --git-dir mydir checkout ww xx yy zz").unwrap();
         let (id, _) = map_unready(&comps);
-        match id.with_ctx(&h) {
+        match id.with_seen(&h) {
             id!(def(root) checkout(chk) files) => {
                 assert_eq!(root.val_git_dir(), Some("mydir"));
                 assert_eq!(chk.val_file_or_commit(), Some("ww"));
@@ -167,9 +166,9 @@ mod test {
             _ => panic!("id is {id:?}"),
         }
 
-        let (h, comps) = run_with_history("git --external e time for some ext").unwrap();
+        let (h, comps) = run_with_seen("git --external e time for some ext").unwrap();
         let (id, _) = map_unready(&comps);
-        match id.with_ctx(&h) {
+        match id.with_seen(&h) {
             id!(def(root) @ext) => {
                 assert_eq!(root.val_git_dir(), None);
                 assert_eq!(root.val_external(), &["e"]);

@@ -66,10 +66,10 @@ pub enum GenerateError {
     /// See document for [`Config::ignore`] and similar methods.
     UnprocessedConfigObj(Vec<Vec<String>>),
 
-    /// See document for [`Config::make_uncertain`].
-    AlreadyUncertain(String),
-    /// See document for [`Config::make_uncertain`].
-    UncertainWithoutValue(String),
+    /// See document for [`Config::make_custom`].
+    AlreadyCustom(String),
+    /// See document for [`Config::make_custom`].
+    CustomWithoutValue(String),
 
     IO(std::io::Error),
 }

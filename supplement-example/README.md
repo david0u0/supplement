@@ -37,7 +37,7 @@ In [src/main.rs](src/main.rs), import the generated file as a module. The progra
 Obviously the **Completion Mode** is our main focus, so let's look into it deeper.
 
 ```rust
-let (history, grp) = def::CMD.supplement(args).unwrap();
+let (seen, grp) = def::CMD.supplement(args).unwrap();
 let ready = match grp {
     CompletionGroup::Ready(r) => {
         // The easy path. No custom logic needed.
@@ -46,28 +46,28 @@ let ready = match grp {
         r
     }
     CompletionGroup::Unready { unready, id, value } => {
-        let comps = handle_comp(id, &history, &value);
+        let comps = handle_comp(id, &seen, &value);
         unready.to_ready(comps)
     }
 };
 ready.print(shell, &mut stdout()).unwrap();
 ```
 
-The function `def::CMD.supplement` returns a `Result<(History, CompletionGroup)>`.
-`History` records everything seen while parsing the command, which your completion may later depend on.
+The function `def::CMD.supplement` returns a `Result<(Seen, CompletionGroup)>`.
+`Seen` records everything seen while parsing the command, which your completion may later depend on.
 `CompletionGroup` is an enum that has two variants: `Ready` and `Unready`.
 
 ### Ready
 `Ready` is the easy path. No custom logic needed. You should just call `Ready::print` and end the process.
 
 ### Unready
-`Unready` is the hard path. Your custom logic should go here. You'll have the history, the id of the last seen element (flag or argument), and the value in the command line (possibly `''`).
+`Unready` is the hard path. Your custom logic should go here. You'll have the seen values, the ID of the element to complete (flag or argument), and it's current value in the command line (possibly `''`).
 
-For example, if you do `cargo run -- fish checkout file1 file2 fi`, the history will contain `file1` and `file2`, the id will be `id!(checkout files)`, and the value will be `"fi"`.
+For example, if you do `cargo run -- fish checkout file1 file2 fi`, the seen values will contain `file1` and `file2`, the id will be `id!(checkout files)`, and the value will be `"fi"`.
 
 You have to convert it to a `Ready` object to print it, hence the `to_ready` function, and the input is a `Vec<Completion>`.
 This is when `supplement` hands over the control to *YOU*. You're the only one who knows the invariants and needs of your app.
-Only *YOU* can compute the vector based on the history, id, value, and whatever else you're interested in.
+Only *YOU* can compute the vector based on the seen values, id, value, and whatever else you're interested in.
 
 In [src/main.rs](src/main.rs) I wrote a function `handle_comp` for the custom logic.
 For example, `id!(git_dir)` should use default completion, and `id!(checkout files)` should be completed with a list of commit hash.
@@ -84,10 +84,10 @@ flowchart TD
     C --> E(Ready::print)
 ```
 
-### History
+### Seen
 Sometimes the completion depends on the CLI context, e.g. knowing the flag value `--git-dir` on CLI.
 
-`supplement` generates a convenient helper function `with_ctx`, which makes the context type safe.
+`supplement` generates a convenient helper function `with_seen`, which makes the context type safe.
 For example, when you're completing an argument for `checkout`,
 you can only get the root flags/args (`--git-dir`) and the flags/args of `checkout` (`FILE_OR_COMMIT` and `FILES`).
 You can **NEVER** get anything from `log` (e.g. `--pretty`).
@@ -95,7 +95,7 @@ You can **NEVER** get anything from `log` (e.g. `--pretty`).
 Refer to this code in [src/main.rs](src/main.rs):
 
 ```rs
-let id: ID<&History<ID>> = id.with_ctx(&history);
+let id: ID<&Seen<ID>> = id.with_seen(&Seen);
 match id {
     // ...
 
@@ -110,7 +110,7 @@ match id {
 }
 ```
 
-The function `with_ctx` converts a plain `ID` into a context-aware `ID<&History>`.
+The function `with_seen` converts a plain `ID` into a context-aware `ID<&Seen>`.
 When we're later matching the ID, we can also bind to the ID: `root_id` and `chk_id`.
 
 Because they are context-aware, we can get the values by calling their functions, e.g. `chk_id.val_files()` for argument `FILES`.

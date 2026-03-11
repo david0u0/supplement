@@ -88,14 +88,14 @@ fn join_possible_values(values: &[PossibleValue]) -> impl std::fmt::Display {
     }))
 }
 
-macro_rules! handle_certian {
-    ($is_certain:ident, $force_uncertain:expr, $name:expr) => {
-        let force_uncertain = $force_uncertain;
-        if force_uncertain {
-            if !$is_certain {
-                return Err(GenerateError::AlreadyUncertain($name));
+macro_rules! handle_custom {
+    ($is_static:ident, $force_custom:expr, $name:expr) => {
+        let force_custom = $force_custom;
+        if force_custom {
+            if !$is_static {
+                return Err(GenerateError::AlreadyCustom($name));
             }
-            $is_certain = false;
+            $is_static = false;
         }
     };
 }
@@ -121,16 +121,16 @@ struct FlagDisplayHelper<'a> {
     ty: ValType,
     flag: Arg<'a>,
     strict: bool,
-    force_uncertain: bool,
+    force_custom: bool,
 
     prev: &'a [Trace],
 }
 impl FlagDisplayHelper<'_> {
-    fn is_certain(&self) -> Result<bool, GenerateError> {
-        let mut is_certain = match self.ty {
+    fn is_static(&self) -> Result<bool, GenerateError> {
+        let mut is_static = match self.ty {
             ValType::No => {
-                if self.force_uncertain {
-                    return Err(GenerateError::UncertainWithoutValue(
+                if self.force_custom {
+                    return Err(GenerateError::CustomWithoutValue(
                         self.flag.get_id().to_string(),
                     ));
                 }
@@ -138,12 +138,8 @@ impl FlagDisplayHelper<'_> {
             }
             _ => !self.flag.get_possible_values().is_empty(),
         };
-        handle_certian!(
-            is_certain,
-            self.force_uncertain,
-            self.flag.get_id().to_string()
-        );
-        Ok(is_certain)
+        handle_custom!(is_static, self.force_custom, self.flag.get_id().to_string());
+        Ok(is_static)
     }
     fn id_line_str(&self) -> Result<String, GenerateError> {
         let id_name = self.id_name;
@@ -157,10 +153,10 @@ impl FlagDisplayHelper<'_> {
             ValType::No => "",
             _ => "<GlobalID>",
         };
-        let is_certain = self.is_certain()?;
+        let is_static = self.is_static()?;
 
-        let value = if is_certain {
-            "new_certain(line!())".to_owned()
+        let value = if is_static {
+            "new_static(line!())".to_owned()
         } else {
             let value = utils::get_id_value(self.prev, NameType::VAL, &id);
             format!("new({value})")
@@ -237,12 +233,12 @@ fn generate_args_in_cmd(
         } else {
             ("id::MultiVal", ValType::Multi)
         };
-        let force_uncertain = config.is_uncertain(prev, &name);
-        let mut is_certain = !possible_values.is_empty();
-        handle_certian!(is_certain, force_uncertain, name);
+        let force_custom = config.is_custom(prev, &name);
+        let mut is_static = !possible_values.is_empty();
+        handle_custom!(is_static, force_custom, name);
 
-        let id_value = if is_certain {
-            "new_certain(line!())".to_owned()
+        let id_value = if is_static {
+            "new_static(line!())".to_owned()
         } else {
             format!("new({})", utils::get_id_value(prev, name_type, &name))
         };
@@ -260,7 +256,7 @@ fn generate_args_in_cmd(
         )?;
 
         let enum_name = gen_enum_name(name_type, &name);
-        let enum_name = if is_certain { None } else { Some(enum_name) };
+        let enum_name = if is_static { None } else { Some(enum_name) };
         args_names.push(ValUnit {
             rust_name,
             enum_name,
@@ -344,12 +340,12 @@ fn generate_flags_in_cmd(
             prev,
             id_name: &id_name,
             strict: config.is_strict(),
-            force_uncertain: config.is_uncertain(prev, &name),
+            force_custom: config.is_custom(prev, &name),
         };
 
-        let is_certain = flag_display_helper.is_certain()?;
+        let is_static = flag_display_helper.is_static()?;
         let enum_name = gen_enum_name(NameType::VAL, &name);
-        let enum_name = if is_certain { None } else { Some(enum_name) };
+        let enum_name = if is_static { None } else { Some(enum_name) };
 
         let id_line = flag_display_helper.id_line_str()?;
         let type_str = flag_display_helper.type_str()?;
@@ -463,7 +459,7 @@ fn generate_recur(
             writeln!(w, "{indent}}}")?;
 
             writeln!(w, "{indent}#[allow(dead_code)]")?;
-            writeln!(w, "{indent}impl<'a> ID<&'a History<GlobalID>> {{")?;
+            writeln!(w, "{indent}impl<'a> ID<&'a Seen<GlobalID>> {{")?;
             for val in args.iter().chain(flags.iter()) {
                 if let Some(ty) = val.ctx_ty.as_ref() {
                     let ctx_func = ctx_func(&val.rust_name, *ty);
@@ -517,7 +513,7 @@ fn write_with_ctx<'a>(
 ) -> Result<(), std::io::Error> {
     writeln!(
         w,
-        "{indent}pub fn with_ctx(self, h: &History<GlobalID>) -> ID<&History<GlobalID>> {{"
+        "{indent}pub fn with_seen(self, h: &Seen<GlobalID>) -> ID<&Seen<GlobalID>> {{"
     )?;
     writeln!(w, "{indent}    match self {{")?;
     for val in vals {
@@ -532,7 +528,7 @@ fn write_with_ctx<'a>(
         if let Some(enum_name) = cmd.enum_name.as_ref() {
             writeln!(
                 w,
-                "{indent}        ID::{enum_name}(_, id) => ID::{enum_name}(h, id.with_ctx(h)),"
+                "{indent}        ID::{enum_name}(_, id) => ID::{enum_name}(h, id.with_seen(h)),"
             )?;
         }
     }

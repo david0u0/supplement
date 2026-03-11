@@ -40,7 +40,7 @@ impl MayBeProcessed {
 #[derive(Clone)]
 pub struct Config {
     ignore: HashMap<Vec<String>, MayBeProcessed>,
-    uncertain: HashMap<Vec<String>, MayBeProcessed>,
+    custom: HashMap<Vec<String>, MayBeProcessed>,
     strict: bool,
 }
 
@@ -54,7 +54,7 @@ impl Config {
         Config {
             strict: true,
             ignore: Default::default(),
-            uncertain: Default::default(),
+            custom: Default::default(),
         }
     }
     /// Ignore a flag or subcommand during code-gen.
@@ -83,33 +83,33 @@ impl Config {
         }
     }
 
-    /// Make a flag or argument *"uncertain"* during code-gen.
-    /// This means it will become a [`crate::CompletionGroup::Unready`] after completion,
+    /// Make a flag or argument *"custom"* during code-gen.
+    /// This means it will give a [`crate::CompletionGroup::Unready`] after completion,
     /// and user can then apply custom logic.
     /// For mor detail, check the doc of [`crate::id`].
     ///
     /// Error when calling [`crate::generate`]:
     /// - If the path doesn't exist, raise a [`GenerateError::UnprocessedConfigObj`] error.
-    /// - If it is already uncertain, raise a [`GenerateError::AlreadyUncertain`] error.
-    /// - If the flag has no value, raise a [`GenerateError::UncertainWithoutValue`] error.
+    /// - If it is already custom, raise a [`GenerateError::AlreadyCustom`] error.
+    /// - If the flag has no value, raise a [`GenerateError::CustomWithoutValue`] error.
     ///
     /// ```no_run
     /// # use supplement::Config;
     /// let config = Config::default()
-    ///     .make_uncertain(&["log", "pretty"]) // make `git log --pretty` uncertain
-    ///     .make_uncertain(&["unexpected-thing"]) // Error: path not found
-    ///     .make_uncertain(&["commit", "message"]) // Error: already uncertain
-    ///     .make_uncertain(&["log", "graph"]); // Error: flag without value
+    ///     .make_custom(&["log", "pretty"]) // make `git log --pretty` custom
+    ///     .make_custom(&["unexpected-thing"]) // Error: path not found
+    ///     .make_custom(&["commit", "message"]) // Error: already custom
+    ///     .make_custom(&["log", "graph"]); // Error: flag without value
     /// ```
-    pub fn make_uncertain(mut self, ids: &[&str]) -> Self {
-        self.uncertain.insert(to_trace(ids), MayBeProcessed::new());
+    pub fn make_custom(mut self, ids: &[&str]) -> Self {
+        self.custom.insert(to_trace(ids), MayBeProcessed::new());
         self
     }
 
-    pub(crate) fn is_uncertain(&mut self, prev: &[Trace], id: &str) -> bool {
+    pub(crate) fn is_custom(&mut self, prev: &[Trace], id: &str) -> bool {
         let mut key: Vec<_> = prev.iter().map(|t| t.cmd_id.to_string()).collect();
         key.push(id.to_string());
-        if let Some(t) = self.uncertain.get_mut(&key) {
+        if let Some(t) = self.custom.get_mut(&key) {
             t.process();
             true
         } else {
@@ -121,9 +121,9 @@ impl Config {
         let Config {
             strict: _,
             ignore,
-            uncertain,
+            custom,
         } = self;
-        let it = not_processed(ignore).chain(not_processed(uncertain));
+        let it = not_processed(ignore).chain(not_processed(custom));
 
         let mut it = it.peekable();
         if it.peek().is_none() {

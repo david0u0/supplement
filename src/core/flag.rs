@@ -2,7 +2,7 @@ use super::{PossibleValues, comp_with_possible, parse_flag};
 use crate::completion::{CompletionGroup, Unready};
 use crate::error::Error;
 use crate::parsed_flag::ParsedFlag;
-use crate::{Completion, History, Result, id};
+use crate::{Completion, Result, Seen, id};
 use std::fmt::Debug;
 use std::iter::Peekable;
 
@@ -29,8 +29,8 @@ pub mod flag_type {
         pub(crate) id: id::NoVal,
     }
     impl Bool {
-        pub(crate) fn push<ID: PartialEq + Debug>(&self, history: &mut History<ID>) {
-            history.push_no_val(self.id)
+        pub(crate) fn push<ID: PartialEq + Debug>(&self, seen: &mut Seen<ID>) {
+            seen.push_no_val(self.id)
         }
     }
     #[doc(hidden)]
@@ -41,8 +41,8 @@ pub mod flag_type {
         pub(crate) possible_values: PossibleValues,
     }
     impl<ID: PartialEq + Copy + Debug> Valued<ID> {
-        pub(crate) fn push(&self, history: &mut History<ID>, arg: String) {
-            history.push_valued(self.id, arg)
+        pub(crate) fn push(&self, seen: &mut Seen<ID>, arg: String) {
+            seen.push_valued(self.id, arg)
         }
     }
 
@@ -71,6 +71,12 @@ pub mod flag_type {
 
 use flag_type::*;
 
+/// The object to represent a CLI flag.
+///
+/// NOTE: this includes boolean flags (e.g. `ls -l`) **AND** valued flags (e.g. `ls --color`).
+/// The later is often called "option", but that creates confusion with Rust's `Option` type.
+///
+/// For the difference between boolean and valued flags, check the field [`Flag::ty`].
 pub struct Flag<ID> {
     pub ty: Type<ID>,
     pub short: &'static [char],
@@ -125,28 +131,28 @@ impl<ID: PartialEq + Copy + Debug> Flag<ID> {
         })
     }
 
-    pub(super) fn exists_in_history(&self, history: &History<ID>) -> bool {
+    pub(super) fn exists_in_seen(&self, seen: &Seen<ID>) -> bool {
         match self.ty {
-            Type::Bool(Bool { id, .. }) => history.find(id).is_some(),
+            Type::Bool(Bool { id, .. }) => seen.find(id).is_some(),
             Type::Valued(Valued {
                 id: id::Valued::Single(id),
                 ..
-            }) => history.find(id).is_some(),
+            }) => seen.find(id).is_some(),
             Type::Valued(Valued {
                 id: id::Valued::Multi(id),
                 ..
-            }) => history.find(id).is_some(),
+            }) => seen.find(id).is_some(),
         }
     }
 
     pub(super) fn supplement(
         &self,
-        history: &mut History<ID>,
+        seen: &mut Seen<ID>,
         args: &mut Peekable<impl Iterator<Item = String>>,
     ) -> Result<Option<CompletionGroup<ID>>> {
         let valued = match self.ty {
             Type::Bool(inner) => {
-                inner.push(history);
+                inner.push(seen);
                 return Ok(None);
             }
             Type::Valued(inner) => inner,
@@ -159,10 +165,10 @@ impl<ID: PartialEq + Copy + Debug> Flag<ID> {
             CompleteWithEqual::Optional => {
                 // TODO: Maybe one day clap will tell us.
                 log::info!(
-                    "Optional flag {} doesn't have value. Push an empty string to history because we don't know its default value (clap wouldn't tell us).",
+                    "Optional flag {} doesn't have value. Push an empty string to seen because we don't know its default value (clap wouldn't tell us).",
                     name
                 );
-                valued.push(history, String::new());
+                valued.push(seen, String::new());
                 return Ok(None);
             }
         }
@@ -184,7 +190,7 @@ impl<ID: PartialEq + Copy + Debug> Flag<ID> {
             return Ok(Some(group));
         }
 
-        valued.push(history, arg);
+        valued.push(seen, arg);
         Ok(None)
     }
 
