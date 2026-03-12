@@ -16,6 +16,7 @@ Give it a [`clap`](https://github.com/clap-rs/clap) object, and instead of spitt
 - **Powerful** - Some features are not widely supported in every shell, and `supplement` comes to the rescue.
 - **Stop modifying generated files** - Instead, *extend* it with Rust's enum system.
 - **Easy to test and debug** - Functions and objects in a modern programming language, instead of some shell script black sorcery.
+- **Context-aware** - Track the "parsed CLI values" for you so you don't have to.
 - **It's Rust 🦀**
 
 ## Install
