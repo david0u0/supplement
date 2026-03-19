@@ -1,15 +1,18 @@
 pub mod completion;
+pub mod core;
 pub mod error;
 pub mod gen_prelude;
 pub mod id;
 pub mod seen;
-
-pub mod core;
-pub use completion::{Completion, CompletionGroup};
-pub use seen::Seen;
+mod supplement;
 
 pub(crate) mod arg_context;
 pub(crate) mod parsed_flag;
+
+pub use completion::{Completion, CompletionGroup};
+pub use seen::Seen;
+pub use supplement::Supplement;
+pub use supplement_proc_macro::Supplement;
 
 pub type Result<T = ()> = std::result::Result<T, error::Error>;
 
@@ -17,6 +20,7 @@ pub mod helper {
     //! Helper functions/macros to make your life easier.
 
     pub use supplement_proc_macro::id;
+    pub use supplement_proc_macro::id_derived;
 }
 
 #[cfg(any(feature = "clap-3", feature = "clap-4"))]

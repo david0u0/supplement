@@ -1,6 +1,13 @@
 use proc_macro::TokenStream;
 
+mod derive_supplement;
 mod id;
+mod id_derived;
+
+#[proc_macro_derive(Supplement, attributes(clap, command))]
+pub fn derive_supplement(input: TokenStream) -> TokenStream {
+    derive_supplement::derive_supplement(input)
+}
 
 /// Helper macro to simplify the nested ID hell.
 ///
@@ -80,4 +87,11 @@ mod id;
 #[proc_macro]
 pub fn id(input: TokenStream) -> TokenStream {
     id::id(input)
+}
+
+/// id_derived!(Git.git_dir) expands to GitID::X7Xgit_dir(_)
+/// i_derivedd!(Git.sub(ctx) Sub.Remote1.verbose) expands to GitID::X3Xsub(ctx, SubID::X14XRemote1verbose(_))
+#[proc_macro]
+pub fn id_derived(input: TokenStream) -> TokenStream {
+    id_derived::id(input)
 }
