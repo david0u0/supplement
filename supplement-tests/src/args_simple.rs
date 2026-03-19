@@ -113,20 +113,24 @@ mod test {
         T::default()
     }
 
+    fn from_cmd_root(cmd: &[&str]) -> GitID {
+        from_cmd::<Git>(cmd)
+    }
+    fn from_cmd<T: Supplement>(cmd: &[&str]) -> T::ID {
+        T::id_from_cmd(cmd).unwrap().0.unwrap()
+    }
+
     #[test]
     fn test_id_from_cmd() {
-        assert_eq!(
-            Git::id_from_cmd(&["git_dir"]).unwrap(),
-            GitID::X7Xgit_dir(def())
-        );
+        assert_eq!(from_cmd_root(&["git_dir"]), GitID::X7Xgit_dir(def()));
 
         assert_eq!(
-            Git::id_from_cmd(&["remote1", "verbose"]).unwrap(),
+            from_cmd_root(&["remote1", "verbose"]),
             GitID::X3Xsub(def(), SubID::X7XRemote1verbose(def()))
         );
 
         assert_eq!(
-            Git::id_from_cmd(&["remote2", "add", "url"]).unwrap(),
+            from_cmd_root(&["remote2", "add", "url"]),
             GitID::X3Xsub(
                 def(),
                 SubID::X7XRemote2(
@@ -137,12 +141,12 @@ mod test {
         );
 
         assert_eq!(
-            Remote::id_from_cmd(&["add", "url"]).unwrap(),
+            from_cmd::<Remote>(&["add", "url"]),
             RemoteID::X3XAddurl(def())
         );
 
         assert_eq!(
-            RemoteStruct::id_from_cmd(&["add", "url"]).unwrap(),
+            from_cmd::<RemoteStruct>(&["add", "url"]),
             RemoteStructID::X3Xsub(def(), RemoteID::X3XAddurl(def()))
         );
 

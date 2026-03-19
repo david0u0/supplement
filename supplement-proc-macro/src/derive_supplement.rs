@@ -1,3 +1,5 @@
+// TODO: all the 5487
+
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, format_ident, quote};
@@ -43,12 +45,8 @@ fn map_ctx_func(ty: &Type) -> CtxFunc<'_> {
         if segment.ident == "bool" {
             return CtxFunc::Count;
         }
-        if segment.ident == "Vec" {
-            if let PathArguments::AngleBracketed(args) = &segment.arguments {
-                if let Some(GenericArgument::Type(inner)) = args.args.first() {
-                    return CtxFunc::Multi(inner);
-                }
-            }
+        if let Some(inner) = extract_inner_type_opt(ty, &["Vec"]) {
+            return CtxFunc::Multi(inner);
         }
     }
 
@@ -67,18 +65,21 @@ fn has_subcommand_attr(attrs: &[Attribute]) -> bool {
     false
 }
 
-fn extract_inner_type<'a>(ty: &'a Type, outer_types: &[&str]) -> &'a Type {
+fn extract_inner_type_opt<'a>(ty: &'a Type, outer_types: &[&str]) -> Option<&'a Type> {
     if let Type::Path(type_path) = ty {
         let segment = type_path.path.segments.last().unwrap();
         if outer_types.iter().any(|o| segment.ident == o) {
             if let PathArguments::AngleBracketed(args) = &segment.arguments {
                 if let Some(GenericArgument::Type(inner)) = args.args.first() {
-                    return inner;
+                    return Some(inner);
                 }
             }
         }
     }
-    ty
+    None
+}
+fn extract_inner_type<'a>(ty: &'a Type, outer_types: &[&str]) -> &'a Type {
+    extract_inner_type_opt(ty, outer_types).unwrap_or(ty)
 }
 
 /// (Log, pretty) => X3XLogpretty
@@ -110,8 +111,9 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
                 #variant_name(#ctx_name, <#inner_type as Supplement>::ID)
             });
             subcommand_delegates.push(quote! {
-                if let Some(id) = #inner_type::id_from_cmd(cmd) {
-                    return Some(Self::ID::#variant_name(Default::default(), id));
+                if let Some((id, num)) = #inner_type::id_from_cmd(cmd) {
+                    let id = id.map(|id| Self::ID::#variant_name(Default::default(),id));
+                    return Some((id, num));
                 }
             });
         } else {
@@ -120,7 +122,7 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
             });
             // TODO: use real CLI name!
             regular_field_matches.push(quote! {
-                #field_name_str if cmd.len() == 1 => return Some(Self::ID::#variant_name(Default::default()))
+                #field_name_str if cmd.len() == 1 => return Some((Some(Self::ID::#variant_name(Default::default())), 5487))
             });
             ctx_funcs.push(ctx_func.generate(field_name));
         }
@@ -140,7 +142,7 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
 
         impl Supplement for #name {
             type ID = #id_name;
-            fn id_from_cmd(cmd: &[&str]) -> Option<Self::ID> {
+            fn id_from_cmd(cmd: &[&str]) -> Option<(Option<Self::ID>, u32)> {
                 let first = cmd.first()?;
 
                 // Try regular fields first
@@ -196,8 +198,9 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                             #id_variant_name(#ctx_name, <#inner_type as Supplement>::ID)
                         });
                         subcommand_delegates.push(quote! {
-                            if let Some(id) = #inner_type::id_from_cmd(rest) {
-                                return Some(Self::ID::#id_variant_name(Default::default(), id));
+                            if let Some((id, num)) = #inner_type::id_from_cmd(rest) {
+                                let id = id.map(|id| Self::ID::#id_variant_name(Default::default(),id));
+                                return Some((id, num));
                             }
                         });
                     } else {
@@ -205,7 +208,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                             #id_variant_name(#ctx_name)
                         });
                         field_matches.push(quote! {
-                            #field_name_lower if rest.len() == 1 => return Some(Self::ID::#id_variant_name(Default::default()))
+                            #field_name_lower if rest.len() == 1 => return Some((Some(Self::ID::#id_variant_name(Default::default())), 5487))
                         });
 
                         ctx_funcs.push(ctx_func.generate(field_name));
@@ -263,8 +266,9 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                 from_cmd_arms.push(quote! {
                     #variant_name_lower => {
                         let rest = &cmd[1..];
-                        if let Some(id) = #inner_type::id_from_cmd(rest) {
-                            return Some(Self::ID::#id_variant_name((), id));
+                        if let Some((id, num)) = #inner_type::id_from_cmd(rest) {
+                            let id = id.map(|id| Self::ID::#id_variant_name(Default::default(),id));
+                            return Some((id, num));
                         }
                         None
                     }
@@ -287,7 +291,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
 
         impl Supplement for #name {
             type ID = #id_name;
-            fn id_from_cmd(cmd: &[&str]) -> Option<Self::ID> {
+            fn id_from_cmd(cmd: &[&str]) -> Option<(Option<Self::ID>, u32)> {
                 let first = cmd.first()?;
 
                 match *first {
