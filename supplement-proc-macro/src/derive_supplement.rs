@@ -8,8 +8,16 @@ use syn::{
     parse_macro_input,
 };
 
-const ID_POSTFIX: &str = "IDGeneratedBySupplement";
+const ID_NAME: &str = "IDGeneratedBySupplement";
 const CTX_POSTFIX: &str = "CtxGeneratedBySupplement";
+const MOD_POSTFIX: &str = "_mod_generated_by_supplement";
+
+fn gen_never() -> TokenStream2 {
+    quote! {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+        pub enum Never { }
+    }
+}
 
 enum CtxFunc<'a> {
     Count,
@@ -65,6 +73,23 @@ fn has_subcommand_attr(attrs: &[Attribute]) -> bool {
     false
 }
 
+fn has_value_enum_attr(attrs: &[Attribute]) -> bool {
+    // For now, only fields with "value_enum" attribute will have it's ID skipped.
+    // Otherwise we'll still generate it and it will be an unreachable arm during completion.
+    // TODO: maybe "specialization" can save us?
+    // Implement `Supplement` differently on `FromStr` and `ValueEnum`, so that their `ID` is () and Never?
+    // I tried some autoref-specialization magic, but it doesn't work for associate type :(
+    for attr in attrs {
+        if attr.path().is_ident("clap") || attr.path().is_ident("arg") {
+            let tokens = attr.meta.to_token_stream().to_string();
+            if tokens.contains("value_enum") {
+                return true;
+            }
+        }
+    }
+    false
+}
+
 fn extract_inner_type_opt<'a>(ty: &'a Type, outer_types: &[&str]) -> Option<&'a Type> {
     if let Type::Path(type_path) = ty {
         let segment = type_path.path.segments.last().unwrap();
@@ -90,8 +115,9 @@ fn format_variant_name(first_name: &str, second_name: Option<&str>) -> syn::Iden
 }
 
 fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
-    let id_name = format_ident!("{name}{ID_POSTFIX}");
-    let ctx_name = format_ident!("{name}{CTX_POSTFIX}");
+    let id_name = format_ident!("{ID_NAME}");
+    let ctx_name = format_ident!("{CTX_POSTFIX}");
+    let mod_name = format_ident!("{name}{MOD_POSTFIX}");
 
     let mut variants: Vec<TokenStream2> = Vec::new();
     let mut ctx_funcs: Vec<TokenStream2> = Vec::new();
@@ -105,63 +131,85 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
         let field_name_str = field_name.to_string();
         let variant_name = format_variant_name(&field_name_str, None);
 
+        let inner_type = extract_inner_type(&field.ty, &["Option"]);
         if has_subcommand_attr(&field.attrs) {
-            let inner_type = extract_inner_type(&field.ty, &["Option"]);
             variants.push(quote! {
                 #variant_name(#ctx_name, <#inner_type as Supplement>::ID)
             });
             subcommand_delegates.push(quote! {
                 if let Some((id, num)) = #inner_type::id_from_cmd(cmd) {
-                    let id = id.map(|id| Self::ID::#variant_name(Default::default(),id));
+                    let id = id.map(|id| Self::ID::#variant_name(Default::default(), id));
                     return Some((id, num));
                 }
             });
-        } else {
+        } else if has_value_enum_attr(&field.attrs) {
             variants.push(quote! {
-                #variant_name(#ctx_name)
+                #variant_name(#ctx_name, Never)
             });
+
             // TODO: use real CLI name!
             regular_field_matches.push(quote! {
-                #field_name_str if cmd.len() == 1 => return Some((Some(Self::ID::#variant_name(Default::default())), 5487))
+                #field_name_str if cmd.len() == 1 => return Some(None, 5487)
+            });
+            ctx_funcs.push(ctx_func.generate(field_name));
+        } else {
+            variants.push(quote! {
+                #variant_name(#ctx_name, ())
+            });
+
+            // TODO: use real CLI name!
+            regular_field_matches.push(quote! {
+                #field_name_str if cmd.len() == 1 => return {
+                    let id = Self::ID::#variant_name(Default::default(), ());
+                    Some((Some(id), 5487))
+                }
             });
             ctx_funcs.push(ctx_func.generate(field_name));
         }
     }
 
+    let never = gen_never();
     quote! {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-        pub struct #ctx_name;
-        impl #ctx_name {
-            #(#ctx_funcs)*
-        }
+        mod #mod_name {
+            use super::*;
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-        pub enum #id_name {
-            #(#variants),*
-        }
+            #never
 
-        impl Supplement for #name {
-            type ID = #id_name;
-            fn id_from_cmd(cmd: &[&str]) -> Option<(Option<Self::ID>, u32)> {
-                let first = cmd.first()?;
+            #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+            pub struct #ctx_name;
+            impl #ctx_name {
+                #(#ctx_funcs)*
+            }
 
-                // Try regular fields first
-                match *first {
-                    #(#regular_field_matches,)*
-                    _ => {}
+            #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+            pub enum #id_name {
+                #(#variants),*
+            }
+
+            impl Supplement for #name {
+                type ID = #id_name;
+                fn id_from_cmd(cmd: &[&str]) -> Option<(Option<Self::ID>, u32)> {
+                    let first = cmd.first()?;
+
+                    // Try regular fields first
+                    match *first {
+                        #(#regular_field_matches,)*
+                        _ => {}
+                    }
+
+                    // Try subcommand fields
+                    #(#subcommand_delegates)*
+
+                    None
                 }
-
-                // Try subcommand fields
-                #(#subcommand_delegates)*
-
-                None
             }
         }
     }
 }
 
 fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
-    let id_name = format_ident!("{name}{ID_POSTFIX}");
+    let id_name = format_ident!("{ID_NAME}");
+    let mod_name = format_ident!("{name}{MOD_POSTFIX}");
 
     let mut variants: Vec<TokenStream2> = Vec::new();
     let mut ctx_defs: Vec<TokenStream2> = Vec::new();
@@ -175,7 +223,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
         match &variant.fields {
             // Named fields: Remote1 { verbose: bool, sub: Remote }
             Fields::Named(fields) => {
-                let ctx_name = format_ident!("{name}{CTX_POSTFIX}{variant_name}");
+                let ctx_name = format_ident!("{variant_name}{CTX_POSTFIX}");
                 let mut ctx_funcs: Vec<TokenStream2> = Vec::new();
 
                 let mut field_matches: Vec<TokenStream2> = Vec::new();
@@ -199,16 +247,27 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                         });
                         subcommand_delegates.push(quote! {
                             if let Some((id, num)) = #inner_type::id_from_cmd(rest) {
-                                let id = id.map(|id| Self::ID::#id_variant_name(Default::default(),id));
+                                let id = id.map(|id| Self::ID::#id_variant_name(Default::default(), id));
                                 return Some((id, num));
                             }
                         });
-                    } else {
+                    } else if has_value_enum_attr(&field.attrs) {
                         variants.push(quote! {
-                            #id_variant_name(#ctx_name)
+                            #id_variant_name(#ctx_name, Never)
                         });
                         field_matches.push(quote! {
-                            #field_name_lower if rest.len() == 1 => return Some((Some(Self::ID::#id_variant_name(Default::default())), 5487))
+                            #field_name_lower if rest.len() == 1 => return Some((None, 5487))
+                        });
+                        ctx_funcs.push(ctx_func.generate(field_name));
+                    } else {
+                        variants.push(quote! {
+                            #id_variant_name(#ctx_name, ())
+                        });
+                        field_matches.push(quote! {
+                            #field_name_lower if rest.len() == 1 => return {
+                                let id = Self::ID::#id_variant_name(Default::default(), ());
+                                Some((Some(id), 5487))
+                            }
                         });
 
                         ctx_funcs.push(ctx_func.generate(field_name));
@@ -267,7 +326,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                     #variant_name_lower => {
                         let rest = &cmd[1..];
                         if let Some((id, num)) = #inner_type::id_from_cmd(rest) {
-                            let id = id.map(|id| Self::ID::#id_variant_name(Default::default(),id));
+                            let id = id.map(|id| Self::ID::#id_variant_name(Default::default(), id));
                             return Some((id, num));
                         }
                         None
@@ -281,22 +340,28 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
         }
     }
 
+    let never = gen_never();
     quote! {
-        #(#ctx_defs)*
+        mod #mod_name {
+            use super::*;
 
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-        pub enum #id_name {
-            #(#variants),*
-        }
+            #never
+            #(#ctx_defs)*
 
-        impl Supplement for #name {
-            type ID = #id_name;
-            fn id_from_cmd(cmd: &[&str]) -> Option<(Option<Self::ID>, u32)> {
-                let first = cmd.first()?;
+            #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+            pub enum #id_name {
+                #(#variants),*
+            }
 
-                match *first {
-                    #(#from_cmd_arms,)*
-                    _ => None
+            impl Supplement for #name {
+                type ID = #id_name;
+                fn id_from_cmd(cmd: &[&str]) -> Option<(Option<Self::ID>, u32)> {
+                    let first = cmd.first()?;
+
+                    match *first {
+                        #(#from_cmd_arms,)*
+                        _ => None
+                    }
                 }
             }
         }

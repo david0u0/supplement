@@ -13,8 +13,8 @@ pub struct Git {
 #[derive(Parser, Debug, Clone, Supplement)]
 pub enum Sub {
     Log {
-        #[clap(long)]
-        pretty: Option<Pretty>,
+        #[clap(long, value_enum)]
+        pretty: Option<Pretty>, // NOTE: the `value_enum` is necessary due to lack of specialization
         paths: Vec<Path>,
     },
     Remote1 {
@@ -94,10 +94,6 @@ pub fn handle_id(id: <Git as Supplement>::ID) {
             let _: Vec<Path> = log_ctx.paths().collect();
             let _: Option<Pretty> = log_ctx.pretty();
         }
-        id!(Git.sub Sub.Log.pretty(log_ctx)) => {
-            let _: Vec<Path> = log_ctx.paths().collect();
-            let _: Option<Pretty> = log_ctx.pretty();
-        }
     };
 }
 
@@ -122,11 +118,11 @@ mod test {
 
     #[test]
     fn test_id_from_cmd() {
-        assert_eq!(from_cmd_root(&["git_dir"]), GitID::X7Xgit_dir(def()));
+        assert_eq!(from_cmd_root(&["git_dir"]), GitID::X7Xgit_dir(def(), ()));
 
         assert_eq!(
             from_cmd_root(&["remote1", "verbose"]),
-            GitID::X3Xsub(def(), SubID::X7XRemote1verbose(def()))
+            GitID::X3Xsub(def(), SubID::X7XRemote1verbose(def(), ()))
         );
 
         assert_eq!(
@@ -135,19 +131,19 @@ mod test {
                 def(),
                 SubID::X7XRemote2(
                     (),
-                    RemoteStructID::X3Xsub(def(), RemoteID::X3XAddurl(def()))
+                    RemoteStructID::X3Xsub(def(), RemoteID::X3XAddurl(def(), ()))
                 )
             )
         );
 
         assert_eq!(
             from_cmd::<Remote>(&["add", "url"]),
-            RemoteID::X3XAddurl(def())
+            RemoteID::X3XAddurl(def(), ())
         );
 
         assert_eq!(
             from_cmd::<RemoteStruct>(&["add", "url"]),
-            RemoteStructID::X3Xsub(def(), RemoteID::X3XAddurl(def()))
+            RemoteStructID::X3Xsub(def(), RemoteID::X3XAddurl(def(), ()))
         );
 
         assert_eq!(Git::id_from_cmd(&["nonexistent"]), None);

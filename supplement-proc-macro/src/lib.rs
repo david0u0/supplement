@@ -4,7 +4,7 @@ mod derive_supplement;
 mod id;
 mod id_derived;
 
-#[proc_macro_derive(Supplement, attributes(clap, command))]
+#[proc_macro_derive(Supplement, attributes(clap, command, arg))]
 pub fn derive_supplement(input: TokenStream) -> TokenStream {
     derive_supplement::derive_supplement(input)
 }

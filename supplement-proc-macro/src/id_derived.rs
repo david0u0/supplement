@@ -81,8 +81,8 @@ fn build_id_expr(segments: &[IdSegment]) -> TokenStream2 {
             (Some(inner), None) => quote! { #id_type::#variant(_, #inner) },
             (Some(inner), Some(ctx)) => quote! { #id_type::#variant(#ctx, #inner) },
 
-            (None, None) => quote! { #id_type::#variant(_) },
-            (None, Some(ctx)) => quote! { #id_type::#variant(#ctx) },
+            (None, None) => quote! { #id_type::#variant(_, ()) },
+            (None, Some(ctx)) => quote! { #id_type::#variant(#ctx, ()) },
         });
     }
 
