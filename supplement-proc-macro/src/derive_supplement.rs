@@ -1,8 +1,7 @@
-// TODO: all the 5487
-
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, format_ident, quote};
+use std::cell::Cell;
 use syn::{
     Attribute, Data, DeriveInput, Fields, GenericArgument, Ident, PathArguments, Type,
     parse_macro_input,
@@ -11,6 +10,16 @@ use syn::{
 const ID_NAME: &str = "IDGeneratedBySupplement";
 const CTX_POSTFIX: &str = "CtxGeneratedBySupplement";
 const MOD_POSTFIX: &str = "_mod_generated_by_supplement";
+
+thread_local! {
+    static COUNTER: Cell<u32> = const { Cell::new(1) };
+}
+
+fn uniq_num() -> u32 {
+    let ret = COUNTER.get();
+    COUNTER.set(ret + 1);
+    ret
+}
 
 fn gen_never() -> TokenStream2 {
     quote! {
@@ -132,6 +141,7 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
         let variant_name = format_variant_name(&field_name_str, None);
 
         let inner_type = extract_inner_type(&field.ty, &["Option"]);
+        let uniq_num = uniq_num();
         if has_subcommand_attr(&field.attrs) {
             variants.push(quote! {
                 #variant_name(#ctx_name, <#inner_type as Supplement>::ID)
@@ -149,7 +159,7 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
 
             // TODO: use real CLI name!
             regular_field_matches.push(quote! {
-                #field_name_str if cmd.len() == 1 => return Some(None, 5487)
+                #field_name_str if cmd.len() == 1 => return Some(None, #uniq_num)
             });
             ctx_funcs.push(ctx_func.generate(field_name));
         } else {
@@ -161,7 +171,7 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
             regular_field_matches.push(quote! {
                 #field_name_str if cmd.len() == 1 => return {
                     let id = Self::ID::#variant_name(Default::default(), ());
-                    Some((Some(id), 5487))
+                    Some((Some(id), #uniq_num))
                 }
             });
             ctx_funcs.push(ctx_func.generate(field_name));
@@ -237,6 +247,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                     let field_name_lower = field_name_str.to_lowercase();
                     let id_variant_name =
                         format_variant_name(&variant_name_str, Some(&field_name_str));
+                    let uniq_num = uniq_num();
 
                     // TODO: possible values
 
@@ -256,7 +267,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                             #id_variant_name(#ctx_name, Never)
                         });
                         field_matches.push(quote! {
-                            #field_name_lower if rest.len() == 1 => return Some((None, 5487))
+                            #field_name_lower if rest.len() == 1 => return Some((None, #uniq_num))
                         });
                         ctx_funcs.push(ctx_func.generate(field_name));
                     } else {
@@ -266,7 +277,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                         field_matches.push(quote! {
                             #field_name_lower if rest.len() == 1 => return {
                                 let id = Self::ID::#id_variant_name(Default::default(), ());
-                                Some((Some(id), 5487))
+                                Some((Some(id), #uniq_num))
                             }
                         });
 

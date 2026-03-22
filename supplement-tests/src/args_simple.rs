@@ -113,11 +113,15 @@ mod test {
         from_cmd::<Git>(cmd)
     }
     fn from_cmd<T: Supplement>(cmd: &[&str]) -> T::ID {
-        T::id_from_cmd(cmd).unwrap().0.unwrap()
+        let (id, num) = T::id_from_cmd(cmd).unwrap();
+        log::debug!("from_cmd result: {id:?} {num}");
+        id.unwrap()
     }
 
     #[test]
     fn test_id_from_cmd() {
+        let _ = env_logger::try_init();
+
         assert_eq!(from_cmd_root(&["git_dir"]), GitID::X7Xgit_dir(def(), ()));
 
         assert_eq!(
