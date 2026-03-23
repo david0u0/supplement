@@ -17,7 +17,7 @@ pub enum Error {
     BoolFlagEqualsValue(String),
     /// When a flag is supposed to have value, but got none. e.g. `git commit -m --amend`.
     /// If you're trying to supply it with a flag-like value, please do `git commit -m=--amend`.
-    FlagNoValue(&'static str),
+    FlagNoValue(String),
     /// When a flag in CLI command is not found, e.g. `git --xx=<TAB>`.
     /// Or `git --xx lo<TAB>`, though technically the `<TAB>` is not asking for that flag.
     /// `supplement` still needs to know the information about the flag to decide if the
@@ -33,7 +33,7 @@ pub enum Error {
     /// i.e. `git ''` means `git <TAB>`, which will result in all git's subcommands.
     ArgsTooShort,
     /// When a flags requires equal but there is none.
-    RequiresEqual(&'static str),
+    RequiresEqual(String),
 }
 
 #[cfg(any(feature = "clap-3", feature = "clap-4"))]

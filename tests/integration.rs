@@ -5,6 +5,7 @@ use supplement::*;
 
 mod def {
     use super::*;
+    use std::borrow::Cow;
     use supplement::core::*;
 
     #[derive(Clone, Copy, PartialEq, Eq, Debug)]
@@ -19,9 +20,9 @@ mod def {
     pub const C_FLAG_ID: id::NoVal = id::NoVal::new(line!());
     pub const C_FLAG: Flag<ID> = Flag {
         ty: flag_type::Type::new_bool(C_FLAG_ID),
-        short: &['c'],
-        long: &["long-c", "long-c-2"],
-        description: "test description for flag C",
+        short: CowSlice::Borrow(&['c']),
+        long: CowOwned::Borrow(&["long-c", "long-c-2"]),
+        description: Cow::Borrowed("test description for flag C"),
         once: true,
     };
     pub const B_FLAG_ID: id::SingleVal = id::SingleVal::new(line!());
@@ -30,11 +31,11 @@ mod def {
             Some(ID::B),
             B_FLAG_ID.into(),
             CompleteWithEqual::NoNeed,
-            &[],
+            CowOwned::Borrow(&[]),
         ),
-        short: &['b', 'x'],
-        long: &["long-b"],
-        description: "test description for flag B",
+        short: CowSlice::Borrow(&['b', 'x']),
+        long: CowOwned::Borrow(&["long-b"]),
+        description: Cow::Borrowed("test description for flag B"),
         once: true,
     };
     pub const A_ARG_ID: id::SingleVal = id::SingleVal::new(line!());
@@ -42,35 +43,35 @@ mod def {
         id: Some(ID::A),
         seen_id: A_ARG_ID.into(),
         max_values: 1,
-        possible_values: &[],
+        possible_values: CowOwned::Borrow(&[]),
     };
     pub const E_ARG_ID: id::SingleVal = id::SingleVal::new(line!());
     pub const E_ARG: Arg<ID> = Arg {
         id: Some(ID::E),
         seen_id: E_ARG_ID.into(),
         max_values: 1,
-        possible_values: &[("ext1", "")],
+        possible_values: CowOwned::Borrow(&[("ext1", "")]),
     };
     pub const ROOT: Command<ID> = Command {
-        all_flags: &[B_FLAG, C_FLAG, OPT_FLAG],
-        name: "root",
-        description: "",
-        args: &[E_ARG, D_ARG],
-        commands: &[SUB],
+        all_flags: CowSlice::Borrow(&[B_FLAG, C_FLAG, OPT_FLAG]),
+        name: Cow::Borrowed("root"),
+        description: Cow::Borrowed(""),
+        args: CowSlice::Borrow(&[E_ARG, D_ARG]),
+        commands: CowSlice::Borrow(&[SUB]),
     };
     pub const SUB: Command<ID> = Command {
-        all_flags: &[B_FLAG, OPT2_FLAG],
-        name: "sub",
-        description: "test sub description",
-        args: &[A_ARG, A_ARG],
-        commands: &[],
+        all_flags: CowSlice::Borrow(&[B_FLAG, OPT2_FLAG]),
+        name: Cow::Borrowed("sub"),
+        description: Cow::Borrowed("test sub description"),
+        args: CowSlice::Borrow(&[A_ARG, A_ARG]),
+        commands: CowSlice::Borrow(&[]),
     };
     pub const D_ARG_ID: id::MultiVal = id::MultiVal::new(line!());
     pub const D_ARG: Arg<ID> = Arg {
         id: Some(ID::D),
         seen_id: D_ARG_ID.into(),
         max_values: 2,
-        possible_values: &[("p1", "")],
+        possible_values: CowOwned::Borrow(&[("p1", "")]),
     };
 
     pub const OPT_FLAG_ID: id::SingleVal = id::SingleVal::new(line!());
@@ -79,11 +80,11 @@ mod def {
             None,
             OPT_FLAG_ID.into(),
             CompleteWithEqual::Optional,
-            &[("opt1", ""), ("opt2", "")],
+            CowOwned::Borrow(&[("opt1", ""), ("opt2", "")]),
         ),
-        short: &['o'],
-        long: &["opt"],
-        description: "test description for flag OPT",
+        short: CowSlice::Borrow(&['o']),
+        long: CowOwned::Borrow(&["opt"]),
+        description: Cow::Borrowed("test description for flag OPT"),
         once: true,
     };
 
@@ -93,11 +94,11 @@ mod def {
             Some(ID::OPT2),
             OPT2_FLAG_ID.into(),
             CompleteWithEqual::Optional,
-            &[("opt3", ""), ("opt4", "")],
+            CowOwned::Borrow(&[("opt3", ""), ("opt4", "")]),
         ),
-        short: &['o'],
-        long: &["opt"],
-        description: "test description for flag OPT",
+        short: CowSlice::Borrow(&['o']),
+        long: CowOwned::Borrow(&["opt"]),
+        description: Cow::Borrowed("test description for flag OPT"),
         once: true,
     };
 }
