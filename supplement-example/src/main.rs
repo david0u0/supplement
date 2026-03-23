@@ -72,8 +72,8 @@ macro_rules! id {
      }
  }
 
-fn handle_comp(id: ID, seen: &Seen<ID>, _value: &str) -> Vec<Completion> {
-    let id: ID<&Seen<ID>> = id.with_seen(seen);
+fn handle_comp(id: ID, seen: &Seen, _value: &str) -> Vec<Completion> {
+    let id: ID<&Seen> = id.with_seen(seen);
     match id {
         id!(git_dir) => std::process::exit(1), // Exit to use default completion
         id!(checkout file_or_commit) => {

@@ -36,19 +36,21 @@ mod test {
     use super::*;
     use crate::id;
 
-    const ARG1: Arg<()> = Arg {
-        id: id::Valued::Single(id::SingleVal::new(())),
+    const ARG1: Arg<u32> = Arg {
+        id: Some(line!()),
+        seen_id: id::SingleVal::new(line!()).into(),
         max_values: 1,
         possible_values: &[],
     };
-    const ARG2: Arg<()> = Arg {
-        id: id::Valued::Single(id::SingleVal::new(())),
+    const ARG2: Arg<u32> = Arg {
+        id: Some(line!()),
+        seen_id: id::SingleVal::new(line!()).into(),
         max_values: 1,
         possible_values: &[],
     };
     #[test]
     fn test_empty_arg_ctx() {
-        let mut ctx = ArgsContext::<()>::new(&[]);
+        let mut ctx = ArgsContext::<u32>::new(&[]);
         assert!(!ctx.has_seen_arg());
         assert!(ctx.next_arg().is_none());
         assert!(!ctx.has_seen_arg());
@@ -63,13 +65,15 @@ mod test {
         assert!(ctx.next_arg().is_none());
     }
 
-    const ARG3: Arg<()> = Arg {
-        id: id::Valued::Single(id::SingleVal::new(())),
+    const ARG3: Arg<u32> = Arg {
+        id: Some(line!()),
+        seen_id: id::MultiVal::new(line!()).into(),
         max_values: 2,
         possible_values: &[],
     };
-    const ARG4: Arg<()> = Arg {
-        id: id::Valued::Single(id::SingleVal::new(())),
+    const ARG4: Arg<u32> = Arg {
+        id: Some(line!()),
+        seen_id: id::MultiVal::new(line!()).into(),
         max_values: 3,
         possible_values: &[],
     };

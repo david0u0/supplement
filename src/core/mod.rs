@@ -19,7 +19,8 @@ use std::iter::Peekable;
 type PossibleValues = &'static [(&'static str, &'static str)];
 
 pub struct Arg<ID> {
-    pub id: id::Valued<ID>,
+    pub id: Option<ID>,
+    pub seen_id: id::Valued,
     pub max_values: usize,
     pub possible_values: PossibleValues,
 }
@@ -28,11 +29,11 @@ fn comp_with_possible<ID>(
     mut unready: Unready,
     values: PossibleValues,
     value: String,
-    id: id::Valued<ID>,
+    id: Option<ID>,
 ) -> CompletionGroup<ID> {
     let values = values.iter().map(|(v, d)| Completion::new(v, d));
     unready = unready.preexist(values);
-    match id.id() {
+    match id {
         Some(id) => CompletionGroup::Unready { id, unready, value },
         None => CompletionGroup::Ready(unready.to_ready(vec![])),
     }
@@ -49,14 +50,14 @@ pub struct Command<ID: 'static> {
 }
 
 fn supplement_arg<ID: PartialEq + Copy + Debug>(
-    seen: &mut Seen<ID>,
+    seen: &mut Seen,
     ctx: &mut ArgsContext<ID>,
     arg: String,
 ) -> Result {
     let Some(arg_obj) = ctx.next_arg() else {
         return Err(Error::UnexpectedArg(arg));
     };
-    seen.push_valued(arg_obj.id, arg);
+    seen.push_valued(arg_obj.seen_id, arg);
     Ok(())
 }
 fn parse_flag(s: &str, disable_flag: bool) -> ParsedFlag<'_> {
@@ -111,15 +112,15 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     pub fn supplement(
         &self,
         args: impl Iterator<Item = String>,
-    ) -> Result<(Seen<ID>, CompletionGroup<ID>)> {
-        let mut seen = Seen::<ID>::new();
+    ) -> Result<(Seen, CompletionGroup<ID>)> {
+        let mut seen = Seen::new();
         let grp = self.supplement_with_seen(&mut seen, args)?;
         Ok((seen, grp))
     }
 
     pub fn supplement_with_seen(
         &self,
-        seen: &mut Seen<ID>,
+        seen: &mut Seen,
         mut args: impl Iterator<Item = String>,
     ) -> Result<CompletionGroup<ID>> {
         args.next(); // ignore the first arg which is the program's name
@@ -136,7 +137,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
         let has_subcmd = !self.commands.is_empty();
         has_subcmd && ctx.has_seen_arg()
     }
-    fn flags(&self, seen: &Seen<ID>) -> impl Iterator<Item = &Flag<ID>> {
+    fn flags(&self, seen: &Seen) -> impl Iterator<Item = &Flag<ID>> {
         self.all_flags.iter().filter(|f| {
             if !f.once {
                 true
@@ -153,7 +154,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     fn find_flag<F: FnMut(&Flag<ID>) -> bool>(
         &self,
         arg: &str,
-        seen: &Seen<ID>,
+        seen: &Seen,
         mut filter: F,
     ) -> Result<&Flag<ID>> {
         match self.flags(seen).find(|f| filter(f)) {
@@ -162,17 +163,17 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
         }
     }
 
-    fn find_long_flag(&self, flag: &str, seen: &Seen<ID>) -> Result<&Flag<ID>> {
+    fn find_long_flag(&self, flag: &str, seen: &Seen) -> Result<&Flag<ID>> {
         self.find_flag(flag, seen, |f| f.long.contains(&flag))
     }
-    fn find_short_flag(&self, flag: char, seen: &Seen<ID>) -> Result<&Flag<ID>> {
+    fn find_short_flag(&self, flag: char, seen: &Seen) -> Result<&Flag<ID>> {
         self.find_flag(&flag.to_string(), seen, |f| f.short.contains(&flag))
     }
 
     fn supplement_recur(
         &self,
         args_ctx_opt: &mut Option<ArgsContext<'_, ID>>,
-        seen: &mut Seen<ID>,
+        seen: &mut Seen,
         args: &mut Peekable<impl Iterator<Item = String>>,
     ) -> Result<CompletionGroup<ID>> {
         let arg = args.next().unwrap();
@@ -240,7 +241,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     fn supplement_last(
         &self,
         args_ctx: &mut ArgsContext<'_, ID>,
-        seen: &mut Seen<ID>,
+        seen: &mut Seen,
         arg: String,
     ) -> Result<CompletionGroup<ID>> {
         let ret: CompletionGroup<ID> = match parse_flag(&arg, self.doing_external(args_ctx)) {
@@ -300,7 +301,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
 
     fn resolve_shorts<'a, 'b>(
         &'b self,
-        seen: &mut Seen<ID>,
+        seen: &mut Seen,
         shorts: &'a str,
     ) -> Result<ResolvedMultiShort<'a, 'b, ID>> {
         let mut chars = shorts.chars().peekable();
@@ -365,7 +366,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
 
     fn supplement_last_short_flags(
         &self,
-        seen: &mut Seen<ID>,
+        seen: &mut Seen,
         arg: String,
     ) -> Result<CompletionGroup<ID>> {
         let resolved = self.resolve_shorts(seen, &arg)?;

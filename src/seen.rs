@@ -10,48 +10,48 @@ pub struct SeenUnitNoVal {
     pub count: u32,
 }
 #[derive(Debug, Eq, PartialEq)]
-pub struct SeenUnitSingleVal<ID> {
-    pub id: id::SingleVal<ID>,
+pub struct SeenUnitSingleVal {
+    pub id: id::SingleVal,
     pub value: String,
 }
 #[derive(Debug, Eq, PartialEq)]
-pub struct SeenUnitMultiVal<ID> {
-    pub id: id::MultiVal<ID>,
+pub struct SeenUnitMultiVal {
+    pub id: id::MultiVal,
     pub values: Vec<String>,
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub enum SeenUnit<ID> {
+pub enum SeenUnit {
     No(SeenUnitNoVal),
-    Single(SeenUnitSingleVal<ID>),
-    Multi(SeenUnitMultiVal<ID>),
+    Single(SeenUnitSingleVal),
+    Multi(SeenUnitMultiVal),
 }
 
-pub trait Getter<ID> {
+pub trait Getter {
     type Ret;
-    fn match_and_cast<'a>(&self, h: &'a SeenUnit<ID>) -> Option<&'a Self::Ret>;
+    fn match_and_cast<'a>(&self, h: &'a SeenUnit) -> Option<&'a Self::Ret>;
 }
-impl<ID> Getter<ID> for id::NoVal {
+impl Getter for id::NoVal {
     type Ret = SeenUnitNoVal;
-    fn match_and_cast<'a>(&self, h: &'a SeenUnit<ID>) -> Option<&'a Self::Ret> {
+    fn match_and_cast<'a>(&self, h: &'a SeenUnit) -> Option<&'a Self::Ret> {
         match h {
             SeenUnit::No(h) if &h.id == self => Some(h),
             _ => None,
         }
     }
 }
-impl<ID: PartialEq> Getter<ID> for id::SingleVal<ID> {
-    type Ret = SeenUnitSingleVal<ID>;
-    fn match_and_cast<'a>(&self, h: &'a SeenUnit<ID>) -> Option<&'a Self::Ret> {
+impl Getter for id::SingleVal {
+    type Ret = SeenUnitSingleVal;
+    fn match_and_cast<'a>(&self, h: &'a SeenUnit) -> Option<&'a Self::Ret> {
         match h {
             SeenUnit::Single(h) if &h.id == self => Some(h),
             _ => None,
         }
     }
 }
-impl<ID: PartialEq> Getter<ID> for id::MultiVal<ID> {
-    type Ret = SeenUnitMultiVal<ID>;
-    fn match_and_cast<'a>(&self, h: &'a SeenUnit<ID>) -> Option<&'a Self::Ret> {
+impl Getter for id::MultiVal {
+    type Ret = SeenUnitMultiVal;
+    fn match_and_cast<'a>(&self, h: &'a SeenUnit) -> Option<&'a Self::Ret> {
         match h {
             SeenUnit::Multi(h) if &h.id == self => Some(h),
             _ => None,
@@ -97,8 +97,8 @@ impl<ID: PartialEq> Getter<ID> for id::MultiVal<ID> {
 /// use supplement::Seen;
 /// use supplement::helper::id;
 ///
-/// fn handle_comp(id: ID, seen: Seen<ID>) {
-///     let id_with_ctx: ID<&Seen<ID>> = id.with_seen(&seen);
+/// fn handle_comp(id: ID, seen: Seen) {
+///     let id_with_ctx: ID<&Seen> = id.with_seen(&seen);
 ///     match id_with_ctx {
 ///         id!(def(root_id) checkout(chk_id) files) => {
 ///             // use `root_id` to get the root args/flags
@@ -117,15 +117,15 @@ impl<ID: PartialEq> Getter<ID> for id::MultiVal<ID> {
 ///
 /// Alternatively, you can search in the seen arguments by IDs using [`Seen::find`].
 #[derive(Debug, Eq, PartialEq)]
-pub struct Seen<ID>(Vec<SeenUnit<ID>>);
+pub struct Seen(Vec<SeenUnit>);
 
-impl<ID> Default for Seen<ID> {
+impl Default for Seen {
     fn default() -> Self {
         Seen(vec![])
     }
 }
 
-impl<ID: PartialEq + std::fmt::Debug> Seen<ID> {
+impl Seen {
     pub fn new() -> Self {
         Default::default()
     }
@@ -144,7 +144,7 @@ impl<ID: PartialEq + std::fmt::Debug> Seen<ID> {
 
         self.0.push(SeenUnit::No(SeenUnitNoVal { id, count: 1 }));
     }
-    pub(crate) fn push_single_val(&mut self, id: id::SingleVal<ID>, value: String) {
+    pub(crate) fn push_single_val(&mut self, id: id::SingleVal, value: String) {
         log::debug!("push single val {:?} {}", id, value);
         for h in self.0.iter_mut() {
             match h {
@@ -165,7 +165,7 @@ impl<ID: PartialEq + std::fmt::Debug> Seen<ID> {
         self.0
             .push(SeenUnit::Single(SeenUnitSingleVal { id, value }));
     }
-    pub(crate) fn push_multi_val(&mut self, id: id::MultiVal<ID>, value: String) {
+    pub(crate) fn push_multi_val(&mut self, id: id::MultiVal, value: String) {
         log::debug!("push multi val {:?} {}", id, value);
         for h in self.0.iter_mut() {
             match h {
@@ -182,7 +182,7 @@ impl<ID: PartialEq + std::fmt::Debug> Seen<ID> {
             .push(SeenUnit::Multi(SeenUnitMultiVal { id, values }));
     }
 
-    pub(crate) fn push_valued(&mut self, id: id::Valued<ID>, value: String) {
+    pub(crate) fn push_valued(&mut self, id: id::Valued, value: String) {
         match id {
             id::Valued::Single(id) => self.push_single_val(id, value),
             id::Valued::Multi(id) => self.push_multi_val(id, value),
@@ -204,18 +204,18 @@ impl<ID: PartialEq + std::fmt::Debug> Seen<ID> {
     ///
     /// ```no_run
     /// use supplement::{Seen, id};
-    /// let seen = Seen::<()>::new();
+    /// let seen = Seen::new();
     ///
     /// let id = id::NoVal::new(0);
     /// let c: u32 = seen.find(id).unwrap().count;
     ///
-    /// let id = id::SingleVal::new(());
+    /// let id = id::SingleVal::new(0);
     /// let v: &String = &seen.find(id).unwrap().value;
     ///
-    /// let id = id::MultiVal::new(());
+    /// let id = id::MultiVal::new(0);
     /// let v: &[String] = &seen.find(id).unwrap().values;
     /// ```
-    pub fn find<I: Getter<ID>>(&self, id: I) -> Option<&I::Ret> {
+    pub fn find<I: Getter>(&self, id: I) -> Option<&I::Ret> {
         for h in self.0.iter() {
             let h = id.match_and_cast(h);
             if h.is_some() {
@@ -226,7 +226,7 @@ impl<ID: PartialEq + std::fmt::Debug> Seen<ID> {
     }
 
     #[doc(hidden)]
-    pub fn into_inner(self) -> Vec<SeenUnit<ID>> {
+    pub fn into_inner(self) -> Vec<SeenUnit> {
         self.0
     }
 }

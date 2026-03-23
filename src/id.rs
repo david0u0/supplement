@@ -1,18 +1,6 @@
 //! Module for IDs of CLI objects that can be used to lookup values in [`Seen`].
 //!
-//! There are two aspect for an ID: the amount of value it can take, and whether it is customizable.
-//! Each is represented by a different type or enum variant.
-//!
-//! - The amount of value affects the data type it gets from [`Seen::find`].
-//! - An ID is *customizable* if and only if it needs custom completion logic.
-//!   It will always return [`CompletionGroup::Unready`] during completion.
-//!
-//! |                  | no value  | single value          | multi value          |
-//! |------------------|-----------|-----------------------|----------------------|
-//! | **Customizable** | N/A       | [`SingleVal::Custom`] | [`MultiVal::Custom`] |
-//! | **Static**       | [`NoVal`] | [`SingleVal::Static`] | [`MultiVal::Static`] |
-//!
-//! An ID that takes no value never needs a completion logic, hence is always static.
+//! ID also describes the amount of value it can take, encoded in their types.
 
 #[cfg(doc)]
 use crate::CompletionGroup;
@@ -25,7 +13,7 @@ use crate::Seen;
 /// which represents how many times it's seen in the CLI command
 /// ```no_run
 /// use supplement::{Seen, id};
-/// let seen = Seen::<()>::new();
+/// let seen = Seen::new();
 /// let id = id::NoVal::new(0);
 /// let c: u32 = seen.find(id).unwrap().count; // Represents how many times it's seen in the CLI command
 /// ```
@@ -37,73 +25,48 @@ pub struct NoVal(u32);
 /// ```no_run
 /// use supplement::{Seen, id};
 /// let seen = Seen::new();
-/// let id = id::SingleVal::new(());
+/// let id = id::SingleVal::new(0);
 /// let v: &str = &seen.find(id).unwrap().value;
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum SingleVal<ID> {
-    Custom(ID),
-    Static(u32),
-}
+pub struct SingleVal(u32);
 
 /// Id for things that can have more than one value.
 /// When searching for it in [`Seen`], it will have a vector of string `values`
 /// ```no_run
 /// use supplement::{Seen, id};
 /// let seen = Seen::new();
-/// let id = id::MultiVal::new(());
+/// let id = id::MultiVal::new(0);
 /// let v: &[String] = &seen.find(id).unwrap().values;
 /// ```
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum MultiVal<ID> {
-    Custom(ID),
-    Static(u32),
-}
+pub struct MultiVal(u32);
 
 #[doc(hidden)]
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum Valued<ID> {
-    Single(SingleVal<ID>),
-    Multi(MultiVal<ID>),
+pub enum Valued {
+    Single(SingleVal),
+    Multi(MultiVal),
 }
 
 impl NoVal {
     pub const fn new(id: u32) -> Self {
         NoVal(id)
     }
-    pub const fn new_static(id: u32) -> Self {
-        NoVal(id)
-    }
 }
-impl<ID> SingleVal<ID> {
-    pub const fn new(id: ID) -> Self {
-        SingleVal::Custom(id)
+impl SingleVal {
+    pub const fn new(id: u32) -> Self {
+        SingleVal(id)
     }
-    pub const fn new_static(id: u32) -> Self {
-        SingleVal::Static(id)
-    }
-    pub const fn into(self) -> Valued<ID> {
+    pub const fn into(self) -> Valued {
         Valued::Single(self)
     }
 }
-impl<ID> MultiVal<ID> {
-    pub const fn new(id: ID) -> Self {
-        MultiVal::Custom(id)
+impl MultiVal {
+    pub const fn new(id: u32) -> Self {
+        MultiVal(id)
     }
-    pub const fn new_static(id: u32) -> Self {
-        MultiVal::Static(id)
-    }
-    pub const fn into(self) -> Valued<ID> {
+    pub const fn into(self) -> Valued {
         Valued::Multi(self)
-    }
-}
-
-impl<ID> Valued<ID> {
-    pub fn id(self) -> Option<ID> {
-        match self {
-            Valued::Single(SingleVal::Custom(id)) => Some(id),
-            Valued::Multi(MultiVal::Custom(id)) => Some(id),
-            _ => None,
-        }
     }
 }

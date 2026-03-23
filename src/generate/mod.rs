@@ -141,29 +141,15 @@ impl FlagDisplayHelper<'_> {
         handle_custom!(is_static, self.force_custom, self.flag.get_id().to_string());
         Ok(is_static)
     }
-    fn id_line_str(&self) -> Result<String, GenerateError> {
+    fn id_line_str(&self) -> String {
         let id_name = self.id_name;
-        let id = self.flag.get_id().to_string();
         let id_type = match self.ty {
             ValType::No => "NoVal",
             ValType::Single => "SingleVal",
             ValType::Multi => "MultiVal",
         };
-        let global_id = match self.ty {
-            ValType::No => "",
-            _ => "<GlobalID>",
-        };
-        let is_static = self.is_static()?;
 
-        let value = if is_static {
-            "new_static(line!())".to_owned()
-        } else {
-            let value = utils::get_id_value(self.prev, NameType::VAL, &id);
-            format!("new({value})")
-        };
-        Ok(format!(
-            "const {id_name}: id::{id_type}{global_id} = id::{id_type}::{value};"
-        ))
+        format!("const {id_name}: id::{id_type} = id::{id_type}::new(line!());")
     }
     fn type_str(&self) -> Result<String, GenerateError> {
         let id_name = self.id_name;
@@ -173,12 +159,22 @@ impl FlagDisplayHelper<'_> {
                 format!("flag_type::Type::new_bool({id_name})")
             }
             _ => {
+                let is_static = self.is_static()?;
+                let id_value = if is_static {
+                    "None".to_string()
+                } else {
+                    format!(
+                        "Some({})",
+                        utils::get_id_value(self.prev, NameType::VAL, &id)
+                    )
+                };
+
                 let complete_with_equal = utils::compute_flag_equal(self.flag, self.strict)
                     .map_err(|msg| GenerateError::Strict { id, msg })?;
                 let possible_values = self.flag.get_possible_values();
                 let possible_values = join_possible_values(&possible_values);
                 format!(
-                    "flag_type::Type::new_valued({id_name}.into(), {complete_with_equal}, &[{possible_values}])"
+                    "flag_type::Type::new_valued({id_value}, {id_name}.into(), {complete_with_equal}, &[{possible_values}])"
                 )
             }
         };
@@ -238,18 +234,19 @@ fn generate_args_in_cmd(
         handle_custom!(is_static, force_custom, name);
 
         let id_value = if is_static {
-            "new_static(line!())".to_owned()
+            "None".to_string()
         } else {
-            format!("new({})", utils::get_id_value(prev, name_type, &name))
+            format!("Some({})", utils::get_id_value(prev, name_type, &name))
         };
         let possible_values = join_possible_values(&possible_values);
 
         writeln!(
             w,
             "\
-{indent}const {id_name}: {id_type}<GlobalID> = {id_type}::{id_value};
+{indent}const {id_name}: {id_type} = {id_type}::new(line!());
 {indent}const {rust_name}: Arg<GlobalID> = Arg {{
-{indent}    id: {id_name}.into(),
+{indent}    id: {id_value},
+{indent}    seen_id: {id_name}.into(),
 {indent}    max_values: {max_values},
 {indent}    possible_values: &[{possible_values}],
 {indent}}};"
@@ -347,7 +344,7 @@ fn generate_flags_in_cmd(
         let enum_name = gen_enum_name(NameType::VAL, &name);
         let enum_name = if is_static { None } else { Some(enum_name) };
 
-        let id_line = flag_display_helper.id_line_str()?;
+        let id_line = flag_display_helper.id_line_str();
         let type_str = flag_display_helper.type_str()?;
 
         writeln!(
@@ -459,7 +456,7 @@ fn generate_recur(
             writeln!(w, "{indent}}}")?;
 
             writeln!(w, "{indent}#[allow(dead_code)]")?;
-            writeln!(w, "{indent}impl<'a> ID<&'a Seen<GlobalID>> {{")?;
+            writeln!(w, "{indent}impl<'a> ID<&'a Seen> {{")?;
             for val in args.iter().chain(flags.iter()) {
                 if let Some(ty) = val.ctx_ty.as_ref() {
                     let ctx_func = ctx_func(&val.rust_name, *ty);
@@ -513,7 +510,7 @@ fn write_with_ctx<'a>(
 ) -> Result<(), std::io::Error> {
     writeln!(
         w,
-        "{indent}pub fn with_seen(self, h: &Seen<GlobalID>) -> ID<&Seen<GlobalID>> {{"
+        "{indent}pub fn with_seen(self, h: &Seen) -> ID<&Seen> {{"
     )?;
     writeln!(w, "{indent}    match self {{")?;
     for val in vals {
