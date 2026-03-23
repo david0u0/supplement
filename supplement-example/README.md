@@ -95,7 +95,7 @@ You can **NEVER** get anything from `log` (e.g. `--pretty`).
 Refer to this code in [src/main.rs](src/main.rs):
 
 ```rs
-let id: ID<&Seen<ID>> = id.with_seen(&Seen);
+let id: ID<&Seen> = id.with_seen(&Seen);
 match id {
     // ...
 

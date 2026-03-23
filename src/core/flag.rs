@@ -26,23 +26,24 @@ pub mod flag_type {
     #[doc(hidden)]
     #[derive(Clone, Copy)]
     pub struct Bool {
-        pub(crate) id: id::NoVal,
+        pub(crate) seen_id: id::NoVal,
     }
     impl Bool {
-        pub(crate) fn push<ID: PartialEq + Debug>(&self, seen: &mut Seen<ID>) {
-            seen.push_no_val(self.id)
+        pub(crate) fn push(&self, seen: &mut Seen) {
+            seen.push_no_val(self.seen_id)
         }
     }
     #[doc(hidden)]
     #[derive(Clone, Copy)]
     pub struct Valued<ID> {
-        pub(crate) id: id::Valued<ID>,
+        pub(crate) id: Option<ID>,
+        pub(crate) seen_id: id::Valued,
         pub(crate) complete_with_equal: CompleteWithEqual,
         pub(crate) possible_values: PossibleValues,
     }
-    impl<ID: PartialEq + Copy + Debug> Valued<ID> {
-        pub(crate) fn push(&self, seen: &mut Seen<ID>, arg: String) {
-            seen.push_valued(self.id, arg)
+    impl<ID> Valued<ID> {
+        pub(crate) fn push(&self, seen: &mut Seen, arg: String) {
+            seen.push_valued(self.seen_id, arg)
         }
     }
 
@@ -52,16 +53,18 @@ pub mod flag_type {
         Valued(Valued<ID>),
     }
     impl<ID> Type<ID> {
-        pub const fn new_bool(id: id::NoVal) -> Self {
-            Type::Bool(Bool { id })
+        pub const fn new_bool(seen_id: id::NoVal) -> Self {
+            Type::Bool(Bool { seen_id })
         }
         pub const fn new_valued(
-            id: id::Valued<ID>,
+            id: Option<ID>,
+            seen_id: id::Valued,
             complete_with_equal: CompleteWithEqual,
             possible_values: PossibleValues,
         ) -> Self {
             Type::Valued(Valued {
                 id,
+                seen_id,
                 complete_with_equal,
                 possible_values,
             })
@@ -131,15 +134,15 @@ impl<ID: PartialEq + Copy + Debug> Flag<ID> {
         })
     }
 
-    pub(super) fn exists_in_seen(&self, seen: &Seen<ID>) -> bool {
+    pub(super) fn exists_in_seen(&self, seen: &Seen) -> bool {
         match self.ty {
-            Type::Bool(Bool { id, .. }) => seen.find(id).is_some(),
+            Type::Bool(Bool { seen_id, .. }) => seen.find(seen_id).is_some(),
             Type::Valued(Valued {
-                id: id::Valued::Single(id),
+                seen_id: id::Valued::Single(id),
                 ..
             }) => seen.find(id).is_some(),
             Type::Valued(Valued {
-                id: id::Valued::Multi(id),
+                seen_id: id::Valued::Multi(id),
                 ..
             }) => seen.find(id).is_some(),
         }
@@ -147,7 +150,7 @@ impl<ID: PartialEq + Copy + Debug> Flag<ID> {
 
     pub(super) fn supplement(
         &self,
-        seen: &mut Seen<ID>,
+        seen: &mut Seen,
         args: &mut Peekable<impl Iterator<Item = String>>,
     ) -> Result<Option<CompletionGroup<ID>>> {
         let valued = match self.ty {

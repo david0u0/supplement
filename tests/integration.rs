@@ -24,23 +24,30 @@ mod def {
         description: "test description for flag C",
         once: true,
     };
-    pub const B_FLAG_ID: id::SingleVal<ID> = id::SingleVal::new(ID::B);
+    pub const B_FLAG_ID: id::SingleVal = id::SingleVal::new(line!());
     pub const B_FLAG: Flag<ID> = Flag {
-        ty: flag_type::Type::new_valued(B_FLAG_ID.into(), CompleteWithEqual::NoNeed, &[]),
+        ty: flag_type::Type::new_valued(
+            Some(ID::B),
+            B_FLAG_ID.into(),
+            CompleteWithEqual::NoNeed,
+            &[],
+        ),
         short: &['b', 'x'],
         long: &["long-b"],
         description: "test description for flag B",
         once: true,
     };
-    pub const A_ARG_ID: id::SingleVal<ID> = id::SingleVal::new(ID::A);
+    pub const A_ARG_ID: id::SingleVal = id::SingleVal::new(line!());
     pub const A_ARG: Arg<ID> = Arg {
-        id: A_ARG_ID.into(),
+        id: Some(ID::A),
+        seen_id: A_ARG_ID.into(),
         max_values: 1,
         possible_values: &[],
     };
-    pub const E_ARG_ID: id::SingleVal<ID> = id::SingleVal::new(ID::E);
+    pub const E_ARG_ID: id::SingleVal = id::SingleVal::new(line!());
     pub const E_ARG: Arg<ID> = Arg {
-        id: E_ARG_ID.into(),
+        id: Some(ID::E),
+        seen_id: E_ARG_ID.into(),
         max_values: 1,
         possible_values: &[("ext1", "")],
     };
@@ -58,16 +65,18 @@ mod def {
         args: &[A_ARG, A_ARG],
         commands: &[],
     };
-    pub const D_ARG_ID: id::MultiVal<ID> = id::MultiVal::new(ID::D);
+    pub const D_ARG_ID: id::MultiVal = id::MultiVal::new(line!());
     pub const D_ARG: Arg<ID> = Arg {
-        id: D_ARG_ID.into(),
+        id: Some(ID::D),
+        seen_id: D_ARG_ID.into(),
         max_values: 2,
         possible_values: &[("p1", "")],
     };
 
-    pub const OPT_FLAG_ID: id::SingleVal<ID> = id::SingleVal::new_static(line!());
+    pub const OPT_FLAG_ID: id::SingleVal = id::SingleVal::new(line!());
     pub const OPT_FLAG: Flag<ID> = Flag {
         ty: flag_type::Type::new_valued(
+            None,
             OPT_FLAG_ID.into(),
             CompleteWithEqual::Optional,
             &[("opt1", ""), ("opt2", "")],
@@ -78,9 +87,10 @@ mod def {
         once: true,
     };
 
-    pub const OPT2_FLAG_ID: id::SingleVal<ID> = id::SingleVal::new(ID::OPT2);
+    pub const OPT2_FLAG_ID: id::SingleVal = id::SingleVal::new(line!());
     pub const OPT2_FLAG: Flag<ID> = Flag {
         ty: flag_type::Type::new_valued(
+            Some(ID::OPT2),
             OPT2_FLAG_ID.into(),
             CompleteWithEqual::Optional,
             &[("opt3", ""), ("opt4", "")],
@@ -93,7 +103,7 @@ mod def {
 }
 use def::ID;
 
-fn try_run(args: &str, last_is_empty: bool) -> (Vec<SeenUnit<ID>>, Result<CompletionGroup<ID>>) {
+fn try_run(args: &str, last_is_empty: bool) -> (Vec<SeenUnit>, Result<CompletionGroup<ID>>) {
     let _ = env_logger::try_init();
 
     let args = args.split(' ').map(|s| s.to_owned());
@@ -108,7 +118,7 @@ fn try_run(args: &str, last_is_empty: bool) -> (Vec<SeenUnit<ID>>, Result<Comple
     let res = def::ROOT.supplement_with_seen(&mut seen, args);
     (seen.into_inner(), res)
 }
-fn run(args: &str, last_is_empty: bool) -> (Vec<SeenUnit<ID>>, CompletionGroup<ID>) {
+fn run(args: &str, last_is_empty: bool) -> (Vec<SeenUnit>, CompletionGroup<ID>) {
     let (h, r) = try_run(args, last_is_empty);
     (h, r.unwrap())
 }
