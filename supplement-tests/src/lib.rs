@@ -37,7 +37,7 @@ mod test {
     use def::ID;
     use supplement::{Result, Seen, helper::id};
 
-    fn run_with_seen(cmd: &str) -> Result<(Seen<ID>, CompletionGroup<ID>)> {
+    fn run_with_seen(cmd: &str) -> Result<(Seen, CompletionGroup<ID>)> {
         let cmd = cmd.split(" ").map(|s| s.to_string());
         def::CMD.supplement(cmd)
     }
