@@ -24,7 +24,7 @@ pub mod flag_type {
     use super::*;
 
     #[doc(hidden)]
-    #[derive(Clone, Copy)]
+    #[derive(Clone, Copy, Debug)]
     pub struct Bool {
         pub(crate) seen_id: id::NoVal,
     }
@@ -34,6 +34,7 @@ pub mod flag_type {
         }
     }
     #[doc(hidden)]
+    #[derive(Debug)]
     pub struct Valued<ID> {
         pub(crate) id: Option<ID>,
         pub(crate) seen_id: id::Valued,
@@ -46,6 +47,7 @@ pub mod flag_type {
         }
     }
 
+    #[derive(Debug)]
     pub enum Type<ID> {
         Bool(Bool),
         Valued(Valued<ID>),
@@ -89,6 +91,7 @@ impl Longs {
 /// The later is often called "option", but that creates confusion with Rust's `Option` type.
 ///
 /// For the difference between boolean and valued flags, check the field [`Flag::ty`].
+#[derive(Debug)]
 pub struct Flag<ID> {
     pub ty: Type<ID>,
     pub short: CowSlice<char>,

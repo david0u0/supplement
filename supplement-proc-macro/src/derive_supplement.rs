@@ -198,11 +198,11 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
 
             impl Supplement for #name {
                 type ID = #id_name;
-                fn id_from_cmd(cmd: &[&str]) -> Option<(Option<Self::ID>, u32)> {
+                fn id_from_cmd(cmd: &[impl AsRef<str>]) -> Option<(Option<Self::ID>, u32)> {
                     let first = cmd.first()?;
 
                     // Try regular fields first
-                    match *first {
+                    match first.as_ref() {
                         #(#regular_field_matches,)*
                         _ => {}
                     }
@@ -300,7 +300,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                         if rest.is_empty() {
                             return None;
                         }
-                        let field_normalized = rest[0].to_lowercase();
+                        let field_normalized = rest[0].as_ref().to_lowercase();
 
                         // Try regular fields
                         match field_normalized.as_str() {
@@ -366,10 +366,10 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
 
             impl Supplement for #name {
                 type ID = #id_name;
-                fn id_from_cmd(cmd: &[&str]) -> Option<(Option<Self::ID>, u32)> {
+                fn id_from_cmd(cmd: &[impl AsRef<str>]) -> Option<(Option<Self::ID>, u32)> {
                     let first = cmd.first()?;
 
-                    match *first {
+                    match first.as_ref() {
                         #(#from_cmd_arms,)*
                         _ => None
                     }

@@ -20,6 +20,7 @@ pub use std::borrow::Cow;
 
 type CowStr = Cow<'static, str>;
 
+#[derive(Debug)]
 pub enum CowSlice<T: 'static> {
     Borrow(&'static [T]),
     Owned(Vec<T>),
@@ -39,6 +40,7 @@ impl<T> std::ops::Deref for CowSlice<T> {
     }
 }
 
+#[derive(Debug)]
 pub enum CowOwned<T: 'static, U: 'static> {
     Borrow(&'static [T]),
     Owned(Vec<U>),
@@ -57,6 +59,7 @@ impl PossibleValues {
     }
 }
 
+#[derive(Debug)]
 pub struct Arg<ID> {
     pub id: Option<ID>,
     pub seen_id: id::Valued,
@@ -80,6 +83,7 @@ fn comp_with_possible<ID>(
 
 /// The object to represent a command.
 /// User can just call [`Command::supplement`] function for CLI completion.
+#[derive(Debug)]
 pub struct Command<ID: 'static> {
     pub name: CowStr,
     pub description: CowStr,
