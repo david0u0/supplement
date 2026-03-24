@@ -25,16 +25,11 @@ pub enum CowSlice<T: 'static> {
     Borrow(&'static [T]),
     Owned(Vec<T>),
 }
-impl<T> CowSlice<T> {
-    fn iter(&self) -> impl Iterator<Item = &T> {
-        self.into_iter()
-    }
-}
 impl<T> std::ops::Deref for CowSlice<T> {
     type Target = [T];
     fn deref(&self) -> &Self::Target {
         match self {
-            CowSlice::Borrow(t) => *t,
+            CowSlice::Borrow(t) => t,
             CowSlice::Owned(t) => t.as_slice(),
         }
     }
@@ -46,10 +41,11 @@ pub enum CowOwned<T: 'static, U: 'static> {
     Owned(Vec<U>),
 }
 
-type PossibleValues = CowOwned<(&'static str, &'static str), (String, String)>;
+type StringPair = (String, String);
+type PossibleValues = CowOwned<(&'static str, &'static str), StringPair>;
 impl PossibleValues {
     pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
-        let (v1, v2): (&[(&str, &str)], &[(String, String)]) = match self {
+        let (v1, v2): (&[(&str, &str)], &[StringPair]) = match self {
             CowOwned::Borrow(v) => (*v, &[]),
             CowOwned::Owned(v) => (&[], v.as_slice()),
         };
@@ -225,7 +221,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
         let args_ctx = if let Some(ctx) = args_ctx_opt {
             ctx
         } else {
-            *args_ctx_opt = Some(ArgsContext::new(&*self.args));
+            *args_ctx_opt = Some(ArgsContext::new(&self.args));
             args_ctx_opt.as_mut().unwrap()
         };
 

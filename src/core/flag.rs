@@ -81,7 +81,7 @@ impl Longs {
             CowOwned::Borrow(v) => (*v, &[]),
             CowOwned::Owned(v) => (&[], v.as_slice()),
         };
-        v1.iter().map(|s| *s).chain(v2.iter().map(|s| s.as_str()))
+        v1.iter().copied().chain(v2.iter().map(|s| s.as_str()))
     }
 }
 

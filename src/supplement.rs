@@ -94,7 +94,8 @@ fn gen_flag<Root: Supplement>(
             (prev.id, prev.seen_id)
         } else {
             log::info!("get new global flag {name}");
-            let (id, seen_id) = Root::id_from_cmd(&trace).expect(&format!("{trace:?} not found"));
+            let (id, seen_id) =
+                Root::id_from_cmd(&trace).unwrap_or_else(|| panic!("{trace:?} not found"));
             global_flags.push(GlobalFlag {
                 id,
                 seen_id,
@@ -104,7 +105,7 @@ fn gen_flag<Root: Supplement>(
             (id, seen_id)
         }
     } else {
-        Root::id_from_cmd(&trace).expect(&format!("{trace:?} not found"))
+        Root::id_from_cmd(&trace).unwrap_or_else(|| panic!("{trace:?} not found"))
     };
 
     let shorts: Vec<char> = arg.get_short_and_visible_aliases().unwrap_or_default();
@@ -182,7 +183,7 @@ fn gen_arg<Root: Supplement>(arg: &crate::clap::Arg, trace: &[String]) -> Arg<Ro
 
     let max_values = arg.get_num_args().expect("built").max_values();
 
-    let (id, seen_id) = Root::id_from_cmd(&trace).expect(&format!("{trace:?} not found"));
+    let (id, seen_id) = Root::id_from_cmd(&trace).unwrap_or_else(|| panic!("{trace:?} not found"));
 
     let possible_values: Vec<(String, String)> = arg
         .get_value_parser()

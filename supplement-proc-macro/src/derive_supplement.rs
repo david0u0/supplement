@@ -163,12 +163,11 @@ fn is_bool(ty: &Type) -> bool {
 fn extract_inner_type_opt<'a>(ty: &'a Type, outer_types: &[&str]) -> Option<&'a Type> {
     if let Type::Path(type_path) = ty {
         let segment = type_path.path.segments.last().unwrap();
-        if outer_types.iter().any(|o| segment.ident == o) {
-            if let PathArguments::AngleBracketed(args) = &segment.arguments {
-                if let Some(GenericArgument::Type(inner)) = args.args.first() {
-                    return Some(inner);
-                }
-            }
+        if outer_types.iter().any(|o| segment.ident == o)
+            && let PathArguments::AngleBracketed(args) = &segment.arguments
+            && let Some(GenericArgument::Type(inner)) = args.args.first()
+        {
+            return Some(inner);
         }
     }
     None

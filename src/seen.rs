@@ -111,14 +111,8 @@ impl Getter for id::MultiVal {
 ///
 ///
 /// Alternatively, you can search in the seen arguments by IDs using [`Seen::find`].
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, Default)]
 pub struct Seen(Vec<SeenUnit>);
-
-impl Default for Seen {
-    fn default() -> Self {
-        Seen(vec![])
-    }
-}
 
 impl Seen {
     pub fn new() -> Self {
