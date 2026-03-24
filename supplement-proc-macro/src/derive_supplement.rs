@@ -4,11 +4,11 @@ use quote::{ToTokens, format_ident, quote};
 use std::cell::Cell;
 use syn::{
     Attribute, Data, DeriveInput, Fields, GenericArgument, Ident, PathArguments, Type,
-    parse_macro_input,
+    parse_macro_input, parse_quote,
 };
 
-const ID_NAME: &str = "IDGeneratedBySupplement";
-const CTX_POSTFIX: &str = "CtxGeneratedBySupplement";
+const ID_NAME: &str = "ID";
+const CTX_POSTFIX: &str = "Ctx";
 const MOD_POSTFIX: &str = "_mod_generated_by_supplement";
 
 thread_local! {
@@ -30,32 +30,80 @@ fn gen_never() -> TokenStream2 {
 
 enum CtxFunc<'a> {
     Count,
-    Single(&'a Type),
-    Multi(&'a Type),
+    Single(&'a Type, bool),
+    Multi(&'a Type, bool),
 }
 impl CtxFunc<'_> {
-    fn generate(&self, name: &Ident) -> TokenStream2 {
+    fn generate(&self, name: &Ident, uniq_num: u32) -> TokenStream2 {
+        fn map_asref(ty: &Type) -> Option<Type> {
+            if let Type::Path(type_path) = ty {
+                let ident = &type_path.path.segments.last().unwrap().ident;
+                if ident == "String" {
+                    return Some(parse_quote! { &str });
+                }
+                if ident == "PathBuf" {
+                    return Some(parse_quote! { &std::path::Path });
+                }
+            }
+            None
+        }
         match self {
             CtxFunc::Count => quote! {
-                pub fn #name(self) -> u32 {
-                    unimplemented!()
+                pub fn #name(self, seen: &Seen) -> u32 {
+                    seen.find(id::NoVal::new(#uniq_num)).map(|u| u.count).unwrap_or_default()
                 }
             },
-            CtxFunc::Single(ty) => quote! {
-                pub fn #name(self) -> Option<#ty> {
-                    unimplemented!()
+            CtxFunc::Single(ty, true) => quote! {
+                pub fn #name(self, seen: &Seen) -> Option<Result<#ty, String>> {
+                    seen.find(id::SingleVal::new(#uniq_num)).map(|u| <#ty as ValueEnum>::from_str(&u.value, false))
                 }
             },
-            CtxFunc::Multi(ty) => quote! {
-                pub fn #name(self) -> impl Iterator<Item = #ty> {
-                    vec![].into_iter()
+            CtxFunc::Multi(ty, true) => {
+                quote! {
+                    pub fn #name(self, seen: &Seen) -> impl Iterator<Item = Result<#ty, String>> {
+                        let unit = seen.find(id::MultiVal::new(#uniq_num));
+                        unit.into_iter().flat_map(|u| u.values.iter().map(|s| <#ty as ValueEnum>::from_str(&u.value, false)))
+                    }
                 }
-            },
+            }
+
+            CtxFunc::Single(ty, false) => {
+                if let Some(as_ref) = map_asref(ty) {
+                    quote! {
+                        pub fn #name(self, seen: &Seen) -> Option<#as_ref> {
+                            seen.find(id::SingleVal::new(#uniq_num)).map(|u| u.value.as_ref())
+                        }
+                    }
+                } else {
+                    quote! {
+                        pub fn #name(self, seen: &Seen) -> Option<Result<#ty, <#ty as FromStr>::Err>> {
+                            seen.find(id::SingleVal::new(#uniq_num)).map(|u| u.value.parse())
+                        }
+                    }
+                }
+            }
+            CtxFunc::Multi(ty, false) => {
+                if let Some(as_ref) = map_asref(ty) {
+                    quote! {
+                        pub fn #name(self, seen: &Seen) -> impl Iterator<Item = #as_ref> {
+                            let unit = seen.find(id::MultiVal::new(#uniq_num));
+                            unit.into_iter().flat_map(|u| u.values.iter().map(|s| s.as_ref()))
+                        }
+                    }
+                } else {
+                    quote! {
+                        pub fn #name(self, seen: &Seen) -> impl Iterator<Item = Result<#ty, <#ty as FromStr>::Err>> {
+                            let unit = seen.find(id::MultiVal::new(#uniq_num));
+                            unit.into_iter().flat_map(|u| u.values.iter().map(|s| s.parse()))
+                        }
+                    }
+                }
+            }
         }
     }
 }
 
-fn map_ctx_func(ty: &Type) -> CtxFunc<'_> {
+fn map_ctx_func(ty: &Type, is_value_enum: bool) -> CtxFunc<'_> {
     let ty = extract_inner_type(ty, &["Option"]);
     if let Type::Path(type_path) = ty {
         let segment = &type_path.path.segments.last().unwrap();
@@ -63,11 +111,11 @@ fn map_ctx_func(ty: &Type) -> CtxFunc<'_> {
             return CtxFunc::Count;
         }
         if let Some(inner) = extract_inner_type_opt(ty, &["Vec"]) {
-            return CtxFunc::Multi(inner);
+            return CtxFunc::Multi(inner, is_value_enum);
         }
     }
 
-    CtxFunc::Single(ty)
+    CtxFunc::Single(ty, is_value_enum)
 }
 
 fn has_subcommand_attr(attrs: &[Attribute]) -> bool {
@@ -147,7 +195,8 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
     for field in &fields.named {
         let field_name = field.ident.as_ref().unwrap();
         let field_ty = &field.ty;
-        let ctx_func = map_ctx_func(field_ty);
+        let is_value_enum = has_value_enum_attr(&field.attrs);
+        let ctx_func = map_ctx_func(field_ty, is_value_enum);
         let field_name_str = field_name.to_string();
         let variant_name = format_variant_name(&field_name_str, None);
 
@@ -163,7 +212,7 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
                     return Some((id, num));
                 }
             });
-        } else if has_value_enum_attr(&field.attrs) || is_bool(field_ty) {
+        } else if is_value_enum || is_bool(field_ty) {
             variants.push(quote! {
                 #variant_name(#ctx_name, Never)
             });
@@ -172,7 +221,7 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
             regular_field_matches.push(quote! {
                 #field_name_str if cmd.len() == 1 => return Some((None, #uniq_num))
             });
-            ctx_funcs.push(ctx_func.generate(field_name));
+            ctx_funcs.push(ctx_func.generate(field_name, uniq_num));
         } else {
             variants.push(quote! {
                 #variant_name(#ctx_name, ())
@@ -185,7 +234,7 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
                     Some((Some(id), #uniq_num))
                 }
             });
-            ctx_funcs.push(ctx_func.generate(field_name));
+            ctx_funcs.push(ctx_func.generate(field_name, uniq_num));
         }
     }
 
@@ -193,6 +242,9 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
     quote! {
         mod #mod_name {
             use super::*;
+            use supplement::{id, Seen};
+            use std::str::FromStr;
+            use clap::ValueEnum;
 
             #never
 
@@ -253,7 +305,8 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                 for field in &fields.named {
                     let field_name = field.ident.as_ref().unwrap();
                     let field_ty = &field.ty;
-                    let ctx_func = map_ctx_func(field_ty);
+                    let is_value_enum = has_value_enum_attr(&field.attrs);
+                    let ctx_func = map_ctx_func(field_ty, is_value_enum);
                     let field_name_str = field_name.to_string();
                     let field_name_lower = field_name_str.to_lowercase();
                     let id_variant_name =
@@ -273,14 +326,14 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                                 return Some((id, num));
                             }
                         });
-                    } else if has_value_enum_attr(&field.attrs) || is_bool(field_ty) {
+                    } else if is_value_enum || is_bool(field_ty) {
                         variants.push(quote! {
                             #id_variant_name(#ctx_name, Never)
                         });
                         field_matches.push(quote! {
                             #field_name_lower if rest.len() == 1 => return Some((None, #uniq_num))
                         });
-                        ctx_funcs.push(ctx_func.generate(field_name));
+                        ctx_funcs.push(ctx_func.generate(field_name, uniq_num));
                     } else {
                         variants.push(quote! {
                             #id_variant_name(#ctx_name, ())
@@ -292,7 +345,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                             }
                         });
 
-                        ctx_funcs.push(ctx_func.generate(field_name));
+                        ctx_funcs.push(ctx_func.generate(field_name, uniq_num));
                     }
                 }
 
@@ -366,6 +419,9 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
     quote! {
         mod #mod_name {
             use super::*;
+            use supplement::{id, Seen};
+            use std::str::FromStr;
+            use clap::ValueEnum;
 
             #never
             #(#ctx_defs)*

@@ -1,16 +1,21 @@
 use crate::clap::{Command as ClapCommand, CommandFactory};
-use crate::core::{Arg, Command, CompleteWithEqual, CowOwned, CowSlice, Flag, flag_type};
-use crate::id;
-use std::borrow::Cow;
+use crate::gen_prelude::*;
+use crate::{CompletionGroup, Result, id};
 use std::fmt::Debug;
 
+// TODO: global is not handled!
+
 pub trait Supplement: CommandFactory {
-    type ID: Debug;
+    type ID: Debug + PartialEq + Copy + 'static;
     fn id_from_cmd(cmd: &[impl AsRef<str>]) -> Option<(Option<Self::ID>, u32)>;
     fn gen_cmd() -> Command<Self::ID> {
         let mut cmd = Self::command();
         cmd.build();
         gen_cmd_inner::<Self>(true, &cmd, &[])
+    }
+    fn supplement(args: impl Iterator<Item = String>) -> Result<(Seen, CompletionGroup<Self::ID>)> {
+        let cmd = Self::gen_cmd();
+        cmd.supplement(args)
     }
 }
 
