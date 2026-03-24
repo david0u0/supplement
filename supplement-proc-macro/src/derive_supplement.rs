@@ -1,4 +1,4 @@
-// TODO: flatten & external subcmd
+// TODO: external subcmd
 
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
@@ -120,6 +120,17 @@ fn map_ctx_func(ty: &Type, is_value_enum: bool) -> CtxFunc<'_> {
     CtxFunc::Single(ty, is_value_enum)
 }
 
+fn has_flat_attr(attrs: &[Attribute]) -> bool {
+    for attr in attrs {
+        if attr.path().is_ident("clap") || attr.path().is_ident("command") {
+            let tokens = attr.meta.to_token_stream().to_string();
+            if tokens.contains("flatten") {
+                return true;
+            }
+        }
+    }
+    false
+}
 fn has_subcommand_attr(attrs: &[Attribute]) -> bool {
     for attr in attrs {
         if attr.path().is_ident("clap") || attr.path().is_ident("command") {
@@ -190,6 +201,7 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
 
     let mut variants: Vec<TokenStream2> = Vec::new();
     let mut ctx_funcs: Vec<TokenStream2> = Vec::new();
+    let mut ctx_fields: Vec<TokenStream2> = Vec::new();
     let mut regular_field_matches: Vec<TokenStream2> = Vec::new();
     let mut subcommand_delegates: Vec<TokenStream2> = Vec::new();
 
@@ -197,12 +209,14 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
         let field_name = field.ident.as_ref().unwrap();
         let field_ty = &field.ty;
         let is_value_enum = has_value_enum_attr(&field.attrs);
+        let is_subcommand = has_subcommand_attr(&field.attrs);
+        let is_flat = has_flat_attr(&field.attrs);
         let ctx_func = map_ctx_func(field_ty, is_value_enum);
         let field_name_str = field_name.to_string();
         let variant_name = format_variant_name(&field_name_str, None);
 
         let uniq_num = uniq_num();
-        if has_subcommand_attr(&field.attrs) {
+        if is_subcommand || is_flat {
             let inner_type = extract_inner_type(&field.ty, &["Option"]);
             variants.push(quote! {
                 #variant_name(#ctx_name, <#inner_type as Supplement>::ID)
@@ -213,6 +227,11 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
                     return Some((id, num));
                 }
             });
+            if is_flat {
+                ctx_fields.push(quote! {
+                    pub #field_name: <#inner_type as Supplement>::Ctx,
+                });
+            }
         } else if is_value_enum || is_bool(field_ty) {
             variants.push(quote! {
                 #variant_name(#ctx_name, Never)
@@ -250,7 +269,9 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
             #never
 
             #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-            pub struct #ctx_name;
+            pub struct #ctx_name {
+                #(#ctx_fields)*
+            }
             impl #ctx_name {
                 #(#ctx_funcs)*
             }
@@ -262,6 +283,7 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
 
             impl Supplement for #name {
                 type ID = #id_name;
+                type Ctx = #ctx_name;
                 fn id_from_cmd(cmd: &[impl AsRef<str>]) -> Option<(Option<Self::ID>, u32)> {
                     let first = cmd.first()?;
 
@@ -299,6 +321,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
             Fields::Named(fields) => {
                 let ctx_name = format_ident!("{variant_name}{CTX_POSTFIX}");
                 let mut ctx_funcs: Vec<TokenStream2> = Vec::new();
+                let mut ctx_fields: Vec<TokenStream2> = Vec::new();
 
                 let mut field_matches: Vec<TokenStream2> = Vec::new();
                 let mut subcommand_delegates: Vec<TokenStream2> = Vec::new();
@@ -307,6 +330,8 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                     let field_name = field.ident.as_ref().unwrap();
                     let field_ty = &field.ty;
                     let is_value_enum = has_value_enum_attr(&field.attrs);
+                    let is_subcommand = has_subcommand_attr(&field.attrs);
+                    let is_flat = has_flat_attr(&field.attrs);
                     let ctx_func = map_ctx_func(field_ty, is_value_enum);
                     let field_name_str = field_name.to_string();
                     let field_name_lower = field_name_str.to_lowercase();
@@ -314,9 +339,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                         format_variant_name(&variant_name_str, Some(&field_name_str));
                     let uniq_num = uniq_num();
 
-                    // TODO: possible values
-
-                    if has_subcommand_attr(&field.attrs) {
+                    if is_subcommand || is_flat {
                         let inner_type = extract_inner_type(field_ty, &["Option"]);
                         variants.push(quote! {
                             #id_variant_name(#ctx_name, <#inner_type as Supplement>::ID)
@@ -327,6 +350,11 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                                 return Some((id, num));
                             }
                         });
+                        if is_flat {
+                            ctx_fields.push(quote! {
+                                pub #field_name: <#inner_type as Supplement>::Ctx,
+                            });
+                        }
                     } else if is_value_enum || is_bool(field_ty) {
                         variants.push(quote! {
                             #id_variant_name(#ctx_name, Never)
@@ -352,7 +380,9 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
 
                 ctx_defs.push(quote! {
                     #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
-                    pub struct #ctx_name;
+                    pub struct #ctx_name {
+                        #(#ctx_fields)*
+                    }
                     impl #ctx_name {
                         #(#ctx_funcs)*
                     }
@@ -434,6 +464,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
 
             impl Supplement for #name {
                 type ID = #id_name;
+                type Ctx = ();
                 fn id_from_cmd(cmd: &[impl AsRef<str>]) -> Option<(Option<Self::ID>, u32)> {
                     let first = cmd.first()?;
 

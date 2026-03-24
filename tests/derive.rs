@@ -13,6 +13,14 @@ pub struct Git {
 }
 
 #[derive(Parser, Debug, Clone, Supplement)]
+pub struct TestFlat {
+    #[clap(long)]
+    verbose: bool,
+    #[clap(long)]
+    test_flat: Option<String>,
+}
+
+#[derive(Parser, Debug, Clone, Supplement)]
 pub enum Sub {
     Log {
         #[clap(long)]
@@ -22,8 +30,10 @@ pub enum Sub {
         paths: Vec<PathBuf>,
     },
     Remote1 {
-        #[clap(long)]
-        verbose: bool,
+        #[clap(short)]
+        v: bool,
+        #[clap(flatten)]
+        opts: TestFlat,
         #[clap(subcommand)]
         sub: Remote,
     },
@@ -32,8 +42,10 @@ pub enum Sub {
 
 #[derive(Parser, Debug, Clone, Supplement)]
 pub struct RemoteStruct {
-    #[clap(long)]
-    verbose: bool,
+    #[clap(short)]
+    v: bool,
+    #[clap(flatten)]
+    opts: TestFlat,
     #[clap(subcommand)]
     sub: Remote,
 }
@@ -68,6 +80,7 @@ type GitID = <Git as Supplement>::ID;
 type SubID = <Sub as Supplement>::ID;
 type RemoteID = <Remote as Supplement>::ID;
 type RemoteStructID = <RemoteStruct as Supplement>::ID;
+type TestFlatID = <TestFlat as Supplement>::ID;
 
 pub fn handle_id(seen: &Seen, id: <Git as Supplement>::ID) {
     match id {
@@ -76,12 +89,30 @@ pub fn handle_id(seen: &Seen, id: <Git as Supplement>::ID) {
         }
         id!(GitID.sub(ctx) SubID.Remote1.sub(remote_ctx) RemoteID.Add.url(add_ctx)) => {
             let _: Option<&str> = ctx.git_dir(seen);
-            let _: u32 = remote_ctx.verbose(seen);
+            let _: u32 = remote_ctx.v(seen);
+            let _: u32 = remote_ctx.opts.verbose(seen);
+            let _: Option<&str> = remote_ctx.opts.test_flat(seen);
             let _: Option<Result<URL, _>> = add_ctx.url(seen);
         }
         id!(GitID.sub SubID.Remote2 RemoteStructID.sub(remote_ctx) RemoteID.Add.url(add_ctx)) => {
-            let _: u32 = remote_ctx.verbose(seen);
+            let _: u32 = remote_ctx.v(seen);
+            let _: u32 = remote_ctx.opts.verbose(seen);
+            let _: Option<&str> = remote_ctx.opts.test_flat(seen);
             let _: Option<Result<URL, _>> = add_ctx.url(seen);
+        }
+
+        id!(GitID.sub SubID.Remote1.opts(remote_ctx) TestFlatID.test_flat(flat_ctx)) => {
+            let _: u32 = remote_ctx.v(seen);
+            assert_eq!(remote_ctx.opts, flat_ctx);
+            let _: u32 = flat_ctx.verbose(seen);
+            let _: Option<&str> = flat_ctx.test_flat(seen);
+        }
+        id!(GitID.sub SubID.Remote2 RemoteStructID.opts(remote_ctx) TestFlatID.test_flat(flat_ctx)) =>
+        {
+            let _: u32 = remote_ctx.v(seen);
+            assert_eq!(remote_ctx.opts, flat_ctx);
+            let _: u32 = flat_ctx.verbose(seen);
+            let _: Option<&str> = flat_ctx.test_flat(seen);
         }
 
         id!(GitID.sub SubID.Log.paths(log_ctx)) => {
@@ -126,6 +157,17 @@ mod test {
         );
 
         assert_eq!(
+            from_cmd_root(&["remote2", "test_flat"]),
+            GitID::X3Xsub(
+                def(),
+                SubID::X7XRemote2(
+                    (),
+                    RemoteStructID::X4Xopts(def(), TestFlatID::X9Xtest_flat(def(), ()))
+                )
+            )
+        );
+
+        assert_eq!(
             from_cmd::<Remote>(&["add", "url"]),
             RemoteID::X3XAddurl(def(), ())
         );
@@ -136,5 +178,12 @@ mod test {
         );
 
         assert_eq!(Git::id_from_cmd(&["nonexistent"]), None);
+    }
+
+    #[test]
+    fn test_gen_cmd() {
+        let _ = env_logger::try_init();
+
+        let _cmd = Git::gen_cmd();
     }
 }

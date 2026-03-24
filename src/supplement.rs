@@ -14,6 +14,8 @@ pub trait Supplement: CommandFactory {
     /// Users are expected to use [`crate::helper::id!`] to help construct the match arms.
     type ID: Debug + PartialEq + Copy + 'static;
 
+    type Ctx: Default + Debug + PartialEq + Copy + 'static;
+
     fn id_from_cmd(cmd: &[impl AsRef<str>]) -> Option<(Option<Self::ID>, u32)>;
     fn gen_cmd() -> Command<Self::ID> {
         let mut cmd = Self::command();
