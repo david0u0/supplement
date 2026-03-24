@@ -6,7 +6,7 @@ use supplement::{Seen, Supplement, helper::id_derived_no_assoc as id};
 
 #[derive(Parser, Debug, Supplement)]
 pub struct Git {
-    #[clap(long)]
+    #[clap(long, global = true)]
     git_dir: Option<String>,
     #[clap(subcommand)]
     sub: Sub,
@@ -15,6 +15,8 @@ pub struct Git {
 #[derive(Parser, Debug, Clone, Supplement)]
 pub enum Sub {
     Log {
+        #[clap(long)]
+        exclude: Option<String>,
         #[clap(long, value_enum)]
         pretty: Option<Pretty>, // NOTE: the `value_enum` is necessary due to lack of specialization
         paths: Vec<PathBuf>,
@@ -69,7 +71,7 @@ type RemoteStructID = <RemoteStruct as Supplement>::ID;
 
 pub fn handle_id(seen: &Seen, id: <Git as Supplement>::ID) {
     match id {
-        id!(GitID.git_dir(ctx)) => {
+        id!(GitID.git_dir(ctx)) | id!(GitID.sub(ctx) SubID.Log.exclude) => {
             let _: Option<&str> = ctx.git_dir(seen);
         }
         id!(GitID.sub(ctx) SubID.Remote1.sub(remote_ctx) RemoteID.Add.url(add_ctx)) => {

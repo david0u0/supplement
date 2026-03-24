@@ -3,15 +3,13 @@ use crate::gen_prelude::*;
 use crate::{CompletionGroup, Result, id};
 use std::fmt::Debug;
 
-// TODO: global is not handled!
-
 pub trait Supplement: CommandFactory {
     type ID: Debug + PartialEq + Copy + 'static;
     fn id_from_cmd(cmd: &[impl AsRef<str>]) -> Option<(Option<Self::ID>, u32)>;
     fn gen_cmd() -> Command<Self::ID> {
         let mut cmd = Self::command();
         cmd.build();
-        gen_cmd_inner::<Self>(true, &cmd, &[])
+        gen_cmd_inner::<Self>(true, &cmd, &[], &mut vec![])
     }
     fn supplement(args: impl Iterator<Item = String>) -> Result<(Seen, CompletionGroup<Self::ID>)> {
         let cmd = Self::gen_cmd();
@@ -19,10 +17,19 @@ pub trait Supplement: CommandFactory {
     }
 }
 
+#[derive(Clone)]
+struct GlobalFlag<ID> {
+    id: Option<ID>,
+    seen_id: u32,
+    name: String,
+    _ignored: bool, // TODO: implement this somehow?
+}
+
 fn gen_cmd_inner<Root: Supplement>(
     first: bool,
     cmd: &ClapCommand,
     trace: &[String],
+    global_flags: &mut Vec<GlobalFlag<Root::ID>>,
 ) -> Command<Root::ID> {
     let name: Cow<'_, str> = Cow::Owned(cmd.get_name().to_string());
     let mut trace = trace.to_vec();
@@ -39,7 +46,7 @@ fn gen_cmd_inner<Root: Supplement>(
             let id = a.get_id().as_str();
             id != "help"
         })
-        .map(|arg| gen_flag::<Root>(arg, &trace))
+        .map(|arg| gen_flag::<Root>(arg, &trace, global_flags))
         .collect();
 
     let args: Vec<Arg<Root::ID>> = cmd
@@ -51,7 +58,7 @@ fn gen_cmd_inner<Root: Supplement>(
     let commands: Vec<Command<Root::ID>> = cmd
         .get_subcommands()
         .filter(|c| c.get_name() != "help") // TODO: custom help
-        .map(|sub| gen_cmd_inner::<Root>(false, sub, &trace))
+        .map(|sub| gen_cmd_inner::<Root>(false, sub, &trace, global_flags))
         .collect();
 
     Command {
@@ -63,10 +70,33 @@ fn gen_cmd_inner<Root: Supplement>(
     }
 }
 
-fn gen_flag<Root: Supplement>(arg: &crate::clap::Arg, trace: &[String]) -> Flag<Root::ID> {
+fn gen_flag<Root: Supplement>(
+    arg: &crate::clap::Arg,
+    trace: &[String],
+    global_flags: &mut Vec<GlobalFlag<Root::ID>>,
+) -> Flag<Root::ID> {
     let name = arg.get_id();
     let mut trace = trace.to_vec();
     trace.push(name.to_string());
+
+    let (id, seen_id) = if arg.is_global_set() {
+        if let Some(prev) = global_flags.iter().find(|f| &f.name == name) {
+            log::info!("get existing global flag {name}");
+            (prev.id, prev.seen_id)
+        } else {
+            log::info!("get new global flag {name}");
+            let (id, seen_id) = Root::id_from_cmd(&trace).expect(&format!("{trace:?} not found"));
+            global_flags.push(GlobalFlag {
+                id,
+                seen_id,
+                name: name.to_string(),
+                _ignored: false,
+            });
+            (id, seen_id)
+        }
+    } else {
+        Root::id_from_cmd(&trace).expect(&format!("{trace:?} not found"))
+    };
 
     let shorts: Vec<char> = arg.get_short_and_visible_aliases().unwrap_or_default();
     let longs: Vec<String> = arg
@@ -79,9 +109,9 @@ fn gen_flag<Root: Supplement>(arg: &crate::clap::Arg, trace: &[String]) -> Flag<
 
     let num_args = arg.get_num_args();
     let takes_values = num_args.map(|n| n.takes_values()).unwrap_or(false);
-    let once = !arg.is_global_set();
 
-    let (id, seen_id) = Root::id_from_cmd(&trace).expect(&format!("{trace:?} not found"));
+    // TODO: re-implement `generate/mod.rs`: `let (once, ty) = match flag.get_action() ...`
+    let once = !arg.is_global_set();
 
     let ty = if takes_values {
         let possible_values: Vec<(String, String)> = arg
@@ -141,8 +171,7 @@ fn gen_arg<Root: Supplement>(arg: &crate::clap::Arg, trace: &[String]) -> Arg<Ro
     let mut trace = trace.to_vec();
     trace.push(name.to_string());
 
-    let num_args = arg.get_num_args();
-    let max_values = num_args.map(|n| n.max_values()).unwrap_or(1);
+    let max_values = arg.get_num_args().expect("built").max_values();
 
     let (id, seen_id) = Root::id_from_cmd(&trace).expect(&format!("{trace:?} not found"));
 

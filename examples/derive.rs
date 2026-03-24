@@ -7,7 +7,9 @@ use clap::Parser;
 use std::io::stdout;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use supplement::{Completion, CompletionGroup, Seen, Shell, Supplement, helper::id_derived_no_assoc as id};
+use supplement::{
+    Completion, CompletionGroup, Seen, Shell, Supplement, helper::id_derived_no_assoc as id,
+};
 
 mod args {
     // Here list some not-so-trivial stuff in the definition, and they're all supported by `supplement`.
@@ -24,7 +26,7 @@ mod args {
 
     #[derive(Parser, Debug, Supplement)]
     pub struct Git {
-        #[clap(long)] // TODO: make this global
+        #[clap(long, global = true)]
         pub git_dir: Option<PathBuf>,
         #[clap(subcommand)]
         pub sub: Sub,
@@ -38,6 +40,8 @@ mod args {
 
         #[clap(about = "log")]
         Log {
+            #[clap(long)]
+            exclude: Option<String>,
             #[clap(short, long)]
             graph: bool,
             #[clap(short, long, num_args = 0..=1, default_value = "short", default_missing_value = "full", require_equals = true, value_enum)]
@@ -117,7 +121,7 @@ fn main() {
 
 fn handle_comp(id: GitID, seen: &Seen, _value: &str) -> Vec<Completion> {
     match id {
-        id!(GitID.git_dir) => std::process::exit(1), // Exit to use default completion
+        id!(GitID.git_dir) | id!(GitID.sub SubID.Log.exclude) => std::process::exit(1), // Exit to use default completion
         id!(GitID.sub SubID.Checkout.file_or_commit) => {
             // For the first argument, it can either be a git commit or a file
             let mut comps = vec![];

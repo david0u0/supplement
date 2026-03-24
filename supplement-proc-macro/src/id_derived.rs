@@ -76,7 +76,6 @@ fn build_id_expr(segments: &[IdSegment], use_assoc_type: bool) -> TokenStream2 {
             quote! { #type_name }
         };
 
-
         // The length prefix is based on the FIRST part only (matching derive macro behavior)
         let first_part = segment.parts[0].to_string();
         let combined: String = segment.parts.iter().map(|p| p.to_string()).collect();
