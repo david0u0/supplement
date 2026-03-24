@@ -1,7 +1,4 @@
-#![feature(more_qualified_paths)] // TODO: remove this when it's stable
-
 pub mod args;
-pub mod args_simple;
 pub mod my_gen;
 use std::fmt::Debug;
 use supplement::{Completion, CompletionGroup};

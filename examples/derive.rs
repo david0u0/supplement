@@ -130,9 +130,10 @@ fn handle_comp(id: ID, seen: &Seen, _value: &str) -> Vec<Completion> {
             }
             comps
         }
-        id!(Git.sub Sub.Checkout.files(chk_ctx)) => {
+        id!(Git.sub(root_ctx) Sub.Checkout.files(chk_ctx)) => {
             // For the second and more arguments, it can only be file
             // Let's also filter out those files we've already seen!
+            let _git_dir: Option<&Path> = root_ctx.git_dir(seen); // This is only for demo
             let prev1: Option<&str> = chk_ctx.file_or_commit(seen);
             let prev2 = chk_ctx.files(seen); // impl Iterator<Item = &Path>
             let prev: Vec<&str> = prev1
@@ -153,7 +154,7 @@ fn handle_comp(id: ID, seen: &Seen, _value: &str) -> Vec<Completion> {
                 .collect()
         }
         id!(Git.sub Sub.Log.commit(log_ctx)) => {
-            let pretty: Option<Result<Pretty, _>> = log_ctx.pretty(seen);
+            let pretty: Option<Result<Pretty, String>> = log_ctx.pretty(seen);
 
             // let's say, if pretty is "oneline", we search for all commits
             let cmd = if pretty == Some(Ok(Pretty::Oneline)) {

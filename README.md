@@ -9,12 +9,11 @@
 [![Build Status](https://img.shields.io/github/actions/workflow/status/david0u0/supplement/ci.yml?branch=master&style=flat-square)](https://github.com/david0u0/supplement/actions/workflows/ci.yml?query=branch%3Amaster)
 [![Doc](https://img.shields.io/badge/docs-latest-blue.svg?style=flat-square)](https://docs.rs/supplement)
 
-**supplement** is a Rust library that generates completion scaffolds as Rust code.
+**supplement** is a Rust library that derives completion scaffolds as Rust code.
 
 Give it a [`clap`](https://github.com/clap-rs/clap) object, and instead of spitting out shell files that you later have to manually edit, it spits out Rust! supplement is:
 - **Shell-agnostic**
-- **Powerful** - Some features are not widely supported in every shell, and `supplement` comes to the rescue.
-- **Stop modifying generated files** - Instead, *extend* it with Rust's enum system.
+- **No more generated code** - instead, *derive* them.
 - **Easy to test and debug** - Functions and objects in a modern programming language, instead of some shell script black sorcery.
 - **Context-aware** - Track the "parsed CLI values" for you so you don't have to.
 - **It's Rust 🦀**
@@ -26,32 +25,26 @@ Add one line in Cargo.toml. By default, it uses `clap` 4, but you can make it us
 supplement = "0.1"
 # Or, to use clap 3
 supplement = { version = "0.1", default-features = false, features = ["clap-3"] }
-# Or, disable the code-gen feature completely
-supplement = { version = "0.1", default-features = false }
 ```
 
 ## Quick start
-Say you have some awesome clap definition, and want to use supplement to make it even more awesome.
-
-<details>
-<summary>
-Click to show clap definition
-</summary>
+Say you have some awesome clap definition, and want to use supplement to make it even more awesome. Derive trait `Supplement` for your definitions.
 
 ```rs
 // src/args.rs
 
 use clap::{CommandFactory, Parser, ValueEnum};
+use supplement::Supplement;
 
-#[derive(Parser, Debug)]
+#[derive(Parser, Debug, Supplement)]
 pub struct Git {
-    #[clap(long)]
+    #[clap(long, global)]
     pub git_dir: Option<std::path::PathBuf>,
     #[clap(subcommand)]
-    pub sub: SubCommand,
+    pub sub: Sub,
 }
-#[derive(Parser, Debug)]
-pub enum SubCommand {
+#[derive(Parser, Debug, Supplement)]
+pub enum Sub {
     Checkout {
         file_or_commit: Option<String>,
         files: Vec<std::path::PathBuf>,
@@ -61,9 +54,9 @@ pub enum SubCommand {
     Log {
         #[clap(short, long)]
         graph: bool,
-        #[clap(short, long, num_args = 0..=1, default_value = "short", default_missing_value = "full", require_equals = true)]
+        #[clap(short, long, num_args = 0..=1, default_value = "short", default_missing_value = "full", require_equals = true, value_enum)]
         pretty: Option<Pretty>,
-        #[clap(short, long, default_value = "auto")]
+        #[clap(short, long, default_value = "auto", value_enum)]
         color: Color,
         commit: Option<String>,
     },
@@ -71,53 +64,20 @@ pub enum SubCommand {
 
 // more definition...
 ```
-</details>
-
-You can call `supplement::generate` to generate the completion file (preferably in `build.rs`):
-
-<details>
-<summary>
-Click to show build.rs
-</summary>
-
-```rs
-#[path = "src/args.rs"]
-mod args; // path to the clap definition
-
-use args::Git;
-use clap::CommandFactory;
-use std::path::Path;
-use supplement::generate;
-
-fn main() {
-    let out_dir = std::env::var_os("OUT_DIR").unwrap();
-    let file = Path::new(&out_dir).join("definition.rs");
-    let mut f = std::fs::File::create(file).unwrap();
-
-    // Code-gen to a file like target/debug/build/myapp-3b7bb95d1e25522b/out/definition.rs
-    generate(&mut Git::command(), Default::default(), &mut f).unwrap();
-}
-```
-</details>
 
 ### Implementation
 
-Utilize the generated code in `main.rs`.
-Note that, if you missed some implementation, it's a *compile time error*.
-So just relex and let Rust get your back 💪
+Call function `Supplement::supplement` and start implementing you're completion logic.
+Note that, if you missed some scenario, it's a *compile time error*. So just relex and let Rust get your back 💪
 
 ```rs
-use supplement::{*, helper::id};
-
-mod def {
-    include!(concat!(env!("OUT_DIR"), "/definition.rs")); // This is generated
-}
+use supplement::{*, helper::id_derived as id};
 
 fn main() {
     // `args` looks like ["the-binary-name", "git", "log", "--graph"]
     // so we should skip the first arg
     let args = std::env::args().skip(1);
-    let (seen, grp) = def::CMD.supplement(args).unwrap();
+    let (seen, grp) = Git::supplement(args).unwrap();
     let ready = match grp {
         CompletionGroup::Ready(ready) => {
             // The easy path. No custom logic needed.
@@ -128,11 +88,11 @@ fn main() {
         CompletionGroup::Unready { unready, id, value } => {
             // The hard path. You should write completion logic for each possible variant.
             match id {
-                id!(def git_dir) => {
+                id!(Git.git_dir) => {
                     let comps: Vec<Completion> = complete_git_dir(seen, value);
                     unready.to_ready(comps)
                 }
-                id!(def log commit) => {
+                id!(Git.sub Sub.Log.commit) => {
                     unimplemented!("logic for `git log <TAB>`");
                 }
                 _ => unimplemented!("Some more custom logic...")
@@ -173,6 +133,6 @@ end
 complete -k -c git -x -a "(__do_completion)"
 ```
 
-The scripts for all supported shells can be found in [supplement-example/shell](supplement-example/shell).
+The scripts for all supported shells can be found in [examples/shell](examples/shell).
 
-A complete example can be found in [supplement-example](supplement-example).
+A complete example can be found in [examples/README.md](examples/README.md).

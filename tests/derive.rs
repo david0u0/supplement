@@ -1,6 +1,10 @@
+#![feature(more_qualified_paths)] // TODO: remove this when it's stable
+
 use clap::{Parser, ValueEnum};
+use clap4 as clap;
+use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use supplement::{Supplement, helper::id_derived as id};
+use supplement::{Seen, Supplement, helper::id_derived as id};
 
 #[derive(Parser, Debug, Supplement)]
 pub struct Git {
@@ -15,7 +19,7 @@ pub enum Sub {
     Log {
         #[clap(long, value_enum)]
         pretty: Option<Pretty>, // NOTE: the `value_enum` is necessary due to lack of specialization
-        paths: Vec<Path>,
+        paths: Vec<PathBuf>,
     },
     Remote1 {
         #[clap(long)]
@@ -42,14 +46,6 @@ impl FromStr for URL {
         Ok(URL(s.to_string()))
     }
 }
-#[derive(Clone, Debug)]
-pub struct Path(pub String);
-impl FromStr for Path {
-    type Err = String;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        Ok(Path(s.to_string()))
-    }
-}
 
 #[derive(Parser, Debug, Clone, Supplement)]
 pub enum Remote {
@@ -67,24 +63,24 @@ pub enum Pretty {
     Full,
 }
 
-pub fn handle_id(id: <Git as Supplement>::ID) {
+pub fn handle_id(seen: &Seen, id: <Git as Supplement>::ID) {
     match id {
         id!(Git.git_dir(ctx)) => {
-            let _: Option<String> = ctx.git_dir();
+            let _: Option<&str> = ctx.git_dir(seen);
         }
         id!(Git.sub(ctx) Sub.Remote1.sub(remote_ctx) Remote.Add.url(add_ctx)) => {
-            let _: Option<String> = ctx.git_dir();
-            let _: u32 = remote_ctx.verbose();
-            let _: Option<URL> = add_ctx.url();
+            let _: Option<&str> = ctx.git_dir(seen);
+            let _: u32 = remote_ctx.verbose(seen);
+            let _: Option<Result<URL, _>> = add_ctx.url(seen);
         }
         id!(Git.sub Sub.Remote2 RemoteStruct.sub(remote_ctx) Remote.Add.url(add_ctx)) => {
-            let _: u32 = remote_ctx.verbose();
-            let _: Option<URL> = add_ctx.url();
+            let _: u32 = remote_ctx.verbose(seen);
+            let _: Option<Result<URL, _>> = add_ctx.url(seen);
         }
 
         id!(Git.sub Sub.Log.paths(log_ctx)) => {
-            let _: Vec<Path> = log_ctx.paths().collect();
-            let _: Option<Pretty> = log_ctx.pretty();
+            let _: Vec<&Path> = log_ctx.paths(seen).collect();
+            let _: Option<Result<Pretty, _>> = log_ctx.pretty(seen);
         }
     };
 }

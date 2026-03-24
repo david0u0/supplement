@@ -425,17 +425,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "supplement-example"
-version = "0.1.1"
-dependencies = [
- "clap 3.2.25",
- "clap 4.5.56",
- "env_logger",
- "log",
- "supplement",
-]
-
-[[package]]
 name = "supplement-proc-macro"
 version = "0.1.4"
 dependencies = [

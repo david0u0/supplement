@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["supplement-example", "supplement-proc-macro", "supplement-tests"]
+members = ["supplement-proc-macro", "supplement-tests"]
 
 [package]
 name = "supplement"
