@@ -27,7 +27,7 @@ use crate::core;
 /// # #[cfg(feature = "clap-4")]
 /// # use clap4 as clap;
 ///
-/// use supplement::generate;
+/// use supplement::generate::generate;
 /// let config = Default::default();
 /// let mut cmd = clap::Command::new("git");
 ///

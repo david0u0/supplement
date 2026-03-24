@@ -7,9 +7,7 @@ use clap::Parser;
 use std::io::stdout;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use supplement::{
-    Completion, CompletionGroup, Seen, Shell, Supplement, helper::id_derived_no_assoc as id,
-};
+use supplement::{Completion, CompletionGroup, Seen, Shell, Supplement, helper::id_no_assoc as id};
 
 mod args {
     // Here list some not-so-trivial stuff in the definition, and they're all supported by `supplement`.
@@ -70,7 +68,7 @@ mod args {
 
 use args::*;
 
-/// NOTE: These can be avoided with `#![feature(more_qualified_paths)]` + [`supplement::helper::id_derived`]
+/// NOTE: These can be avoided with `#![feature(more_qualified_paths)]` + [`supplement::helper::id`]
 type GitID = <Git as Supplement>::ID;
 type SubID = <Sub as Supplement>::ID;
 

@@ -1,3 +1,6 @@
+//! Qucikstart: derive [`Supplement`] on your CLI definition type,
+//! and call [`Supplement::supplement`] to start the CLI compleiton.
+
 pub mod completion;
 pub mod core;
 pub mod error;
@@ -18,7 +21,7 @@ pub type Result<T = ()> = std::result::Result<T, error::Error>;
 
 pub mod helper {
     //! Helper functions/macros to make your life easier.
-    pub use supplement_proc_macro::{id, id_derived, id_derived_no_assoc};
+    pub use supplement_proc_macro::{id, id_codegen, id_no_assoc};
 }
 
 #[cfg(all(feature = "clap-3", feature = "clap-4"))]
@@ -30,11 +33,7 @@ pub(crate) use clap3 as clap;
 pub(crate) use clap4 as clap;
 
 #[cfg(any(feature = "clap-3", feature = "clap-4"))]
-mod generate;
-#[cfg(any(feature = "clap-3", feature = "clap-4"))]
-pub use generate::Config;
-#[cfg(any(feature = "clap-3", feature = "clap-4"))]
-pub use generate::generate;
+pub mod generate;
 
 /// Enum to represent different shell. Use [`str::parse`] to create it.
 ///

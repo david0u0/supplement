@@ -2,7 +2,7 @@ use clap::{Parser, ValueEnum};
 use clap4 as clap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use supplement::{Seen, Supplement, helper::id_derived_no_assoc as id};
+use supplement::{Seen, Supplement, helper::id_no_assoc as id};
 
 #[derive(Parser, Debug, Supplement)]
 pub struct Git {
@@ -63,7 +63,7 @@ pub enum Pretty {
     Full,
 }
 
-// TODO: use `id_derived` once `more_qualified_paths` becomes stable
+// TODO: use `id` once `more_qualified_paths` becomes stable
 type GitID = <Git as Supplement>::ID;
 type SubID = <Sub as Supplement>::ID;
 type RemoteID = <Remote as Supplement>::ID;

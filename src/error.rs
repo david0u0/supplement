@@ -1,9 +1,9 @@
 //! Module defining the error types for this crate.
 
 #[cfg(doc)]
-use crate::Config;
-#[cfg(doc)]
 use crate::core::Command;
+#[cfg(doc)]
+use crate::generate::Config;
 
 #[derive(Debug, Eq, PartialEq)]
 #[non_exhaustive]
@@ -51,7 +51,7 @@ pub enum GenerateError {
     /// # let cmd: clap::Command = unimplemented!();
     ///
     /// use std::io::stdout;
-    /// use supplement::{Config, generate};
+    /// use supplement::generate::{Config, generate};
     ///
     /// // this may raise `Strict` error
     /// generate(&mut cmd, Config::new(), &mut stdout());

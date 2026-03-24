@@ -3,8 +3,17 @@ use crate::gen_prelude::*;
 use crate::{CompletionGroup, Result, id};
 use std::fmt::Debug;
 
+/// Trait for CLI completion.
+///
+/// This is the primary way to create a [`Command`] object, which can be used for completion.
+/// Or even simpler, directly call [`Supplement::supplement`] to start the CLI completion.
 pub trait Supplement: CommandFactory {
+    /// ID can be used to uniquely identify a CLI flag or arg.
+    ///
+    /// With the derive macro, the ID is quite convoluted and hard to match on.
+    /// Users are expected to use [`crate::helper::id!`] to help construct the match arms.
     type ID: Debug + PartialEq + Copy + 'static;
+
     fn id_from_cmd(cmd: &[impl AsRef<str>]) -> Option<(Option<Self::ID>, u32)>;
     fn gen_cmd() -> Command<Self::ID> {
         let mut cmd = Self::command();

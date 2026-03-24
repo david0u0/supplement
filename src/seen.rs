@@ -61,52 +61,47 @@ impl Getter for id::MultiVal {
 
 /// A structure that records all seen CLI objects, along with their value if they have some.
 ///
-/// In the code-gen workflow, you can call function `ID::with_seen` to get a strongly typed context,
-/// which encodes the command structure with its enum structure.
-///
+/// In the derive workflow, the command structure is encoded in the *"Context"* of generated ID.
+/// You can call the functions of these context to get strongly typed values.
 /// ```no_run
-/// # mod def {
-/// #     #[derive(Clone, Copy)]
-/// #     pub enum ID<T = ()> {
-/// #         CMDCheckout(T, checkout::ID<T>)
-/// #     }
-/// #     impl <T> ID<T> {
-/// #         pub fn with_seen<U>(self, u: U) -> ID<U> {
-/// #             unimplemented!()
-/// #         }
-/// #         pub fn val_git_dir(&self) -> Option<&str> {
-/// #             unimplemented!()
-/// #         }
-/// #     }
-/// #     pub mod checkout {
-/// #         #[derive(Clone, Copy)]
-/// #         pub enum ID<T> {
-/// #             ValFiles(T)
-/// #         }
-/// #         impl<T> ID<T> {
-/// #             pub fn val_files(&self) -> Option<&str> {
-/// #                 unimplemented!()
-/// #             }
-/// #             pub fn val_file_or_commit(&self) -> &[String] {
-/// #                 unimplemented!()
-/// #             }
-/// #         }
+/// use std::path::Path;
+/// use supplement::Seen;
+/// use supplement::helper::id_no_assoc as id;
+/// # #[derive(Clone, Copy)]
+/// # pub enum ID {
+/// #     X3Xsub(CtxRoot, SubID),
+/// # }
+/// # #[derive(Clone, Copy)]
+/// # pub enum SubID {
+/// #     X8XCheckoutfiles(CtxCheckout, ()),
+/// # }
+///
+/// # #[derive(Clone, Copy)]
+/// # pub struct CtxRoot;
+/// # #[derive(Clone, Copy)]
+/// # pub struct CtxCheckout;
+/// # impl CtxRoot {
+/// #     pub fn git_dir(&self, seen: &Seen) -> Option<&Path> {
+/// #         unimplemented!()
 /// #     }
 /// # }
-/// # use def::ID;
-/// use supplement::Seen;
-/// use supplement::helper::id;
+/// # impl CtxCheckout {
+/// #     pub fn file_or_commit(&self, seen: &Seen) -> Option<&str> {
+/// #         unimplemented!()
+/// #     }
+/// #     pub fn files(&self, seen: &Seen) -> impl Iterator<Item = &Path> {
+/// #         [].into_iter()
+/// #     }
+/// # }
+/// fn handle_comp(id: ID, seen: &Seen) {
+///     match id {
+///         id!(ID.sub(root_ctx) SubID.Checkout.files(chk_ctx)) => {
+///             // use `root_ctx` to get the root args/flags
+///             let _git_dir: Option<&Path> = root_ctx.git_dir(seen);
 ///
-/// fn handle_comp(id: ID, seen: Seen) {
-///     let id_with_ctx: ID<&Seen> = id.with_seen(&seen);
-///     match id_with_ctx {
-///         id!(def(root_id) checkout(chk_id) files) => {
-///             // use `root_id` to get the root args/flags
-///             let _git_dir: Option<&str> = root_id.val_git_dir();
-///
-///             // use `chk_id` to get the args/flags for `checkout` sub-command
-///             let _files: Option<&str> = chk_id.val_files();
-///             let _file_or_commit: &[String] = chk_id.val_file_or_commit();
+///             // use `chk_ctx` to get the args/flags for `checkout` sub-command
+///             let _file_or_commit: Option<&str> = chk_ctx.file_or_commit(seen);
+///             let _files: Vec<&Path> = chk_ctx.files(seen).collect();
 ///
 ///             // NOTE: the type system guarantees that you can **NEVER** get anything from other subcommands!
 ///         }
@@ -192,7 +187,7 @@ impl Seen {
     /// Find the seen values by their ID.
     ///
     /// In the code-gen workflow, you probably don't want to call this function directly,
-    /// but instead would prefer the generated `ID::with_seen` function.
+    /// but instead would prefer the generated context functions.
     /// (Refer to [`Seen`] for more information)
     ///
     /// ----

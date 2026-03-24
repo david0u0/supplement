@@ -1,7 +1,7 @@
 use proc_macro::TokenStream;
 
 mod derive_supplement;
-mod id;
+mod id_codegen;
 mod id_derived;
 
 #[proc_macro_derive(Supplement, attributes(clap, command, arg))]
@@ -17,7 +17,7 @@ pub fn derive_supplement(input: TokenStream) -> TokenStream {
 /// To specify an external subcommand, use `@ext`. E.g. `id!(def parent_cmd @ext)`.
 /// This expands to `def::ID::CMDParentCmd(_, def::parent_cmd::ID::External(_))`
 /// ```rust
-/// use supplement_proc_macro::id;
+/// use supplement_proc_macro::id_codegen as id;
 ///
 /// mod def {
 ///     #[derive(PartialEq, Eq, Debug, Clone, Copy)]
@@ -84,8 +84,8 @@ pub fn derive_supplement(input: TokenStream) -> TokenStream {
 ///
 /// ```
 #[proc_macro]
-pub fn id(input: TokenStream) -> TokenStream {
-    id::id(input)
+pub fn id_codegen(input: TokenStream) -> TokenStream {
+    id_codegen::id(input)
 }
 
 /// Helper macro to simplify the nested ID hell.
@@ -93,7 +93,7 @@ pub fn id(input: TokenStream) -> TokenStream {
 /// - `id!(GitID.git_dir)` expands to `GitID::X7Xgit_dir(_)`
 /// - `id!(GitID.sub(ctx) SubID.Remote1.verbose)` expands to `GitID::X3Xsub(ctx, SubID::X6XRemote1verbose(_))`
 ///
-/// NOTE: [`id_derived`] is preferred if `#![feature(more_qualified_paths)]` becomes stable
+/// NOTE: [`id!`] is preferred if `#![feature(more_qualified_paths)]` becomes stable
 ///
 /// ```rust
 /// mod def {
@@ -116,7 +116,7 @@ pub fn id(input: TokenStream) -> TokenStream {
 /// }
 ///
 /// use def::*;
-/// use supplement_proc_macro::id_derived_no_assoc as id;
+/// use supplement_proc_macro::id_no_assoc as id;
 ///
 /// // Root flag or arg
 /// let e = GitID::X7Xgit_dir(Ctx, ());
@@ -150,7 +150,7 @@ pub fn id(input: TokenStream) -> TokenStream {
 /// }
 /// ```
 #[proc_macro]
-pub fn id_derived_no_assoc(input: TokenStream) -> TokenStream {
+pub fn id_no_assoc(input: TokenStream) -> TokenStream {
     id_derived::id(input, false)
 }
 
@@ -159,8 +159,8 @@ pub fn id_derived_no_assoc(input: TokenStream) -> TokenStream {
 /// - `id!(GitID.git_dir)` expands to `<Git as Supplement>::ID::X7Xgit_dir(_)`
 /// - `id!(GitID.sub(ctx) SubID.Remote1.verbose)` expands to `<Git as Supplement>::ID::ID::X3Xsub(ctx, <SubID as Supplement>::ID::X6XRemote1verbose(_))`
 ///
-/// This may cause compile error without `#![feature(more_qualified_paths)]`. In such case, you can use [`id_derived_no_assoc`].
+/// This may cause compile error without `#![feature(more_qualified_paths)]`. In such case, you can use [`id_no_assoc!`].
 #[proc_macro]
-pub fn id_derived(input: TokenStream) -> TokenStream {
+pub fn id(input: TokenStream) -> TokenStream {
     id_derived::id(input, true)
 }

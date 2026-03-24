@@ -71,7 +71,7 @@ Call function `Supplement::supplement` and start implementing you're completion 
 Note that, if you missed some scenario, it's a *compile time error*. So just relex and let Rust get your back 💪
 
 ```rs
-use supplement::{*, helper::id_derived as id};
+use supplement::{*, helper::id};
 
 fn main() {
     // `args` looks like ["the-binary-name", "git", "log", "--graph"]

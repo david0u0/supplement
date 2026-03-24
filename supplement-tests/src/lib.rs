@@ -29,13 +29,14 @@ pub fn map_unready<ID: Debug + Copy>(grp: &CompletionGroup<ID>) -> (ID, (&str, V
 
 #[cfg(test)]
 mod test {
+    use supplement::generate::{Config, generate};
     mod def {
         include!("def.rs");
     }
 
     use super::*;
     use def::ID;
-    use supplement::{Result, Seen, helper::id};
+    use supplement::{Result, Seen, helper::id_codegen as id};
 
     fn run_with_seen(cmd: &str) -> Result<(Seen, CompletionGroup<ID>)> {
         let cmd = cmd.split(" ").map(|s| s.to_string());
@@ -51,7 +52,6 @@ mod test {
         use crate::args::Arg;
         use clap::CommandFactory;
         use supplement::error::GenerateError;
-        use supplement::{Config, generate};
 
         fn do_assrt(err: GenerateError) {
             let v = match err {
@@ -71,7 +71,6 @@ mod test {
         use crate::args::Arg;
         use clap::CommandFactory;
         use supplement::error::GenerateError;
-        use supplement::{Config, generate};
 
         let mut s: Vec<u8> = vec![];
         let cfg = Config::new().make_custom(&["log", "commit"]);
