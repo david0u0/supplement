@@ -9,11 +9,11 @@ if [[ ! -v USR_PATH ]]; then
 fi
 
 USR_PATH=$(eval realpath $USR_PATH)
-BIN=../target/debug/supplement-example
+BIN=../target/debug/examples/derive
 
 echo Building binary
 set +e
-cargo build
+cargo build --examples
 if [ ! "$?" = "0" ]; then
     if [[ -f $BIN ]]; then
         read -n1 -p "Cargo build failed, but the binary exists. Do you want to proceed? [Y/N] " RESP

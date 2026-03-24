@@ -1,6 +1,13 @@
 use proc_macro::TokenStream;
 
-mod id;
+mod derive_supplement;
+mod id_codegen;
+mod id_derived;
+
+#[proc_macro_derive(Supplement, attributes(clap, command, arg))]
+pub fn derive_supplement(input: TokenStream) -> TokenStream {
+    derive_supplement::derive_supplement(input)
+}
 
 /// Helper macro to simplify the nested ID hell.
 ///
@@ -10,7 +17,7 @@ mod id;
 /// To specify an external subcommand, use `@ext`. E.g. `id!(def parent_cmd @ext)`.
 /// This expands to `def::ID::CMDParentCmd(_, def::parent_cmd::ID::External(_))`
 /// ```rust
-/// use supplement_proc_macro::id;
+/// use supplement_proc_macro::id_codegen as id;
 ///
 /// mod def {
 ///     #[derive(PartialEq, Eq, Debug, Clone, Copy)]
@@ -18,7 +25,6 @@ mod id;
 ///         ValGitDir(u32),
 ///         CMDRemote(u32, remote::ID),
 ///     }
-///
 ///     pub mod remote {
 ///         #[derive(PartialEq, Eq, Debug, Clone, Copy)]
 ///         pub enum ID {
@@ -78,6 +84,83 @@ mod id;
 ///
 /// ```
 #[proc_macro]
+pub fn id_codegen(input: TokenStream) -> TokenStream {
+    id_codegen::id(input)
+}
+
+/// Helper macro to simplify the nested ID hell.
+///
+/// - `id!(GitID.git_dir)` expands to `GitID::X7Xgit_dir(_)`
+/// - `id!(GitID.sub(ctx) SubID.Remote1.verbose)` expands to `GitID::X3Xsub(ctx, SubID::X6XRemote1verbose(_))`
+///
+/// NOTE: [`id!`] is preferred if `#![feature(more_qualified_paths)]` becomes stable
+///
+/// ```rust
+/// mod def {
+///     #[derive(Clone, Copy)]
+///     pub struct Ctx;
+///
+///     #[derive(Clone, Copy)]
+///     pub enum GitID {
+///         X7Xgit_dir(Ctx, ()),
+///         X3Xsub(Ctx, SubID),
+///     }
+///     #[derive(Clone, Copy)]
+///     pub enum SubID {
+///         X6XRemotesub(Ctx, RemoteSubID),
+///     }
+///     #[derive(Clone, Copy)]
+///     pub enum RemoteSubID {
+///         X6XSetURLurl(Ctx, ()),
+///     }
+/// }
+///
+/// use def::*;
+/// use supplement_proc_macro::id_no_assoc as id;
+///
+/// // Root flag or arg
+/// let e = GitID::X7Xgit_dir(Ctx, ());
+/// match e {
+///     // To bind to the ctx, add `(ctx)` in the macro
+///     id!(GitID.git_dir(ctx)) => {
+///         let _ctx: Ctx = ctx;
+///     }
+///     // Or to make no binding
+///     id!(GitID.git_dir) => panic!(),
+///     _ => panic!(),
+/// }
+///
+/// let e = GitID::X3Xsub(Ctx, SubID::X6XRemotesub(Ctx, RemoteSubID::X6XSetURLurl(Ctx, ())));
+/// match e {
+///     id!(GitID.sub(ctx1) SubID.Remote.sub(ctx2) RemoteSubID.SetURL.url(ctx3)) => {
+///         let _ctx: Ctx = ctx1; // `ctx1` binds to the root Ctx
+///         let _ctx: Ctx = ctx2; // `ctx2` binds to the inner Ctx
+///         let _ctx: Ctx = ctx3; // `ctx3` binds to the inner most Ctx
+///     }
+///     // Or to only bind to some id
+///     id!(GitID.sub SubID.Remote.sub(ctx2) RemoteSubID.SetURL.url) => panic!(),
+///     _ => panic!(),
+/// }
+///
+/// // Start with different ID
+/// let e = SubID::X6XRemotesub(Ctx, RemoteSubID::X6XSetURLurl(Ctx, ()));
+/// match e {
+///     id!(SubID.Remote.sub(_ctx1) RemoteSubID.SetURL.url) => (),
+///     _ => panic!(),
+/// }
+/// ```
+#[proc_macro]
+pub fn id_no_assoc(input: TokenStream) -> TokenStream {
+    id_derived::id(input, false)
+}
+
+/// Helper macro to simplify the nested ID hell.
+///
+/// - `id!(GitID.git_dir)` expands to `<Git as Supplement>::ID::X7Xgit_dir(_)`
+/// - `id!(GitID.sub(ctx) SubID.Remote1.verbose)` expands to `<Git as Supplement>::ID::ID::X3Xsub(ctx, <SubID as Supplement>::ID::X6XRemote1verbose(_))`
+///
+/// This may cause compile error without `#![feature(more_qualified_paths)]`. In such case, you can use [`id_no_assoc!`].
+#[proc_macro]
 pub fn id(input: TokenStream) -> TokenStream {
-    id::id(input)
+    id_derived::id(input, true)
 }

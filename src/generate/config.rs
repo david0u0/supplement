@@ -27,7 +27,7 @@ impl MayBeProcessed {
 /// An object to configure how the code-gen should work
 /// e.g. to ignore some certain flags or subcommands.
 /// ```no_run
-/// # use supplement::{Config, generate};
+/// # use supplement::generate::{Config, generate};
 /// # #[cfg(feature = "clap-3")]
 /// # use clap3 as clap;
 /// # #[cfg(feature = "clap-4")]
@@ -59,9 +59,9 @@ impl Config {
     }
     /// Ignore a flag or subcommand during code-gen.
     /// Note that if you want to ignore something that doesn't actually exist in the command definition,
-    /// The [`crate::generate`] function will raise a [`GenerateError::UnprocessedConfigObj`] error.
+    /// The [`crate::generate::generate`] function will raise a [`GenerateError::UnprocessedConfigObj`] error.
     /// ```no_run
-    /// # use supplement::Config;
+    /// # use supplement::generate::Config;
     /// let config = Config::default()
     ///     .ignore(&["log", "pretty"]) // ignore the `git log --pretty` flag
     ///     .ignore(&["branch"]) // ignore the `git branch` command
@@ -94,7 +94,7 @@ impl Config {
     /// - If the flag has no value, raise a [`GenerateError::CustomWithoutValue`] error.
     ///
     /// ```no_run
-    /// # use supplement::Config;
+    /// # use supplement::generate::Config;
     /// let config = Config::default()
     ///     .make_custom(&["log", "pretty"]) // make `git log --pretty` custom
     ///     .make_custom(&["unexpected-thing"]) // Error: path not found

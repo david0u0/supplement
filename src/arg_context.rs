@@ -34,19 +34,20 @@ impl<'a, ID> ArgsContext<'a, ID> {
 #[cfg(test)]
 mod test {
     use super::*;
+    use crate::core::CowOwned;
     use crate::id;
 
     const ARG1: Arg<u32> = Arg {
         id: Some(line!()),
         seen_id: id::SingleVal::new(line!()).into(),
         max_values: 1,
-        possible_values: &[],
+        possible_values: CowOwned::Borrow(&[]),
     };
     const ARG2: Arg<u32> = Arg {
         id: Some(line!()),
         seen_id: id::SingleVal::new(line!()).into(),
         max_values: 1,
-        possible_values: &[],
+        possible_values: CowOwned::Borrow(&[]),
     };
     #[test]
     fn test_empty_arg_ctx() {
@@ -57,7 +58,7 @@ mod test {
     }
     #[test]
     fn test_simple_arg_ctx() {
-        let mut ctx = ArgsContext::new(&[ARG1, ARG2]);
+        let mut ctx = ArgsContext::new(const { &[ARG1, ARG2] });
         assert!(!ctx.has_seen_arg());
         assert_eq!(ctx.next_arg().unwrap().id, ARG1.id);
         assert!(ctx.has_seen_arg());
@@ -69,17 +70,17 @@ mod test {
         id: Some(line!()),
         seen_id: id::MultiVal::new(line!()).into(),
         max_values: 2,
-        possible_values: &[],
+        possible_values: CowOwned::Borrow(&[]),
     };
     const ARG4: Arg<u32> = Arg {
         id: Some(line!()),
         seen_id: id::MultiVal::new(line!()).into(),
         max_values: 3,
-        possible_values: &[],
+        possible_values: CowOwned::Borrow(&[]),
     };
     #[test]
     fn test_var_arg_ctx() {
-        let mut ctx = ArgsContext::new(&[ARG1, ARG3, ARG4]);
+        let mut ctx = ArgsContext::new(const { &[ARG1, ARG3, ARG4] });
         assert!(!ctx.has_seen_arg());
         assert_eq!(ctx.next_arg().unwrap().id, ARG1.id);
         assert!(ctx.has_seen_arg());

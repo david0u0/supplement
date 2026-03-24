@@ -1,6 +1,9 @@
 use clap::CommandFactory;
 use std::io::Write;
-use supplement::{Config, error::GenerateError, generate};
+use supplement::{
+    error::GenerateError,
+    generate::{Config, generate},
+};
 
 pub fn my_gen<C: CommandFactory>(w: &mut impl Write) -> Result<(), GenerateError> {
     let config = Config::default()

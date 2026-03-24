@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["supplement-example", "supplement-proc-macro", "supplement-tests"]
+members = ["supplement-proc-macro", "supplement-tests"]
 
 [package]
 name = "supplement"
@@ -20,6 +20,8 @@ supplement-proc-macro = { path = "./supplement-proc-macro", version = "0.1.4" }
 
 [dev-dependencies]
 env_logger = '0.11'
+clap3 = { package = "clap", version = "3", features = ["derive"] }
+clap4 = { package = "clap", version = "4", features = ["derive"] }
 
 [features]
 default = ["clap-4"]

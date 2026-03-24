@@ -14,9 +14,9 @@ pub(crate) struct Trace {
 }
 
 #[cfg(doc)]
-use crate::core;
+use crate::clap;
 #[cfg(doc)]
-use abstraction::clap;
+use crate::core;
 
 /// Generate the scaffold for your completion based on [`clap::Command`] object.
 /// After importing the generated code, you can call [`core::Command::supplement`] to get the completion result.
@@ -27,7 +27,7 @@ use abstraction::clap;
 /// # #[cfg(feature = "clap-4")]
 /// # use clap4 as clap;
 ///
-/// use supplement::generate;
+/// use supplement::generate::generate;
 /// let config = Default::default();
 /// let mut cmd = clap::Command::new("git");
 ///
@@ -80,12 +80,16 @@ impl std::fmt::Display for NameType {
     }
 }
 
-fn join_possible_values(values: &[PossibleValue]) -> impl std::fmt::Display {
-    Join(values.iter().map(|p| {
+fn format_possible_values(values: &[PossibleValue]) -> String {
+    if values.is_empty() {
+        return "CowOwned::Borrow(&[])".to_string();
+    }
+    let inner = Join(values.iter().map(|p| {
         let name = p.get_name();
         let help = p.get_help().unwrap_or_default();
         format!("(\"{name}\", \"{help}\")")
-    }))
+    }));
+    format!("CowOwned::Borrow(&[{inner}])")
 }
 
 macro_rules! handle_custom {
@@ -172,9 +176,9 @@ impl FlagDisplayHelper<'_> {
                 let complete_with_equal = utils::compute_flag_equal(self.flag, self.strict)
                     .map_err(|msg| GenerateError::Strict { id, msg })?;
                 let possible_values = self.flag.get_possible_values();
-                let possible_values = join_possible_values(&possible_values);
+                let possible_values = format_possible_values(&possible_values);
                 format!(
-                    "flag_type::Type::new_valued({id_value}, {id_name}.into(), {complete_with_equal}, &[{possible_values}])"
+                    "flag_type::Type::new_valued({id_value}, {id_name}.into(), {complete_with_equal}, {possible_values})"
                 )
             }
         };
@@ -238,7 +242,7 @@ fn generate_args_in_cmd(
         } else {
             format!("Some({})", utils::get_id_value(prev, name_type, &name))
         };
-        let possible_values = join_possible_values(&possible_values);
+        let possible_values = format_possible_values(&possible_values);
 
         writeln!(
             w,
@@ -248,7 +252,7 @@ fn generate_args_in_cmd(
 {indent}    id: {id_value},
 {indent}    seen_id: {id_name}.into(),
 {indent}    max_values: {max_values},
-{indent}    possible_values: &[{possible_values}],
+{indent}    possible_values: {possible_values},
 {indent}}};"
         )?;
 
@@ -352,9 +356,9 @@ fn generate_flags_in_cmd(
             "\
 {indent}{id_line}
 {indent}const {rust_name}: Flag<GlobalID> = Flag {{
-{indent}    short: &[{shorts}],
-{indent}    long: &[{longs}],
-{indent}    description: \"{description}\",
+{indent}    short: CowSlice::Borrow(&[{shorts}]),
+{indent}    long: CowOwned::Borrow(&[{longs}]),
+{indent}    description: Cow::Borrowed(\"{description}\"),
 {indent}    once: {once},
 {indent}    ty: {type_str},
 {indent}}};"
@@ -491,11 +495,11 @@ fn generate_recur(
             w,
             "\
 {indent}pub{scope} const {cmd_name}: Command<GlobalID> = Command {{
-{indent}    name: \"{name}\",
-{indent}    description: \"{description}\",
-{indent}    all_flags: &[{flags}],
-{indent}    args: &[{args}],
-{indent}    commands: &[{sub_cmds}],
+{indent}    name: Cow::Borrowed(\"{name}\"),
+{indent}    description: Cow::Borrowed(\"{description}\"),
+{indent}    all_flags: CowSlice::Borrow(&[{flags}]),
+{indent}    args: CowSlice::Borrow(&[{args}]),
+{indent}    commands: CowSlice::Borrow(&[{sub_cmds}]),
 {indent}}};"
         )?;
     }

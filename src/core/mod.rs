@@ -16,8 +16,46 @@ use crate::{Completion, Result, Seen};
 use std::fmt::Debug;
 use std::iter::Peekable;
 
-type PossibleValues = &'static [(&'static str, &'static str)];
+pub use std::borrow::Cow;
 
+type CowStr = Cow<'static, str>;
+
+#[derive(Debug)]
+pub enum CowSlice<T: 'static> {
+    Borrow(&'static [T]),
+    Owned(Vec<T>),
+}
+impl<T> std::ops::Deref for CowSlice<T> {
+    type Target = [T];
+    fn deref(&self) -> &Self::Target {
+        match self {
+            CowSlice::Borrow(t) => t,
+            CowSlice::Owned(t) => t.as_slice(),
+        }
+    }
+}
+
+#[derive(Debug)]
+pub enum CowOwned<T: 'static, U: 'static> {
+    Borrow(&'static [T]),
+    Owned(Vec<U>),
+}
+
+type StringPair = (String, String);
+type PossibleValues = CowOwned<(&'static str, &'static str), StringPair>;
+impl PossibleValues {
+    pub fn iter(&self) -> impl Iterator<Item = (&str, &str)> {
+        let (v1, v2): (&[(&str, &str)], &[StringPair]) = match self {
+            CowOwned::Borrow(v) => (*v, &[]),
+            CowOwned::Owned(v) => (&[], v.as_slice()),
+        };
+        v1.iter()
+            .map(|s| (s.0, s.1))
+            .chain(v2.iter().map(|s| (&*s.0, &*s.1)))
+    }
+}
+
+#[derive(Debug)]
 pub struct Arg<ID> {
     pub id: Option<ID>,
     pub seen_id: id::Valued,
@@ -27,7 +65,7 @@ pub struct Arg<ID> {
 
 fn comp_with_possible<ID>(
     mut unready: Unready,
-    values: PossibleValues,
+    values: &PossibleValues,
     value: String,
     id: Option<ID>,
 ) -> CompletionGroup<ID> {
@@ -41,12 +79,13 @@ fn comp_with_possible<ID>(
 
 /// The object to represent a command.
 /// User can just call [`Command::supplement`] function for CLI completion.
+#[derive(Debug)]
 pub struct Command<ID: 'static> {
-    pub name: &'static str,
-    pub description: &'static str,
-    pub all_flags: &'static [Flag<ID>],
-    pub args: &'static [Arg<ID>],
-    pub commands: &'static [Command<ID>],
+    pub name: CowStr,
+    pub description: CowStr,
+    pub all_flags: CowSlice<Flag<ID>>,
+    pub args: CowSlice<Arg<ID>>,
+    pub commands: CowSlice<Command<ID>>,
 }
 
 fn supplement_arg<ID: PartialEq + Copy + Debug>(
@@ -83,20 +122,21 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     /// # use supplement::core::*;
     /// # use supplement::*;
     /// # use supplement::completion::CompletionGroup;
+    /// # use std::borrow::Cow;
     /// # type ID = u32;
     /// const fn create_cmd(name: &'static str, subcmd: &'static [Command<ID>]) -> Command<ID> {
     ///     Command {
-    ///         name,
-    ///         description: "",
-    ///         all_flags: &[],
-    ///         args: &[],
-    ///         commands: subcmd,
+    ///         name: Cow::Borrowed(name),
+    ///         description: Cow::Borrowed(""),
+    ///         all_flags: CowSlice::Borrow(&[]),
+    ///         args: CowSlice::Borrow(&[]),
+    ///         commands: CowSlice::Borrow(subcmd),
     ///     }
     /// }
     ///
     /// const CHECKOUT: Command<ID> = create_cmd("checkout", &[]);
     /// const LOG: Command<ID> = create_cmd("log", &[]);
-    /// let root = create_cmd("qit", &[CHECKOUT, LOG]);
+    /// let root = create_cmd("qit", const { &[CHECKOUT, LOG] });
     ///
     /// let args = ["qit", ""].iter().map(|s| s.to_string());
     /// let (_seen, grp) = root.supplement(args).unwrap();
@@ -164,15 +204,15 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     }
 
     fn find_long_flag(&self, flag: &str, seen: &Seen) -> Result<&Flag<ID>> {
-        self.find_flag(flag, seen, |f| f.long.contains(&flag))
+        self.find_flag(flag, seen, |f| f.long.iter().any(|f| f == flag))
     }
     fn find_short_flag(&self, flag: char, seen: &Seen) -> Result<&Flag<ID>> {
         self.find_flag(&flag.to_string(), seen, |f| f.short.contains(&flag))
     }
 
-    fn supplement_recur(
-        &self,
-        args_ctx_opt: &mut Option<ArgsContext<'_, ID>>,
+    fn supplement_recur<'a>(
+        &'a self,
+        args_ctx_opt: &mut Option<ArgsContext<'a, ID>>,
         seen: &mut Seen,
         args: &mut Peekable<impl Iterator<Item = String>>,
     ) -> Result<CompletionGroup<ID>> {
@@ -181,7 +221,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
         let args_ctx = if let Some(ctx) = args_ctx_opt {
             ctx
         } else {
-            *args_ctx_opt = Some(ArgsContext::new(self.args));
+            *args_ctx_opt = Some(ArgsContext::new(&self.args));
             args_ctx_opt.as_mut().unwrap()
         };
 
@@ -192,7 +232,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
         macro_rules! handle_flag {
             ($flag:expr, $equal:expr, $seen:expr) => {
                 if let Some(equal) = $equal {
-                    match $flag.ty {
+                    match &$flag.ty {
                         flag_type::Type::Valued(flag) => flag.push($seen, equal.to_string()),
                         _ => return Err(Error::BoolFlagEqualsValue(arg)),
                     }
@@ -251,16 +291,16 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                     &[]
                 } else {
                     log::debug!("completion for {} subcommands", self.commands.len());
-                    self.commands
+                    &*self.commands
                 };
                 let cmd_comps = cmd_slice
                     .iter()
-                    .map(|c| Completion::new(c.name, c.description).group("command"));
+                    .map(|c| Completion::new(&c.name, &c.description).group("command"));
 
                 if let Some(arg_obj) = args_ctx.next_arg() {
                     log::debug!("completion for args {:?}", arg_obj.id);
                     let unready = Unready::new(String::new(), arg.clone()).preexist(cmd_comps);
-                    comp_with_possible(unready, arg_obj.possible_values, arg, arg_obj.id)
+                    comp_with_possible(unready, &arg_obj.possible_values, arg, arg_obj.id)
                 } else {
                     if cmd_slice.is_empty() {
                         return Err(Error::UnexpectedArg(arg));
@@ -285,14 +325,14 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                 body,
             } => {
                 let flag = self.find_long_flag(body, seen)?;
-                let valued = match flag.ty {
+                let valued = match &flag.ty {
                     flag_type::Type::Valued(valued) => valued,
                     _ => return Err(Error::BoolFlagEqualsValue(arg)),
                 };
                 let prefix = format!("--{body}=");
                 let value = value.to_string();
                 let unready = Unready::new(prefix, arg);
-                comp_with_possible(unready, valued.possible_values, value, valued.id)
+                comp_with_possible(unready, &valued.possible_values, value, valued.id)
             }
             ParsedFlag::Shorts => self.supplement_last_short_flags(seen, arg)?,
         };
@@ -331,7 +371,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                     });
                 }
                 _ => {
-                    let valued = match flag.ty {
+                    let valued = match &flag.ty {
                         flag_type::Type::Bool(inner) => {
                             inner.push(seen);
                             continue;
@@ -341,7 +381,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
 
                     match valued.complete_with_equal {
                         CompleteWithEqual::Must => {
-                            return Err(Error::RequiresEqual(flag.name()));
+                            return Err(Error::RequiresEqual(flag.name().to_owned()));
                         }
                         CompleteWithEqual::Optional => {
                             // TODO: Maybe one day clap will tell us.
@@ -371,7 +411,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
     ) -> Result<CompletionGroup<ID>> {
         let resolved = self.resolve_shorts(seen, &arg)?;
         let flag = resolved.last_flag;
-        let ret = match flag.ty {
+        let ret = match &flag.ty {
             flag_type::Type::Valued(valued) => {
                 let value = resolved.value.unwrap_or_default().to_string();
                 let mut eq = "";
@@ -389,7 +429,7 @@ impl<ID: 'static + Copy + PartialEq + Debug> Command<ID> {
                 }
                 let prefix = format!("{}{}", resolved.flag_part, eq);
                 let unready = Unready::new(prefix, arg);
-                comp_with_possible(unready, valued.possible_values, value, valued.id)
+                comp_with_possible(unready, &valued.possible_values, value, valued.id)
             }
             flag_type::Type::Bool(inner) => {
                 log::debug!("list short flags with seen {:?}", seen);
