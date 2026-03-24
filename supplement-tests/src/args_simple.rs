@@ -72,14 +72,6 @@ pub fn handle_id(id: <Git as Supplement>::ID) {
         id!(Git.git_dir(ctx)) => {
             let _: Option<String> = ctx.git_dir();
         }
-        id!(Git.sub(ctx) Sub.Remote1.verbose(remote_ctx)) => {
-            let _: Option<String> = ctx.git_dir();
-            let _: u32 = remote_ctx.verbose();
-        }
-        id!(Git.sub(ctx) Sub.Remote2 RemoteStruct.verbose(remote_ctx)) => {
-            let _: Option<String> = ctx.git_dir();
-            let _: u32 = remote_ctx.verbose();
-        }
         id!(Git.sub(ctx) Sub.Remote1.sub(remote_ctx) Remote.Add.url(add_ctx)) => {
             let _: Option<String> = ctx.git_dir();
             let _: u32 = remote_ctx.verbose();
@@ -123,11 +115,6 @@ mod test {
         let _ = env_logger::try_init();
 
         assert_eq!(from_cmd_root(&["git_dir"]), GitID::X7Xgit_dir(def(), ()));
-
-        assert_eq!(
-            from_cmd_root(&["remote1", "verbose"]),
-            GitID::X3Xsub(def(), SubID::X7XRemote1verbose(def(), ()))
-        );
 
         assert_eq!(
             from_cmd_root(&["remote2", "add", "url"]),

@@ -99,6 +99,17 @@ fn has_value_enum_attr(attrs: &[Attribute]) -> bool {
     false
 }
 
+fn is_bool(ty: &Type) -> bool {
+    let ty = extract_inner_type(ty, &["Vec", "Option"]);
+    if let Type::Path(type_path) = ty {
+        let segment = type_path.path.segments.last().unwrap();
+        if segment.ident == "bool" {
+            return true;
+        }
+    }
+    false
+}
+
 fn extract_inner_type_opt<'a>(ty: &'a Type, outer_types: &[&str]) -> Option<&'a Type> {
     if let Type::Path(type_path) = ty {
         let segment = type_path.path.segments.last().unwrap();
@@ -140,9 +151,9 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
         let field_name_str = field_name.to_string();
         let variant_name = format_variant_name(&field_name_str, None);
 
-        let inner_type = extract_inner_type(&field.ty, &["Option"]);
         let uniq_num = uniq_num();
         if has_subcommand_attr(&field.attrs) {
+            let inner_type = extract_inner_type(&field.ty, &["Option"]);
             variants.push(quote! {
                 #variant_name(#ctx_name, <#inner_type as Supplement>::ID)
             });
@@ -152,14 +163,14 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
                     return Some((id, num));
                 }
             });
-        } else if has_value_enum_attr(&field.attrs) {
+        } else if has_value_enum_attr(&field.attrs) || is_bool(field_ty) {
             variants.push(quote! {
                 #variant_name(#ctx_name, Never)
             });
 
             // TODO: use real CLI name!
             regular_field_matches.push(quote! {
-                #field_name_str if cmd.len() == 1 => return Some(None, #uniq_num)
+                #field_name_str if cmd.len() == 1 => return Some((None, #uniq_num))
             });
             ctx_funcs.push(ctx_func.generate(field_name));
         } else {
@@ -262,7 +273,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                                 return Some((id, num));
                             }
                         });
-                    } else if has_value_enum_attr(&field.attrs) {
+                    } else if has_value_enum_attr(&field.attrs) || is_bool(field_ty) {
                         variants.push(quote! {
                             #id_variant_name(#ctx_name, Never)
                         });
