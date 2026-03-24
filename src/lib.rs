@@ -18,9 +18,7 @@ pub type Result<T = ()> = std::result::Result<T, error::Error>;
 
 pub mod helper {
     //! Helper functions/macros to make your life easier.
-
-    pub use supplement_proc_macro::id;
-    pub use supplement_proc_macro::id_derived;
+    pub use supplement_proc_macro::{id, id_derived, id_derived_no_assoc};
 }
 
 #[cfg(all(feature = "clap-3", feature = "clap-4"))]

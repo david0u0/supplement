@@ -61,7 +61,7 @@ impl Parse for IdInput {
     }
 }
 
-fn build_id_expr(segments: &[IdSegment]) -> TokenStream2 {
+fn build_id_expr(segments: &[IdSegment], use_assoc_type: bool) -> TokenStream2 {
     if segments.is_empty() {
         return quote! { compile_error!("macro requires at least one segment") };
     }
@@ -70,7 +70,12 @@ fn build_id_expr(segments: &[IdSegment]) -> TokenStream2 {
 
     for segment in segments.iter().rev() {
         let type_name = &segment.type_name;
-        let id_type = quote! { <#type_name as Supplement>::ID };
+        let id_type = if use_assoc_type {
+            quote! { <#type_name as Supplement>::ID }
+        } else {
+            quote! { #type_name }
+        };
+
 
         // The length prefix is based on the FIRST part only (matching derive macro behavior)
         let first_part = segment.parts[0].to_string();
@@ -89,8 +94,8 @@ fn build_id_expr(segments: &[IdSegment]) -> TokenStream2 {
     result.unwrap()
 }
 
-pub fn id(input: TokenStream) -> TokenStream {
+pub fn id(input: TokenStream, use_assoc_type: bool) -> TokenStream {
     let input = parse_macro_input!(input as IdInput);
-    let expr = build_id_expr(&input.segments);
+    let expr = build_id_expr(&input.segments, use_assoc_type);
     TokenStream::from(expr)
 }

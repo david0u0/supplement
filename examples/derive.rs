@@ -1,5 +1,3 @@
-#![feature(more_qualified_paths)] // TODO: remove this when it's stable
-
 #[cfg(feature = "clap-3")]
 use clap3 as clap;
 #[cfg(feature = "clap-4")]
@@ -9,7 +7,7 @@ use clap::Parser;
 use std::io::stdout;
 use std::path::{Path, PathBuf};
 use std::process::Command;
-use supplement::{Completion, CompletionGroup, Seen, Shell, Supplement, helper::id_derived as id};
+use supplement::{Completion, CompletionGroup, Seen, Shell, Supplement, helper::id_derived_no_assoc as id};
 
 mod args {
     // Here list some not-so-trivial stuff in the definition, and they're all supported by `supplement`.
@@ -67,7 +65,10 @@ mod args {
 }
 
 use args::*;
-type ID = <Git as Supplement>::ID;
+
+/// NOTE: These can be avoided with `#![feature(more_qualified_paths)]` + [`supplement::helper::id_derived`]
+type GitID = <Git as Supplement>::ID;
+type SubID = <Sub as Supplement>::ID;
 
 fn run_git(args: &str) -> String {
     let out = Command::new("git")
@@ -114,10 +115,10 @@ fn main() {
     }
 }
 
-fn handle_comp(id: ID, seen: &Seen, _value: &str) -> Vec<Completion> {
+fn handle_comp(id: GitID, seen: &Seen, _value: &str) -> Vec<Completion> {
     match id {
-        id!(Git.git_dir) => std::process::exit(1), // Exit to use default completion
-        id!(Git.sub Sub.Checkout.file_or_commit) => {
+        id!(GitID.git_dir) => std::process::exit(1), // Exit to use default completion
+        id!(GitID.sub SubID.Checkout.file_or_commit) => {
             // For the first argument, it can either be a git commit or a file
             let mut comps = vec![];
             for line in run_git("log --oneline -10").lines() {
@@ -130,7 +131,7 @@ fn handle_comp(id: ID, seen: &Seen, _value: &str) -> Vec<Completion> {
             }
             comps
         }
-        id!(Git.sub(root_ctx) Sub.Checkout.files(chk_ctx)) => {
+        id!(GitID.sub(root_ctx) SubID.Checkout.files(chk_ctx)) => {
             // For the second and more arguments, it can only be file
             // Let's also filter out those files we've already seen!
             let _git_dir: Option<&Path> = root_ctx.git_dir(seen); // This is only for demo
@@ -153,7 +154,7 @@ fn handle_comp(id: ID, seen: &Seen, _value: &str) -> Vec<Completion> {
                 })
                 .collect()
         }
-        id!(Git.sub Sub.Log.commit(log_ctx)) => {
+        id!(GitID.sub SubID.Log.commit(log_ctx)) => {
             let pretty: Option<Result<Pretty, String>> = log_ctx.pretty(seen);
 
             // let's say, if pretty is "oneline", we search for all commits

@@ -1,10 +1,8 @@
-#![feature(more_qualified_paths)] // TODO: remove this when it's stable
-
 use clap::{Parser, ValueEnum};
 use clap4 as clap;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
-use supplement::{Seen, Supplement, helper::id_derived as id};
+use supplement::{Seen, Supplement, helper::id_derived_no_assoc as id};
 
 #[derive(Parser, Debug, Supplement)]
 pub struct Git {
@@ -63,22 +61,28 @@ pub enum Pretty {
     Full,
 }
 
+// TODO: use `id_derived` once `more_qualified_paths` becomes stable
+type GitID = <Git as Supplement>::ID;
+type SubID = <Sub as Supplement>::ID;
+type RemoteID = <Remote as Supplement>::ID;
+type RemoteStructID = <RemoteStruct as Supplement>::ID;
+
 pub fn handle_id(seen: &Seen, id: <Git as Supplement>::ID) {
     match id {
-        id!(Git.git_dir(ctx)) => {
+        id!(GitID.git_dir(ctx)) => {
             let _: Option<&str> = ctx.git_dir(seen);
         }
-        id!(Git.sub(ctx) Sub.Remote1.sub(remote_ctx) Remote.Add.url(add_ctx)) => {
+        id!(GitID.sub(ctx) SubID.Remote1.sub(remote_ctx) RemoteID.Add.url(add_ctx)) => {
             let _: Option<&str> = ctx.git_dir(seen);
             let _: u32 = remote_ctx.verbose(seen);
             let _: Option<Result<URL, _>> = add_ctx.url(seen);
         }
-        id!(Git.sub Sub.Remote2 RemoteStruct.sub(remote_ctx) Remote.Add.url(add_ctx)) => {
+        id!(GitID.sub SubID.Remote2 RemoteStructID.sub(remote_ctx) RemoteID.Add.url(add_ctx)) => {
             let _: u32 = remote_ctx.verbose(seen);
             let _: Option<Result<URL, _>> = add_ctx.url(seen);
         }
 
-        id!(Git.sub Sub.Log.paths(log_ctx)) => {
+        id!(GitID.sub SubID.Log.paths(log_ctx)) => {
             let _: Vec<&Path> = log_ctx.paths(seen).collect();
             let _: Option<Result<Pretty, _>> = log_ctx.pretty(seen);
         }
@@ -88,10 +92,6 @@ pub fn handle_id(seen: &Seen, id: <Git as Supplement>::ID) {
 #[cfg(test)]
 mod test {
     use super::*;
-    type GitID = <Git as Supplement>::ID;
-    type SubID = <Sub as Supplement>::ID;
-    type RemoteID = <Remote as Supplement>::ID;
-    type RemoteStructID = <RemoteStruct as Supplement>::ID;
 
     fn def<T: Default>() -> T {
         T::default()
