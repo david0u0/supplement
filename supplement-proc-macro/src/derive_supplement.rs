@@ -1,5 +1,3 @@
-// TODO: external subcmd
-
 use proc_macro::TokenStream;
 use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, format_ident, quote};
@@ -62,9 +60,9 @@ impl CtxFunc<'_> {
             },
             CtxFunc::Multi(ty, true) => {
                 quote! {
-                    pub fn #name(self, seen: &Seen) -> impl Iterator<Item = Result<#ty, String>> {
-                        let unit = seen.find(id::MultiVal::new(#uniq_num));
-                        unit.into_iter().flat_map(|u| u.values.iter().map(|s| <#ty as ValueEnum>::from_str(&u.value, false)))
+                    pub fn #name(self, seen: &Seen) -> impl ExactSizeIterator<Item = Result<#ty, String>> {
+                        let v = seen.find(id::MultiVal::new(#uniq_num)).map(|u| u.values.as_slice()).unwrap_or(&[]);
+                        v.iter().map(|s| <#ty as ValueEnum>::from_str(&u.value, false))
                     }
                 }
             }
@@ -87,16 +85,16 @@ impl CtxFunc<'_> {
             CtxFunc::Multi(ty, false) => {
                 if let Some(as_ref) = map_asref(ty) {
                     quote! {
-                        pub fn #name(self, seen: &Seen) -> impl Iterator<Item = #as_ref> {
-                            let unit = seen.find(id::MultiVal::new(#uniq_num));
-                            unit.into_iter().flat_map(|u| u.values.iter().map(|s| s.as_ref()))
+                        pub fn #name(self, seen: &Seen) -> impl ExactSizeIterator<Item = #as_ref> {
+                            let v = seen.find(id::MultiVal::new(#uniq_num)).map(|u| u.values.as_slice()).unwrap_or(&[]);
+                            v.iter().map(|s| s.as_ref())
                         }
                     }
                 } else {
                     quote! {
-                        pub fn #name(self, seen: &Seen) -> impl Iterator<Item = Result<#ty, <#ty as FromStr>::Err>> {
-                            let unit = seen.find(id::MultiVal::new(#uniq_num));
-                            unit.into_iter().flat_map(|u| u.values.iter().map(|s| s.parse()))
+                        pub fn #name(self, seen: &Seen) -> impl ExactSizeIterator<Item = Result<#ty, <#ty as FromStr>::Err>> {
+                            let v = seen.find(id::MultiVal::new(#uniq_num)).map(|u| u.values.as_slice()).unwrap_or(&[]);
+                            v.iter().map(|s| s.parse())
                         }
                     }
                 }
@@ -136,6 +134,17 @@ fn has_subcommand_attr(attrs: &[Attribute]) -> bool {
         if attr.path().is_ident("clap") || attr.path().is_ident("command") {
             let tokens = attr.meta.to_token_stream().to_string();
             if tokens.contains("subcommand") {
+                return true;
+            }
+        }
+    }
+    false
+}
+fn has_externalsubcommand_attr(attrs: &[Attribute]) -> bool {
+    for attr in attrs {
+        if attr.path().is_ident("clap") || attr.path().is_ident("command") {
+            let tokens = attr.meta.to_token_stream().to_string();
+            if tokens.contains("external_subcommand") {
                 return true;
             }
         }
@@ -410,7 +419,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                     }
                 });
             }
-            // Tuple fields: Remote2(RemoteStruct)
+            // Tuple fields: Remote2(RemoteStruct) or external subcommand
             Fields::Unnamed(fields) => {
                 if fields.unnamed.len() != 1 {
                     variants.push(quote! {
@@ -418,26 +427,50 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                     });
                     continue;
                 }
-
-                let field = fields.unnamed.first().unwrap();
-                let inner_type = extract_inner_type(&field.ty, &["Option"]);
                 let id_variant_name = format_variant_name(&variant_name_str, None);
+                let field = fields.unnamed.first().unwrap();
 
-                variants.push(quote! {
-                    #id_variant_name((), <#inner_type as Supplement>::ID)
-                });
-
-                // TODO: use real CLI name!
-                from_cmd_arms.push(quote! {
-                    #variant_name_lower => {
-                        let rest = &cmd[1..];
-                        if let Some((id, num)) = #inner_type::id_from_cmd(rest) {
-                            let id = id.map(|id| Self::ID::#id_variant_name(Default::default(), id));
-                            return Some((id, num));
+                if has_externalsubcommand_attr(&variant.attrs) {
+                    let uniq_num = uniq_num();
+                    let ctx_name = format_ident!("{variant_name}{CTX_POSTFIX}");
+                    let ctx_func = map_ctx_func(&field.ty, false);
+                    variants.push(quote! { #id_variant_name(#ctx_name, ()) });
+                    from_cmd_arms.push(quote! {
+                        // NOTE: "" is for external subcommand
+                        "" => {
+                            let id = Self::ID::#id_variant_name(Default::default(), ());
+                            Some((Some(id), #uniq_num))
                         }
-                        None
-                    }
-                });
+                    });
+
+                    let func_name: Ident = parse_quote! { values };
+                    let func = ctx_func.generate(&func_name, uniq_num);
+                    ctx_defs.push(quote! {
+                        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+                        pub struct #ctx_name;
+                        impl #ctx_name {
+                            #func
+                        }
+                    });
+                } else {
+                    let inner_type = extract_inner_type(&field.ty, &["Option"]);
+
+                    variants.push(quote! {
+                        #id_variant_name((), <#inner_type as Supplement>::ID)
+                    });
+
+                    // TODO: use real CLI name!
+                    from_cmd_arms.push(quote! {
+                        #variant_name_lower => {
+                            let rest = &cmd[1..];
+                            if let Some((id, num)) = #inner_type::id_from_cmd(rest) {
+                                let id = id.map(|id| Self::ID::#id_variant_name(Default::default(), id));
+                                return Some((id, num));
+                            }
+                            None
+                        }
+                    });
+                }
             }
             // Unit variant
             Fields::Unit => {

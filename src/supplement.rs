@@ -60,7 +60,7 @@ fn gen_cmd_inner<Root: Supplement>(
         .map(|arg| gen_flag::<Root>(arg, &trace, global_flags))
         .collect();
 
-    let args: Vec<Arg<Root::ID>> = cmd
+    let mut args: Vec<Arg<Root::ID>> = cmd
         .get_arguments()
         .filter(|a| a.is_positional())
         .map(|arg| gen_arg::<Root>(arg, &trace))
@@ -71,6 +71,18 @@ fn gen_cmd_inner<Root: Supplement>(
         .filter(|c| c.get_name() != "help") // TODO: custom help
         .map(|sub| gen_cmd_inner::<Root>(false, sub, &trace, global_flags))
         .collect();
+
+    if cmd.is_allow_external_subcommands_set() {
+        trace.push("".to_owned()); // NOTE: "" is for external subcommand
+        let (id, seen_id) =
+            Root::id_from_cmd(&trace).unwrap_or_else(|| panic!("{trace:?} not found"));
+        args.push(Arg {
+            id,
+            seen_id: id::MultiVal::new(seen_id).into(),
+            max_values: usize::MAX,
+            possible_values: CowOwned::Borrow(&[]),
+        })
+    }
 
     Command {
         name,

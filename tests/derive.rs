@@ -38,6 +38,9 @@ pub enum Sub {
         sub: Remote,
     },
     Remote2(RemoteStruct),
+
+    #[clap(external_subcommand)]
+    Other(Vec<String>),
 }
 
 #[derive(Parser, Debug, Clone, Supplement)]
@@ -118,6 +121,10 @@ pub fn handle_id(seen: &Seen, id: <Git as Supplement>::ID) {
         id!(GitID.sub SubID.Log.paths(log_ctx)) => {
             let _: Vec<&Path> = log_ctx.paths(seen).collect();
             let _: Option<Result<Pretty, _>> = log_ctx.pretty(seen);
+        }
+
+        id!(GitID.sub SubID.Other(ext_ctx)) => {
+            let _: Vec<&str> = ext_ctx.values(seen).collect();
         }
     };
 }

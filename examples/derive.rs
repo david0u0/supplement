@@ -48,6 +48,9 @@ mod args {
             color: Color,
             commit: Option<String>,
         },
+
+        #[clap(external_subcommand)]
+        Other(#[allow(unused)] Vec<String>),
     }
     #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
     pub enum Pretty {
@@ -172,6 +175,21 @@ fn handle_comp(id: GitID, seen: &Seen, _value: &str) -> Vec<Completion> {
                     Completion::new(hash, description).group("Commits")
                 })
                 .collect()
+        }
+        id!(GitID.sub SubID.Other(ext_ctx)) if ext_ctx.values(seen).len() == 0 => {
+            // The first external subcommand, show aliases
+            run_git("config --get-regexp ^alias\\.")
+                .lines()
+                .map(|line| {
+                    let line = &line["alias.".len()..];
+                    let (before, after) = line.split_once(" ").unwrap();
+                    Completion::new(before, after).group("Alias")
+                })
+                .collect()
+        }
+        id!(GitID.sub SubID.Other(_ext_ctx)) => {
+            // The arguments of external subcommand
+            unimplemented!();
         }
     }
 }
