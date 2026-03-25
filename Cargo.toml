@@ -4,7 +4,7 @@ members = ["supplement-proc-macro", "supplement-tests"]
 
 [package]
 name = "supplement"
-version = "0.1.15"
+version = "0.2.1"
 authors = ["why8ther <lturtsamuel@gmail.com>"]
 edition = "2024"
 license = "MIT OR Apache-2.0"
@@ -16,7 +16,7 @@ repository = "https://github.com/david0u0/supplement"
 log = { version = "0.4.18", default-features = false }
 clap3 = { package = "clap", version = "3", optional = true }
 clap4 = { package = "clap", version = "4", optional = true }
-supplement-proc-macro = { path = "./supplement-proc-macro", version = "0.1.4" }
+supplement-proc-macro = { path = "./supplement-proc-macro", version = "0.2.1" }
 
 [dev-dependencies]
 env_logger = '0.11'

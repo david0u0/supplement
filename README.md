@@ -22,9 +22,9 @@ Give it a [`clap`](https://github.com/clap-rs/clap) object, and instead of spitt
 Add one line in Cargo.toml. By default, it uses `clap` 4, but you can make it use `clap` 3 with features.
 ```toml
 [dependencies]
-supplement = "0.1"
+supplement = "0.2"
 # Or, to use clap 3
-supplement = { version = "0.1", default-features = false, features = ["clap-3"] }
+supplement = { version = "0.2", default-features = false, features = ["clap-3"] }
 ```
 
 ## Quick start
@@ -67,7 +67,7 @@ pub enum Sub {
 
 ### Implementation
 
-Call function `Supplement::supplement` and start implementing you're completion logic.
+Call function `Supplement::supplement` and start implementing your completion logic.
 Note that, if you missed some scenario, it's a *compile time error*. So just relex and let Rust get your back 💪
 
 ```rs

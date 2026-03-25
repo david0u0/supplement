@@ -8,9 +8,9 @@ The CLI definition here mimics our beloved version control tool `git`, so in thi
     - [derive.rs](derive.rs)
 2. Implement the completion logic
     - [derive.rs](derive.rs)
-2. Compile the binary
+3. Compile the binary
     - `cargo build`
-3. Put a simple shell script in place to tell the shell how to use your binary
+4. Put a simple shell script in place to tell the shell how to use your binary
     - [install.sh](install.sh) and [shell/](shell)
 
 ## Derive `Supplement`
@@ -49,7 +49,7 @@ The function `Git::supplement` returns a `Result<(Seen, CompletionGroup)>`.
 `Ready` is the easy path. No custom logic needed. You should just call `Ready::print` and end the process.
 
 ### Unready
-`Unready` is the hard path. Your custom logic should go here. You'll have the seen values, the ID of the element to complete (flag or argument), and it's current value in the command line (possibly `''`).
+`Unready` is the hard path. Your custom logic should go here. You'll have the seen values, the ID of the element to complete (flag or argument), and its current value in the command line (possibly `''`).
 
 For example, if you do `cargo run -- fish checkout file1 file2 fi`, the seen values will contain `file1` and `file2`, the id will be `id!(checkout files)`, and the value will be `"fi"`.
 
@@ -65,7 +65,7 @@ The final step. Tell it which shell to use and fire!
 
 ```mermaid
 flowchart TD
-    A(Command::supplement) --> B{is ready?}
+    A(Supplement::supplement) --> B{is ready?}
     B -->|Yes| C(Ready)
     B -->|No| D(Unready)
     D -->|Unready::to_ready| C
