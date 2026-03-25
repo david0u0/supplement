@@ -86,6 +86,8 @@ type RemoteStructID = <RemoteStruct as Supplement>::ID;
 type TestFlatID = <TestFlat as Supplement>::ID;
 
 pub fn handle_id(seen: &Seen, id: <Git as Supplement>::ID) {
+    let _: Option<&str> = id.git_dir(seen); // ID implements Deref<Target = Ctx>
+
     match id {
         id!(GitID.git_dir(ctx)) | id!(GitID.sub(ctx) SubID.Log.exclude) => {
             let _: Option<&str> = ctx.git_dir(seen);

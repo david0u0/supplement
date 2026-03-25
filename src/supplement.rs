@@ -2,6 +2,7 @@ use crate::clap::{Command as ClapCommand, CommandFactory};
 use crate::gen_prelude::*;
 use crate::{CompletionGroup, Result, id};
 use std::fmt::Debug;
+use std::ops::Deref;
 
 /// Trait for CLI completion.
 ///
@@ -69,8 +70,12 @@ pub trait Supplement: CommandFactory {
     ///
     /// With the derive macro, the ID is quite convoluted and hard to match on.
     /// Users are expected to use [`crate::helper::id!`] to help construct the match arms.
-    type ID: Debug + PartialEq + Copy + 'static;
+    type ID: Debug + PartialEq + Copy + Deref<Target = Self::Ctx> + 'static;
 
+    /// The *"context"* object that can lookup strongly typed data from [`Seen`].
+    ///
+    /// Note that when the deriving type is an enum, the context is `()`
+    /// because it doesn't have a common context across all subcommands.
     type Ctx: Default + Debug + PartialEq + Copy + 'static;
 
     fn id_from_cmd(cmd: &[impl AsRef<str>]) -> Option<(Option<Self::ID>, u32)>;
@@ -131,7 +136,7 @@ fn gen_cmd_inner<Root: Supplement>(
 
     let commands: Vec<Command<Root::ID>> = cmd
         .get_subcommands()
-        .filter(|c| custom_help_cmd || c.get_name() != "help") 
+        .filter(|c| custom_help_cmd || c.get_name() != "help")
         .map(|sub| gen_cmd_inner::<Root>(false, sub, &trace, global_flags))
         .collect();
 
