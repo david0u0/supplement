@@ -13,7 +13,7 @@
 
 Give it a [`clap`](https://github.com/clap-rs/clap) object, and instead of spitting out shell files that you later have to manually edit, it spits out Rust! supplement is:
 - **Shell-agnostic**
-- **No more generated code** - instead, *derive* them.
+- **No more generated code** - Instead, *derive* them.
 - **Easy to test and debug** - Functions and objects in a modern programming language, instead of some shell script black sorcery.
 - **Context-aware** - Track the "parsed CLI values" for you so you don't have to.
 - **It's Rust 🦀**

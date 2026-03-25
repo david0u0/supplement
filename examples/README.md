@@ -18,9 +18,9 @@ In [derive.rs](derive.rs) you can find a small clap definition that looks like a
 
 ## Implement the completion logic
 The program has two modes:
+- **Parse mode** - `cargo run -- [anything else]`. Parse the command line argument into a clap object and print it.
 - **Completion mode** - `cargo run -- [zsh/bash/fish] qit ...`. Run the completion function for a specific shell.
     + Note that the whitespace is significant: `cargo run -- fish check` means `qit check<TAB>`, while `cargo run -- fish check ''` means `qit check <TAB>`
-- **Parse mode** - `cargo run -- [anything else]`. Parse the command line argument into a clap object and print it.
 
 Obviously the **Completion Mode** is our main focus, so let's look into it deeper.
 
@@ -51,7 +51,7 @@ The function `Git::supplement` returns a `Result<(Seen, CompletionGroup)>`.
 ### Unready
 `Unready` is the hard path. Your custom logic should go here. You'll have the seen values, the ID of the element to complete (flag or argument), and its current value in the command line (possibly `''`).
 
-For example, if you do `cargo run -- fish checkout file1 file2 fi`, the seen values will contain `file1` and `file2`, the id will be `id!(checkout files)`, and the value will be `"fi"`.
+For example, if you do `cargo run -- fish checkout file1 file2 fi`, the seen values will contain `file1` and `file2`, the id will be `id!(Git.sub Sub.Checkout.files)`, and the value will be `"fi"`.
 
 You have to convert it to a `Ready` object to print it, hence the `to_ready` function, and the input is a `Vec<Completion>`.
 This is when `supplement` hands over the control to *YOU*. You're the only one who knows the invariants and needs of your app.
