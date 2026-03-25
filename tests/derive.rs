@@ -5,6 +5,7 @@ use std::str::FromStr;
 use supplement::{Seen, Supplement, helper::id_no_assoc as id};
 
 #[derive(Parser, Debug, Supplement)]
+#[clap(version)]
 pub struct Git {
     #[clap(long, global = true)]
     git_dir: Option<String>,
@@ -23,10 +24,9 @@ pub struct TestFlat {
 #[derive(Parser, Debug, Clone, Supplement)]
 pub enum Sub {
     Log {
-        #[clap(long)]
-        exclude: Option<String>,
         #[clap(long, value_enum)]
         pretty: Option<Pretty>, // NOTE: the `value_enum` is necessary due to lack of specialization
+        commit: String,
         paths: Vec<PathBuf>,
     },
     Remote1 {
@@ -38,6 +38,15 @@ pub enum Sub {
         sub: Remote,
     },
     Remote2(RemoteStruct),
+
+    // To test the Pacal => camal logic
+    CherryPick {
+        commit: String,
+    },
+
+    RM {
+        paths: Vec<PathBuf>,
+    },
 
     #[clap(external_subcommand)]
     Other(Vec<String>),
@@ -64,7 +73,10 @@ impl FromStr for URL {
 
 #[derive(Parser, Debug, Clone, Supplement)]
 pub enum Remote {
-    Add { url: URL },
+    #[clap(name = "add")]
+    MyAdd {
+        url: URL,
+    },
     Delete,
 }
 
@@ -89,17 +101,17 @@ pub fn handle_id(seen: &Seen, id: <Git as Supplement>::ID) {
     let _: Option<&str> = id.git_dir(seen); // ID implements Deref<Target = Ctx>
 
     match id {
-        id!(GitID.git_dir(ctx)) | id!(GitID.sub(ctx) SubID.Log.exclude) => {
+        id!(GitID.git_dir(ctx)) => {
             let _: Option<&str> = ctx.git_dir(seen);
         }
-        id!(GitID.sub(ctx) SubID.Remote1.sub(remote_ctx) RemoteID.Add.url(add_ctx)) => {
+        id!(GitID.sub(ctx) SubID.Remote1.sub(remote_ctx) RemoteID.MyAdd.url(add_ctx)) => {
             let _: Option<&str> = ctx.git_dir(seen);
             let _: u32 = remote_ctx.v(seen);
             let _: u32 = remote_ctx.opts.verbose(seen);
             let _: Option<&str> = remote_ctx.opts.test_flat(seen);
             let _: Option<Result<URL, _>> = add_ctx.url(seen);
         }
-        id!(GitID.sub SubID.Remote2 RemoteStructID.sub(remote_ctx) RemoteID.Add.url(add_ctx)) => {
+        id!(GitID.sub SubID.Remote2 RemoteStructID.sub(remote_ctx) RemoteID.MyAdd.url(add_ctx)) => {
             let _: u32 = remote_ctx.v(seen);
             let _: u32 = remote_ctx.opts.verbose(seen);
             let _: Option<&str> = remote_ctx.opts.test_flat(seen);
@@ -123,6 +135,10 @@ pub fn handle_id(seen: &Seen, id: <Git as Supplement>::ID) {
         id!(GitID.sub SubID.Log.paths(log_ctx)) => {
             let _: Vec<&Path> = log_ctx.paths(seen).collect();
             let _: Option<Result<Pretty, _>> = log_ctx.pretty(seen);
+        }
+        id!(GitID.sub SubID.RM.paths) => {}
+        id!(GitID.sub(ctx) SubID.Log.commit) | id!(GitID.sub(ctx) SubID.CherryPick.commit) => {
+            let _: Option<&str> = ctx.git_dir(seen);
         }
 
         id!(GitID.sub SubID.Other(ext_ctx)) => {
@@ -160,7 +176,7 @@ mod test {
                 def(),
                 SubID::X7XRemote2(
                     (),
-                    RemoteStructID::X3Xsub(def(), RemoteID::X3XAddurl(def(), ()))
+                    RemoteStructID::X3Xsub(def(), RemoteID::X5XMyAddurl(def(), ()))
                 )
             )
         );
@@ -178,12 +194,12 @@ mod test {
 
         assert_eq!(
             from_cmd::<Remote>(&["add", "url"]),
-            RemoteID::X3XAddurl(def(), ())
+            RemoteID::X5XMyAddurl(def(), ())
         );
 
         assert_eq!(
             from_cmd::<RemoteStruct>(&["add", "url"]),
-            RemoteStructID::X3Xsub(def(), RemoteID::X3XAddurl(def(), ()))
+            RemoteStructID::X3Xsub(def(), RemoteID::X5XMyAddurl(def(), ()))
         );
 
         assert_eq!(Git::id_from_cmd(&["nonexistent"]), None);

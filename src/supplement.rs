@@ -114,6 +114,7 @@ fn gen_cmd_inner<Root: Supplement>(
     if !first {
         trace.push(name.to_string());
     }
+    let custom_version_flag = cmd.is_disable_version_flag_set();
     let custom_help_flag = cmd.is_disable_help_flag_set();
     let custom_help_cmd = cmd.is_disable_help_subcommand_set();
     let description = Cow::Owned(cmd.get_about().map(|s| s.to_string()).unwrap_or_default());
@@ -124,6 +125,10 @@ fn gen_cmd_inner<Root: Supplement>(
         .filter(|a| {
             let id = a.get_id().as_str();
             custom_help_flag || id != "help"
+        })
+        .filter(|a| {
+            let id = a.get_id().as_str();
+            custom_version_flag || id != "version"
         })
         .map(|arg| gen_flag::<Root>(arg, &trace, global_flags))
         .collect();

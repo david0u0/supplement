@@ -3,8 +3,8 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::{ToTokens, format_ident, quote};
 use std::cell::Cell;
 use syn::{
-    Attribute, Data, DeriveInput, Fields, GenericArgument, Ident, PathArguments, Type,
-    parse_macro_input, parse_quote,
+    Attribute, Data, DeriveInput, Expr, ExprLit, Fields, GenericArgument, Ident, Lit, Meta,
+    PathArguments, Type, parse_macro_input, parse_quote,
 };
 
 mod ctx_func;
@@ -63,6 +63,33 @@ fn has_externalsubcommand_attr(attrs: &[Attribute]) -> bool {
         }
     }
     false
+}
+fn extract_cmd_name(attrs: &[Attribute]) -> Option<String> {
+    for attr in attrs {
+        if !attr.path().is_ident("clap") && !attr.path().is_ident("command") {
+            continue;
+        }
+
+        let nested = attr
+            .parse_args_with(syn::punctuated::Punctuated::<Meta, syn::Token![,]>::parse_terminated)
+            .ok()?;
+
+        for meta in nested {
+            let Meta::NameValue(nv) = meta else {
+                continue;
+            };
+            if !nv.path.is_ident("name") {
+                continue;
+            }
+            if let Expr::Lit(ExprLit {
+                lit: Lit::Str(s), ..
+            }) = &nv.value
+            {
+                return Some(s.value());
+            }
+        }
+    }
+    None
 }
 
 fn has_value_enum_attr(attrs: &[Attribute]) -> bool {
@@ -157,7 +184,6 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
         } else if is_value_enum || is_bool(field_ty) {
             variant_inner_tys.push(quote! { Never });
 
-            // TODO: use real CLI name!
             regular_field_matches.push(quote! {
                 #field_name_str if cmd.len() == 1 => return Some((None, #uniq_num))
             });
@@ -165,7 +191,6 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
         } else {
             variant_inner_tys.push(quote! { () });
 
-            // TODO: use real CLI name!
             regular_field_matches.push(quote! {
                 #field_name_str if cmd.len() == 1 => return {
                     let id = Self::ID::#variant_name(Default::default(), ());
@@ -233,6 +258,27 @@ fn impl_struct(name: &syn::Ident, fields: &syn::FieldsNamed) -> TokenStream2 {
     }
 }
 
+fn pascal_to_dash(s: &str) -> String {
+    let mut snake = String::new();
+    let mut prev_is_upper = true;
+    for ch in s.chars() {
+        if ch.is_uppercase() {
+            if !prev_is_upper {
+                snake.push('-');
+            }
+            for lc in ch.to_lowercase() {
+                snake.push(lc);
+            }
+            prev_is_upper = true;
+        } else {
+            prev_is_upper = false;
+            snake.push(ch);
+        }
+    }
+
+    snake
+}
+
 fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
     let id_name = format_ident!("{ID_NAME}");
     let mod_name = format_ident!("{name}{MOD_POSTFIX}");
@@ -244,7 +290,8 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
     for variant in &data.variants {
         let variant_name = &variant.ident;
         let variant_name_str = variant_name.to_string();
-        let variant_name_lower = variant_name_str.to_lowercase();
+        let cmd_name =
+            extract_cmd_name(&variant.attrs).unwrap_or_else(|| pascal_to_dash(&variant_name_str));
 
         match &variant.fields {
             // Named fields: Remote1 { verbose: bool, sub: Remote }
@@ -264,7 +311,6 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                     let is_flat = has_flat_attr(&field.attrs);
                     let ctx_func = CtxFunc::new(field_ty, is_value_enum);
                     let field_name_str = field_name.to_string();
-                    let field_name_lower = field_name_str.to_lowercase();
                     let id_variant_name =
                         format_variant_name(&variant_name_str, Some(&field_name_str));
                     let uniq_num = uniq_num();
@@ -290,7 +336,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                             #id_variant_name(#ctx_name, Never)
                         });
                         field_matches.push(quote! {
-                            #field_name_lower if rest.len() == 1 => return Some((None, #uniq_num))
+                            #field_name_str if rest.len() == 1 => return Some((None, #uniq_num))
                         });
                         ctx_funcs.push(ctx_func.generate(field_name, uniq_num));
                     } else {
@@ -298,7 +344,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
                             #id_variant_name(#ctx_name, ())
                         });
                         field_matches.push(quote! {
-                            #field_name_lower if rest.len() == 1 => return {
+                            #field_name_str if rest.len() == 1 => return {
                                 let id = Self::ID::#id_variant_name(Default::default(), ());
                                 Some((Some(id), #uniq_num))
                             }
@@ -320,15 +366,15 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
 
                 // TODO: use real CLI name!
                 from_cmd_arms.push(quote! {
-                    #variant_name_lower => {
+                    #cmd_name => {
                         let rest = &cmd[1..];
                         if rest.is_empty() {
                             return None;
                         }
-                        let field_normalized = rest[0].as_ref().to_lowercase();
+                        let first = rest[0].as_ref();
 
                         // Try regular fields
-                        match field_normalized.as_str() {
+                        match first {
                             #(#field_matches,)*
                             _ => {}
                         }
@@ -382,7 +428,7 @@ fn impl_enum(name: &syn::Ident, data: &syn::DataEnum) -> TokenStream2 {
 
                     // TODO: use real CLI name!
                     from_cmd_arms.push(quote! {
-                        #variant_name_lower => {
+                        #cmd_name => {
                             let rest = &cmd[1..];
                             if let Some((id, num)) = #inner_type::id_from_cmd(rest) {
                                 let id = id.map(|id| Self::ID::#id_variant_name(Default::default(), id));
