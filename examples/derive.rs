@@ -13,6 +13,7 @@ mod args {
     // Here list some not-so-trivial stuff in the definition, and they're all supported by `supplement`.
     // - `--git-dir` is global
     // - `files` in `checkout` can be infinitely long
+    // - There is an external subcommand `Ext` for alias
     // - `--color` and `--pretty` in `log` have *possible values*. For example, `color` should be one of `auto` `always` or `never`
     // - `--pretty` in `log` has `num_args = 0..=1, default_value = "short, default_missing_value = "full", require_equals = true`... which just means it behaves differently with or without the equal sign
     //     + `qit log` is the same as `qit log --pretty=short`
@@ -50,7 +51,7 @@ mod args {
         },
 
         #[clap(external_subcommand)]
-        Other(#[allow(unused)] Vec<String>),
+        Ext(#[allow(unused)] Vec<String>),
     }
     #[derive(Clone, PartialEq, Eq, PartialOrd, Ord, ValueEnum, Debug)]
     pub enum Pretty {
@@ -176,7 +177,7 @@ fn handle_comp(id: GitID, seen: &Seen, _value: &str) -> Vec<Completion> {
                 })
                 .collect()
         }
-        id!(GitID.sub SubID.Other(ext_ctx)) if ext_ctx.values(seen).len() == 0 => {
+        id!(GitID.sub SubID.Ext(ext_ctx)) if ext_ctx.values(seen).len() == 0 => {
             // The first external subcommand, show aliases
             run_git("config --get-regexp ^alias\\.")
                 .lines()
@@ -187,7 +188,7 @@ fn handle_comp(id: GitID, seen: &Seen, _value: &str) -> Vec<Completion> {
                 })
                 .collect()
         }
-        id!(GitID.sub SubID.Other(_ext_ctx)) => {
+        id!(GitID.sub SubID.Ext(_ext_ctx)) => {
             // The arguments of external subcommand
             unimplemented!();
         }

@@ -98,20 +98,24 @@ pub fn id_codegen(input: TokenStream) -> TokenStream {
 /// ```rust
 /// mod def {
 ///     #[derive(Clone, Copy)]
-///     pub struct Ctx;
+///     pub struct Ctx1;
+///     #[derive(Clone, Copy)]
+///     pub struct Ctx2;
+///     #[derive(Clone, Copy)]
+///     pub struct Ctx3;
 ///
 ///     #[derive(Clone, Copy)]
 ///     pub enum GitID {
-///         X7Xgit_dir(Ctx, ()),
-///         X3Xsub(Ctx, SubID),
+///         X7Xgit_dir(Ctx1, ()),
+///         X3Xsub(Ctx1, SubID),
 ///     }
 ///     #[derive(Clone, Copy)]
 ///     pub enum SubID {
-///         X6XRemotesub(Ctx, RemoteSubID),
+///         X6XRemotesub(Ctx2, RemoteSubID),
 ///     }
 ///     #[derive(Clone, Copy)]
 ///     pub enum RemoteSubID {
-///         X6XSetURLurl(Ctx, ()),
+///         X6XSetURLurl(Ctx3, ()),
 ///     }
 /// }
 ///
@@ -119,31 +123,31 @@ pub fn id_codegen(input: TokenStream) -> TokenStream {
 /// use supplement_proc_macro::id_no_assoc as id;
 ///
 /// // Root flag or arg
-/// let e = GitID::X7Xgit_dir(Ctx, ());
+/// let e = GitID::X7Xgit_dir(Ctx1, ());
 /// match e {
 ///     // To bind to the ctx, add `(ctx)` in the macro
 ///     id!(GitID.git_dir(ctx)) => {
-///         let _ctx: Ctx = ctx;
+///         let _ctx: Ctx1 = ctx;
 ///     }
 ///     // Or to make no binding
 ///     id!(GitID.git_dir) => panic!(),
 ///     _ => panic!(),
 /// }
 ///
-/// let e = GitID::X3Xsub(Ctx, SubID::X6XRemotesub(Ctx, RemoteSubID::X6XSetURLurl(Ctx, ())));
+/// let e = GitID::X3Xsub(Ctx1, SubID::X6XRemotesub(Ctx2, RemoteSubID::X6XSetURLurl(Ctx3, ())));
 /// match e {
 ///     id!(GitID.sub(ctx1) SubID.Remote.sub(ctx2) RemoteSubID.SetURL.url(ctx3)) => {
-///         let _ctx: Ctx = ctx1; // `ctx1` binds to the root Ctx
-///         let _ctx: Ctx = ctx2; // `ctx2` binds to the inner Ctx
-///         let _ctx: Ctx = ctx3; // `ctx3` binds to the inner most Ctx
+///         let _ctx: Ctx1 = ctx1; // `ctx1` binds to the root Ctx
+///         let _ctx: Ctx2 = ctx2; // `ctx2` binds to the inner Ctx
+///         let _ctx: Ctx3 = ctx3; // `ctx3` binds to the inner most Ctx
 ///     }
-///     // Or to only bind to some id
+///     // Or to only bind to some context
 ///     id!(GitID.sub SubID.Remote.sub(ctx2) RemoteSubID.SetURL.url) => panic!(),
 ///     _ => panic!(),
 /// }
 ///
 /// // Start with different ID
-/// let e = SubID::X6XRemotesub(Ctx, RemoteSubID::X6XSetURLurl(Ctx, ()));
+/// let e = SubID::X6XRemotesub(Ctx2, RemoteSubID::X6XSetURLurl(Ctx3, ()));
 /// match e {
 ///     id!(SubID.Remote.sub(_ctx1) RemoteSubID.SetURL.url) => (),
 ///     _ => panic!(),

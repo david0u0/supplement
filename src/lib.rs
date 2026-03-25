@@ -1,5 +1,5 @@
-//! Qucikstart: derive [`Supplement`] on your CLI definition type,
-//! and call [`Supplement::supplement`] to start the CLI compleiton.
+//! Qucikstart: Check the example of [`Supplement`].
+//! Derive it and call [`Supplement::supplement`] to start the CLI compleiton.
 
 pub mod completion;
 pub mod core;

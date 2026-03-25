@@ -7,6 +7,63 @@ use std::fmt::Debug;
 ///
 /// This is the primary way to create a [`Command`] object, which can be used for completion.
 /// Or even simpler, directly call [`Supplement::supplement`] to start the CLI completion.
+///
+/// ```rust
+/// mod def {
+///     # #[cfg(feature = "clap-3")]
+///     # use clap3 as clap;
+///     # #[cfg(feature = "clap-4")]
+///     # use clap4 as clap;
+///     pub use std::path::{Path, PathBuf};
+///     pub use supplement::{Completion, CompletionGroup, Shell, Supplement};
+///     use clap::Parser;
+///
+///     #[derive(Parser, Supplement)]
+///     pub enum Git {
+///         Checkout {
+///             file_or_commit: String,
+///             files: Vec<PathBuf>,
+///         },
+///         Log,
+///     }
+/// }
+///
+/// use def::*;
+/// use supplement::helper::id_no_assoc as id;
+/// type GitID = <Git as Supplement>::ID;
+///
+/// // Start completion
+/// let args = ["qit", "checkout", "e84e66", ""].iter().map(|s| s.to_string());
+/// let (seen, grp) = Git::gen_cmd().supplement(args.clone()).unwrap();
+///
+/// // Or equivalently
+/// let args = ["qit", "checkout", "e84e66", ""].iter().map(|s| s.to_string());
+/// let (seen, grp) = Git::supplement(args).unwrap();
+///
+/// let ready = match grp {
+///     CompletionGroup::Ready(ready) => ready,
+///     CompletionGroup::Unready { unready, id, value } => {
+///         match id {
+///             id!(GitID.Checkout.files(ctx)) => {
+///                 let file_or_commit: Option<&str> = ctx.file_or_commit(&seen);
+///                 let files: Vec<&Path> = ctx.files(&seen).collect();
+///                 // Custom completion logic based on context
+///                 let comps: Vec<Completion> = complete_files(file_or_commit, files);
+///                 // Create a ready completion group
+///                 unready.to_ready(comps)
+///             }
+///             _ => unimplemented!("Some more custom logic...")
+///         }
+///     }
+/// };
+///
+/// // Print to stdout
+/// ready.print(Shell::Fish, &mut std::io::stdout()).unwrap();
+///
+/// # fn complete_files<T, U, V >(a: T, b: U) -> Vec<V> {
+/// #     vec![]
+/// # }
+/// ```
 pub trait Supplement: CommandFactory {
     /// ID can be used to uniquely identify a CLI flag or arg.
     ///
@@ -17,11 +74,16 @@ pub trait Supplement: CommandFactory {
     type Ctx: Default + Debug + PartialEq + Copy + 'static;
 
     fn id_from_cmd(cmd: &[impl AsRef<str>]) -> Option<(Option<Self::ID>, u32)>;
+
+    /// Refer to document of [`Supplement`].
     fn gen_cmd() -> Command<Self::ID> {
         let mut cmd = Self::command();
         cmd.build();
         gen_cmd_inner::<Self>(true, &cmd, &[], &mut vec![])
     }
+
+    /// Shorthand for [`Supplement::gen_cmd`] + [`Command::supplement`].
+    /// For usage, refer to document of [`Supplement`].
     fn supplement(args: impl Iterator<Item = String>) -> Result<(Seen, CompletionGroup<Self::ID>)> {
         let cmd = Self::gen_cmd();
         cmd.supplement(args)
@@ -47,15 +109,16 @@ fn gen_cmd_inner<Root: Supplement>(
     if !first {
         trace.push(name.to_string());
     }
+    let custom_help_flag = cmd.is_disable_help_flag_set();
+    let custom_help_cmd = cmd.is_disable_help_subcommand_set();
     let description = Cow::Owned(cmd.get_about().map(|s| s.to_string()).unwrap_or_default());
 
     let flags: Vec<Flag<Root::ID>> = cmd
         .get_arguments()
         .filter(|a| !a.is_positional())
         .filter(|a| {
-            // TODO: custom help
             let id = a.get_id().as_str();
-            id != "help"
+            custom_help_flag || id != "help"
         })
         .map(|arg| gen_flag::<Root>(arg, &trace, global_flags))
         .collect();
@@ -68,7 +131,7 @@ fn gen_cmd_inner<Root: Supplement>(
 
     let commands: Vec<Command<Root::ID>> = cmd
         .get_subcommands()
-        .filter(|c| c.get_name() != "help") // TODO: custom help
+        .filter(|c| custom_help_cmd || c.get_name() != "help") 
         .map(|sub| gen_cmd_inner::<Root>(false, sub, &trace, global_flags))
         .collect();
 
