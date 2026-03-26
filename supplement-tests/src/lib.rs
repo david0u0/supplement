@@ -31,6 +31,7 @@ pub fn map_unready<ID: Debug + Copy>(grp: &CompletionGroup<ID>) -> (ID, (&str, V
 mod test {
     use supplement::generate::{Config, generate};
     mod def {
+        #![allow(clippy::needless_lifetimes)]
         include!("def.rs");
     }
 

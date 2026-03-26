@@ -34,7 +34,7 @@ let ready = match grp {
         r
     }
     CompletionGroup::Unready { unready, id, value } => {
-        let comps = handle_comp(id, &seen, &value);
+        let comps: Vec<Completion> = handle_comp(id, &seen, &value);
         unready.to_ready(comps)
     }
 };

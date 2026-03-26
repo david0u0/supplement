@@ -5,8 +5,10 @@ use clap4 as clap;
 
 use clap::Parser;
 use std::io::stdout;
+use std::iter::once;
 use std::path::{Path, PathBuf};
 use std::process::Command;
+use supplement::completion::{Ready, Unready};
 use supplement::{Completion, CompletionGroup, Seen, Shell, Supplement, helper::id_no_assoc as id};
 
 mod args {
@@ -84,6 +86,32 @@ fn run_git(args: &str) -> String {
         .stdout;
     String::from_utf8(out).unwrap()
 }
+fn get_commits(limit: usize) -> impl Iterator<Item = Completion> {
+    let cmd = format!("log --oneline -{limit}");
+    let lines: Vec<_> = run_git(&cmd).lines().map(str::to_string).collect();
+    lines.into_iter().map(|l| {
+        let (hash, description) = l.split_once(" ").unwrap();
+        Completion::new(hash, description).group("Commits")
+    })
+}
+fn get_files() -> impl Iterator<Item = Completion> {
+    let cmd = "status --porcelain";
+    let lines: Vec<_> = run_git(cmd).lines().map(str::to_string).collect();
+    lines.into_iter().map(|l| {
+        let (_, file) = l.rsplit_once(" ").unwrap();
+        Completion::new(file, "").group("Modified file")
+    })
+}
+fn get_alias() -> Vec<(String, String)> {
+    run_git("config --get-regexp ^alias\\.")
+        .lines()
+        .map(|line| {
+            let line = &line["alias.".len()..];
+            let (before, after) = line.split_once(" ").unwrap();
+            (before.to_string(), after.to_string())
+        })
+        .collect()
+}
 
 fn main() {
     env_logger::init();
@@ -91,106 +119,106 @@ fn main() {
     log::info!("args = {:?}", args);
 
     let shell: Result<Shell, _> = args.get(1).map(String::as_str).unwrap_or_default().parse();
-    match shell {
-        Err(_) => {
-            log::info!("Mode #1: parse");
-            let res = Git::try_parse_from(args);
-            match res {
-                Ok(res) => println!("{:?}", res),
-                Err(err) => println!("{err}"),
-            }
+    let Ok(shell) = shell else {
+        log::info!("Mode #1: parse");
+        let res = Git::try_parse_from(args).unwrap_or_else(|e| panic!("{}", e));
+        println!("{:?}", res);
+        return;
+    };
+
+    log::info!("Mode #2: completion");
+    let args = args[2..].iter().map(String::from);
+    let (seen, grp) = Git::supplement(args).unwrap();
+    let ready = match grp {
+        CompletionGroup::Ready(r) => {
+            // The easy path. No custom logic needed.
+            // e.g. Completing a subcommand or flag, like `git chec<TAB>`
+            // or completing something with candidate values, like `ls --color=<TAB>`
+            r
         }
-        Ok(shell) => {
-            log::info!("Mode #2: completion");
-            let args = args[2..].iter().map(String::from);
-            let (seen, grp) = Git::supplement(args).unwrap();
-            let ready = match grp {
-                CompletionGroup::Ready(r) => {
-                    // The easy path. No custom logic needed.
-                    // e.g. Completing a subcommand or flag, like `git chec<TAB>`
-                    // or completing something with candidate values, like `ls --color=<TAB>`
-                    r
-                }
-                CompletionGroup::Unready { unready, id, value } => {
-                    let comps = handle_comp(id, &seen, &value);
-                    unready.to_ready(comps)
-                }
-            };
-            ready.print(shell, &mut stdout()).unwrap();
+        CompletionGroup::Unready { unready, id, value } => {
+            handle_comp(unready, id, seen, &value, 0)
         }
-    }
+    };
+    ready.print(shell, &mut stdout()).unwrap();
 }
 
-fn handle_comp(id: GitID, seen: &Seen, _value: &str) -> Vec<Completion> {
-    match id {
+fn handle_comp(unready: Unready, id: GitID, mut seen: Seen, val: &str, alias_len: usize) -> Ready {
+    let comps = match id {
         id!(GitID.git_dir) | id!(GitID.sub SubID.Log.exclude) => std::process::exit(1), // Exit to use default completion
         id!(GitID.sub SubID.Checkout.file_or_commit) => {
             // For the first argument, it can either be a git commit or a file
-            let mut comps = vec![];
-            for line in run_git("log --oneline -10").lines() {
-                let (hash, description) = line.split_once(" ").unwrap();
-                comps.push(Completion::new(hash, description).group("Commits"));
-            }
-            for line in run_git("status --porcelain").lines() {
-                let (_, file) = line.rsplit_once(" ").unwrap();
-                comps.push(Completion::new(file, "").group("Modified file"));
-            }
-            comps
+            get_commits(10).chain(get_files()).collect()
         }
         id!(GitID.sub(root_ctx) SubID.Checkout.files(chk_ctx)) => {
             // For the second and more arguments, it can only be file
             // Let's also filter out those files we've already seen!
-            let _git_dir: Option<&Path> = root_ctx.git_dir(seen); // This is only for demo
-            let prev1: Option<&str> = chk_ctx.file_or_commit(seen);
-            let prev2 = chk_ctx.files(seen); // impl Iterator<Item = &Path>
+            let _git_dir: Option<&Path> = root_ctx.git_dir(&seen); // This is only for demo
+            let prev1: Option<&str> = chk_ctx.file_or_commit(&seen);
+            let prev2 = chk_ctx.files(&seen); // impl Iterator<Item = &Path>
             let prev: Vec<&str> = prev1
                 .into_iter()
                 .chain(prev2.filter_map(|p: &Path| p.to_str()))
                 .collect();
 
-            run_git("status --porcelain")
-                .lines()
-                .filter_map(|line| {
-                    let (_, file) = line.rsplit_once(" ").unwrap();
-                    if prev.contains(&file) {
-                        None
-                    } else {
-                        Some(Completion::new(file, "").group("Modified file"))
-                    }
-                })
+            get_files()
+                .filter(|comp| !prev.contains(&&*comp.value))
                 .collect()
         }
         id!(GitID.sub SubID.Log.commit(log_ctx)) => {
-            let pretty: Option<Result<Pretty, String>> = log_ctx.pretty(seen);
+            let pretty: Option<Result<Pretty, String>> = log_ctx.pretty(&seen);
 
-            // let's say, if pretty is "oneline", we search for all commits
-            let cmd = if pretty == Some(Ok(Pretty::Oneline)) {
-                "log --oneline"
+            // let's say, if pretty is "oneline", we show for more commits
+            let limit = if pretty == Some(Ok(Pretty::Oneline)) {
+                100
             } else {
-                "log --oneline -10"
+                10
             };
-            run_git(cmd)
-                .lines()
-                .map(|line| {
-                    let (hash, description) = line.split_once(" ").unwrap();
-                    Completion::new(hash, description).group("Commits")
-                })
-                .collect()
+            get_commits(limit).collect()
         }
-        id!(GitID.sub SubID.Ext(ext_ctx)) if ext_ctx.values(seen).len() == 0 => {
+        id!(GitID.sub SubID.Ext(ext_ctx)) if ext_ctx.values(&seen).len() == 0 => {
             // The first external subcommand, show aliases
-            run_git("config --get-regexp ^alias\\.")
-                .lines()
-                .map(|line| {
-                    let line = &line["alias.".len()..];
-                    let (before, after) = line.split_once(" ").unwrap();
-                    Completion::new(before, after).group("Alias")
-                })
+            get_alias()
+                .into_iter()
+                .map(|(b, a)| Completion::new(b, a).group("Alias"))
                 .collect()
         }
-        id!(GitID.sub SubID.Ext(_ext_ctx)) => {
+        id!(GitID.sub SubID.Ext(ext_ctx)) => {
             // The arguments of external subcommand
-            unimplemented!();
+            #[allow(clippy::needless_late_init)]
+            let aliases; // For some reason, this has to be declared early to avoid lifetime error.
+            let mut args = ext_ctx.values(&seen);
+            let first = args.next().unwrap();
+            if alias_len != 0 {
+                let cmd = args.nth(alias_len - 1).unwrap();
+                log::error!("Unknown command '{cmd}' when resolving alias '{first}'");
+                std::process::exit(1);
+            }
+
+            aliases = get_alias();
+            let Some((_, after)) = aliases.iter().find(|a| a.0 == first) else {
+                log::error!("unknown alias {first}");
+                std::process::exit(1);
+            };
+            let after = after.split(' ');
+            let alias_len = after.clone().count();
+
+            let args = once("qit").chain(after).chain(args).chain(once(val));
+            let args: Vec<_> = args.map(String::from).collect();
+            log::info!("Begin alias completion with {args:?}");
+
+            // use `supplement_with_seen` to preserve root args/flags
+            let grp = Git::gen_cmd()
+                .supplement_with_seen(&mut seen, args.into_iter())
+                .unwrap();
+            return match grp {
+                CompletionGroup::Ready(r) => r,
+                CompletionGroup::Unready { unready, id, value } => {
+                    handle_comp(unready, id, seen, &value, alias_len)
+                }
+            };
         }
-    }
+    };
+
+    unready.to_ready(comps)
 }
