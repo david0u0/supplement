@@ -8,17 +8,17 @@ use syn::{
     token::Paren,
 };
 
-/// A single segment like `Git.git_dir` or `Sub.Remote1.verbose(ctx)`
+/// A single segment like `Git.git_dir` or `Sub.Remote1.verbose(acc)`
 struct IdSegment {
     type_name: Ident,
     parts: Vec<Ident>,
-    ctx: Option<Ident>,
+    acc: Option<Ident>,
 }
 
 impl Parse for IdSegment {
     fn parse(input: ParseStream) -> syn::Result<Self> {
         let type_name: Ident = input.parse()?;
-        let mut ctx = None;
+        let mut acc = None;
         input.parse::<Token![.]>()?;
 
         let mut parts = vec![input.parse::<Ident>()?];
@@ -32,15 +32,15 @@ impl Parse for IdSegment {
             parenthesized!(content in input);
             let ident: Ident = content.parse()?;
             if !content.is_empty() {
-                return Err(Error::new(Span::call_site(), "context must be unique"));
+                return Err(Error::new(Span::call_site(), "accessor must be unique"));
             }
-            ctx = Some(ident);
+            acc = Some(ident);
         }
 
         Ok(IdSegment {
             type_name,
             parts,
-            ctx,
+            acc,
         })
     }
 }
@@ -81,12 +81,12 @@ fn build_id_expr(segments: &[IdSegment], use_assoc_type: bool) -> TokenStream2 {
         let combined: String = segment.parts.iter().map(|p| p.to_string()).collect();
         let variant = format_ident!("X{}X{}", first_part.len(), combined);
 
-        result = Some(match (result, &segment.ctx) {
+        result = Some(match (result, &segment.acc) {
             (Some(inner), None) => quote! { #id_type::#variant(_, #inner) },
-            (Some(inner), Some(ctx)) => quote! { #id_type::#variant(#ctx, #inner) },
+            (Some(inner), Some(acc)) => quote! { #id_type::#variant(#acc, #inner) },
 
             (None, None) => quote! { #id_type::#variant(_, ()) },
-            (None, Some(ctx)) => quote! { #id_type::#variant(#ctx, ()) },
+            (None, Some(acc)) => quote! { #id_type::#variant(#acc, ()) },
         });
     }
 

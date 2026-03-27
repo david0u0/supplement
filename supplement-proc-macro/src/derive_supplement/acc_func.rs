@@ -9,25 +9,25 @@ fn gen_it_type(target: &Type) -> TokenStream2 {
     }
 }
 
-pub enum CtxFunc<'a> {
+pub enum AccFunc<'a> {
     Count,
     Single(&'a Type, bool),
     Multi(&'a Type, bool),
 }
-impl CtxFunc<'_> {
-    pub fn new(ty: &Type, is_value_enum: bool) -> CtxFunc<'_> {
+impl AccFunc<'_> {
+    pub fn new(ty: &Type, is_value_enum: bool) -> AccFunc<'_> {
         let ty = extract_inner_type(ty, &["Option"]);
         if let Type::Path(type_path) = ty {
             let segment = &type_path.path.segments.last().unwrap();
             if segment.ident == "bool" {
-                return CtxFunc::Count;
+                return AccFunc::Count;
             }
             if let Some(inner) = extract_inner_type_opt(ty, &["Vec"]) {
-                return CtxFunc::Multi(inner, is_value_enum);
+                return AccFunc::Multi(inner, is_value_enum);
             }
         }
 
-        CtxFunc::Single(ty, is_value_enum)
+        AccFunc::Single(ty, is_value_enum)
     }
 
     pub fn generate(&self, name: &Ident, uniq_num: u32) -> TokenStream2 {
@@ -44,17 +44,17 @@ impl CtxFunc<'_> {
             None
         }
         match self {
-            CtxFunc::Count => quote! {
+            AccFunc::Count => quote! {
                 pub fn #name(self, seen: &Seen) -> u32 {
                     seen.find(id::NoVal::new(#uniq_num)).map(|u| u.count).unwrap_or_default()
                 }
             },
-            CtxFunc::Single(ty, true) => quote! {
+            AccFunc::Single(ty, true) => quote! {
                 pub fn #name(self, seen: &Seen) -> Option<std::result::Result<#ty, String>> {
                     seen.find(id::SingleVal::new(#uniq_num)).map(|u| <#ty as ValueEnum>::from_str(&u.value, false))
                 }
             },
-            CtxFunc::Multi(ty, true) => {
+            AccFunc::Multi(ty, true) => {
                 let target = parse_quote! { std::result::Result<#ty, String> };
                 let it_type = gen_it_type(&target);
                 quote! {
@@ -65,7 +65,7 @@ impl CtxFunc<'_> {
                 }
             }
 
-            CtxFunc::Single(ty, false) => {
+            AccFunc::Single(ty, false) => {
                 if let Some(as_ref) = map_asref(ty) {
                     quote! {
                         pub fn #name(self, seen: &Seen) -> Option<#as_ref> {
@@ -80,7 +80,7 @@ impl CtxFunc<'_> {
                     }
                 }
             }
-            CtxFunc::Multi(ty, false) => {
+            AccFunc::Multi(ty, false) => {
                 if let Some(as_ref) = map_asref(ty) {
                     let it_type = gen_it_type(&as_ref);
                     quote! {

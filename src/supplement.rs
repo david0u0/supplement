@@ -45,10 +45,10 @@ use std::ops::Deref;
 ///     CompletionGroup::Ready(ready) => ready,
 ///     CompletionGroup::Unready { unready, id, value } => {
 ///         match id {
-///             id!(GitID.Checkout.files(ctx)) => {
-///                 let file_or_commit: Option<&str> = ctx.file_or_commit(&seen);
-///                 let files: Vec<&Path> = ctx.files(&seen).collect();
-///                 // Custom completion logic based on context
+///             id!(GitID.Checkout.files(acc)) => {
+///                 let file_or_commit: Option<&str> = acc.file_or_commit(&seen);
+///                 let files: Vec<&Path> = acc.files(&seen).collect();
+///                 // Custom completion logic based on CLI context
 ///                 let comps: Vec<Completion> = complete_files(file_or_commit, files);
 ///                 // Create a ready completion group
 ///                 unready.to_ready(comps)
@@ -70,13 +70,13 @@ pub trait Supplement: CommandFactory {
     ///
     /// With the derive macro, the ID is quite convoluted and hard to match on.
     /// Users are expected to use [`crate::helper::id!`] to help construct the match arms.
-    type ID: Debug + PartialEq + Copy + Deref<Target = Self::Ctx> + 'static;
+    type ID: Debug + PartialEq + Copy + Deref<Target = Self::Accessor> + 'static;
 
-    /// The *"context"* object that can lookup strongly typed data from [`Seen`].
+    /// The *"accessor"* object used to access strongly typed data from [`Seen`].
     ///
-    /// Note that when the deriving type is an enum, the context is `()`
-    /// because it doesn't have a common context across all subcommands.
-    type Ctx: Default + Debug + PartialEq + Copy + 'static;
+    /// Note that when the deriving type is an enum, the accesor is `()`
+    /// because it doesn't have a common accesor across all subcommands.
+    type Accessor: Default + Debug + PartialEq + Copy + 'static;
 
     fn id_from_cmd(cmd: &[impl AsRef<str>]) -> Option<(Option<Self::ID>, u32)>;
 

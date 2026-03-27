@@ -109,53 +109,53 @@ type RemoteStructID = <RemoteStruct as Supplement>::ID;
 type TestFlatID = <TestFlat as Supplement>::ID;
 
 pub fn handle_id(seen: &Seen, id: <Git as Supplement>::ID) {
-    let _: Option<&str> = id.git_dir(seen); // ID implements Deref<Target = Ctx>
+    let _: Option<&str> = id.git_dir(seen); // ID implements Deref<Target = Accessor>
 
     match id {
-        id!(GitID.git_dir(ctx)) => {
-            let _: Option<&str> = ctx.git_dir(seen);
+        id!(GitID.git_dir(acc)) => {
+            let _: Option<&str> = acc.git_dir(seen);
         }
-        id!(GitID.sub(ctx) SubID.Remote1.sub(remote_ctx) RemoteID.MyAdd.url(add_ctx)) => {
-            let _: Option<&str> = ctx.git_dir(seen);
-            let _: u32 = remote_ctx.v(seen);
-            let _: u32 = remote_ctx.opts.verbose(seen);
-            let _: Option<&str> = remote_ctx.opts.test_flat(seen);
-            let _: Vec<Result<Pretty, _>> = remote_ctx.opts.test_value_enum_iter(seen).collect();
-            let _: Vec<Result<URL, _>> = add_ctx.url(seen).collect();
+        id!(GitID.sub(acc) SubID.Remote1.sub(remote_acc) RemoteID.MyAdd.url(add_acc)) => {
+            let _: Option<&str> = acc.git_dir(seen);
+            let _: u32 = remote_acc.v(seen);
+            let _: u32 = remote_acc.opts.verbose(seen);
+            let _: Option<&str> = remote_acc.opts.test_flat(seen);
+            let _: Vec<Result<Pretty, _>> = remote_acc.opts.test_value_enum_iter(seen).collect();
+            let _: Vec<Result<URL, _>> = add_acc.url(seen).collect();
         }
-        id!(GitID.sub SubID.Remote2 RemoteStructID.sub(remote_ctx) RemoteID.MyAdd.url(add_ctx)) => {
-            let _: u32 = remote_ctx.v(seen);
-            let _: u32 = remote_ctx.opts.verbose(seen);
-            let _: Option<&str> = remote_ctx.opts.test_flat(seen);
-            let _: Vec<Result<URL, _>> = add_ctx.url(seen).collect();
+        id!(GitID.sub SubID.Remote2 RemoteStructID.sub(remote_acc) RemoteID.MyAdd.url(add_acc)) => {
+            let _: u32 = remote_acc.v(seen);
+            let _: u32 = remote_acc.opts.verbose(seen);
+            let _: Option<&str> = remote_acc.opts.test_flat(seen);
+            let _: Vec<Result<URL, _>> = add_acc.url(seen).collect();
         }
 
-        id!(GitID.sub SubID.Remote1.opts(remote_ctx) TestFlatID.test_flat(flat_ctx)) => {
-            let _: u32 = remote_ctx.v(seen);
-            assert_eq!(remote_ctx.opts, flat_ctx);
-            let _: u32 = flat_ctx.verbose(seen);
-            let _: Option<&str> = flat_ctx.test_flat(seen);
+        id!(GitID.sub SubID.Remote1.opts(remote_acc) TestFlatID.test_flat(flat_acc)) => {
+            let _: u32 = remote_acc.v(seen);
+            assert_eq!(remote_acc.opts, flat_acc);
+            let _: u32 = flat_acc.verbose(seen);
+            let _: Option<&str> = flat_acc.test_flat(seen);
         }
-        id!(GitID.sub SubID.Remote2 RemoteStructID.opts(remote_ctx) TestFlatID.test_flat(flat_ctx)) =>
+        id!(GitID.sub SubID.Remote2 RemoteStructID.opts(remote_acc) TestFlatID.test_flat(flat_acc)) =>
         {
-            let _: u32 = remote_ctx.v(seen);
-            assert_eq!(remote_ctx.opts, flat_ctx);
-            let _: u32 = flat_ctx.verbose(seen);
-            let _: Option<&str> = flat_ctx.test_flat(seen);
+            let _: u32 = remote_acc.v(seen);
+            assert_eq!(remote_acc.opts, flat_acc);
+            let _: u32 = flat_acc.verbose(seen);
+            let _: Option<&str> = flat_acc.test_flat(seen);
         }
 
-        id!(GitID.sub SubID.Log.paths(log_ctx)) => {
-            let _: Vec<&Path> = log_ctx.paths(seen).collect();
-            let _: Option<Result<Pretty, _>> = log_ctx.pretty(seen);
-            let _: Option<Result<Commit, _>> = log_ctx.commit(seen);
+        id!(GitID.sub SubID.Log.paths(log_acc)) => {
+            let _: Vec<&Path> = log_acc.paths(seen).collect();
+            let _: Option<Result<Pretty, _>> = log_acc.pretty(seen);
+            let _: Option<Result<Commit, _>> = log_acc.commit(seen);
         }
         id!(GitID.sub SubID.RM.paths) => {}
-        id!(GitID.sub(ctx) SubID.Log.commit) | id!(GitID.sub(ctx) SubID.CherryPick.commit) => {
-            let _: Option<&str> = ctx.git_dir(seen);
+        id!(GitID.sub(acc) SubID.Log.commit) | id!(GitID.sub(acc) SubID.CherryPick.commit) => {
+            let _: Option<&str> = acc.git_dir(seen);
         }
 
-        id!(GitID.sub SubID.Other(ext_ctx)) => {
-            let _: Vec<&str> = ext_ctx.values(seen).collect();
+        id!(GitID.sub SubID.Other(ext_acc)) => {
+            let _: Vec<&str> = ext_acc.values(seen).collect();
         }
     };
 }

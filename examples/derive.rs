@@ -150,12 +150,12 @@ fn handle_comp(unready: Unready, id: GitID, mut seen: Seen, val: &str, alias_len
             // For the first argument, it can either be a git commit or a file
             get_commits(10).chain(get_files()).collect()
         }
-        id!(GitID.sub(root_ctx) SubID.Checkout.files(chk_ctx)) => {
+        id!(GitID.sub(root_accessor) SubID.Checkout.files(chk_accessor)) => {
             // For the second and more arguments, it can only be file
             // Let's also filter out those files we've already seen!
-            let _git_dir: Option<&Path> = root_ctx.git_dir(&seen); // This is only for demo
-            let prev1: Option<&str> = chk_ctx.file_or_commit(&seen);
-            let prev2 = chk_ctx.files(&seen); // impl Iterator<Item = &Path>
+            let _git_dir: Option<&Path> = root_accessor.git_dir(&seen); // This is only for demo
+            let prev1: Option<&str> = chk_accessor.file_or_commit(&seen);
+            let prev2 = chk_accessor.files(&seen); // impl Iterator<Item = &Path>
             let prev: Vec<&str> = prev1
                 .into_iter()
                 .chain(prev2.filter_map(|p: &Path| p.to_str()))
@@ -165,8 +165,8 @@ fn handle_comp(unready: Unready, id: GitID, mut seen: Seen, val: &str, alias_len
                 .filter(|comp| !prev.contains(&&*comp.value))
                 .collect()
         }
-        id!(GitID.sub SubID.Log.commit(log_ctx)) => {
-            let pretty: Option<Result<Pretty, String>> = log_ctx.pretty(&seen);
+        id!(GitID.sub SubID.Log.commit(log_accessor)) => {
+            let pretty: Option<Result<Pretty, String>> = log_accessor.pretty(&seen);
 
             // let's say, if pretty is "oneline", we show for more commits
             let limit = if pretty == Some(Ok(Pretty::Oneline)) {
@@ -176,16 +176,16 @@ fn handle_comp(unready: Unready, id: GitID, mut seen: Seen, val: &str, alias_len
             };
             get_commits(limit).collect()
         }
-        id!(GitID.sub SubID.Ext(ext_ctx)) if ext_ctx.values(&seen).len() == 0 => {
+        id!(GitID.sub SubID.Ext(ext_accessor)) if ext_accessor.values(&seen).len() == 0 => {
             // The first external subcommand, show aliases
             get_alias()
                 .into_iter()
                 .map(|(b, a)| Completion::new(b, a).group("Alias"))
                 .collect()
         }
-        id!(GitID.sub SubID.Ext(ext_ctx)) => {
+        id!(GitID.sub SubID.Ext(ext_accessor)) => {
             // The arguments of external subcommand
-            let mut args = ext_ctx.values(&seen);
+            let mut args = ext_accessor.values(&seen);
             let first = args.next().unwrap();
             if alias_len != 0 {
                 let cmd = args.nth(alias_len - 1).unwrap();

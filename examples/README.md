@@ -75,7 +75,7 @@ flowchart TD
 ### Seen
 Sometimes the completion depends on the CLI context, e.g. knowing the flag value `--git-dir` on CLI.
 
-`supplement` generates a bunch of helper function, which make the context type safe.
+`supplement` generates a bunch of helper function, which make accessing the context type safe.
 For example, when you're completing an argument for `checkout`,
 you can only get the root flags/args (`--git-dir`) and the flags/args of `checkout` (`FILE_OR_COMMIT` and `FILES`).
 You can **NEVER** get anything from `log` (e.g. `--pretty`).
@@ -86,18 +86,18 @@ Refer to this code in [derive.rs](derive.rs):
 match id {
     // ...
 
-    id!(Git.sub(root_ctx) Sub.Checkout.files(chk_ctx)) => {
-        let git_dir: Option<&Path> = root_ctx.git_dir(seen);
-        let prev1: Option<&str> = chk_ctx.file_or_commit(seen);
-        let prev2 = chk_ctx.files(seen); // impl Iterator<Item = &Path>
+    id!(Git.sub(root_accessor) Sub.Checkout.files(chk_accessor)) => {
+        let _git_dir: Option<&Path> = root_accessor.git_dir(seen);
+        let prev1: Option<&str> = chk_accessor.file_or_commit(seen);
+        let prev2 = chk_accessor.files(seen); // impl Iterator<Item = &Path>
 
         // ...
     }
 }
 ```
 
-The two *"ctx"* objects correspond to two layers of command structures.
-Because they are context-aware, we can get the values by calling their functions, e.g. `chk_ctx.files()` for argument `FILES`.
+The two *"accessor"* objects correspond to two layers of command structures.
+Because they are structure-aware, we can get the strongly-typed values by calling their functions, e.g. `chk_accessor.files()` for argument `FILES`.
 
 ## Install
 If you like, you can actually install this toy app `qit` to your system along with its completion.

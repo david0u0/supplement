@@ -61,31 +61,31 @@ impl Getter for id::MultiVal {
 
 /// A structure that records all seen CLI objects, along with their value if they have some.
 ///
-/// In the derive workflow, the command structure is encoded in the *"Context"* of generated ID.
-/// You can call the functions of these context to get strongly typed values.
+/// In the derive workflow, the command structure is encoded in the *"Accessor"* of generated ID.
+/// You can call the functions of these accessor to get strongly typed values.
 /// ```no_run
 /// use std::path::Path;
 /// use supplement::Seen;
 /// use supplement::helper::id_no_assoc as id;
 /// # #[derive(Clone, Copy)]
 /// # pub enum ID {
-/// #     X3Xsub(CtxRoot, SubID),
+/// #     X3Xsub(RootAccessor, SubID),
 /// # }
 /// # #[derive(Clone, Copy)]
 /// # pub enum SubID {
-/// #     X8XCheckoutfiles(CtxCheckout, ()),
+/// #     X8XCheckoutfiles(CheckoutAccessor, ()),
 /// # }
 ///
 /// # #[derive(Clone, Copy)]
-/// # pub struct CtxRoot;
+/// # pub struct RootAccessor;
 /// # #[derive(Clone, Copy)]
-/// # pub struct CtxCheckout;
-/// # impl CtxRoot {
+/// # pub struct CheckoutAccessor;
+/// # impl RootAccessor {
 /// #     pub fn git_dir(&self, seen: &Seen) -> Option<&Path> {
 /// #         unimplemented!()
 /// #     }
 /// # }
-/// # impl CtxCheckout {
+/// # impl CheckoutAccessor {
 /// #     pub fn file_or_commit(&self, seen: &Seen) -> Option<&str> {
 /// #         unimplemented!()
 /// #     }
@@ -95,13 +95,13 @@ impl Getter for id::MultiVal {
 /// # }
 /// fn handle_comp(id: ID, seen: &Seen) {
 ///     match id {
-///         id!(ID.sub(root_ctx) SubID.Checkout.files(chk_ctx)) => {
-///             // use `root_ctx` to get the root args/flags
-///             let _git_dir: Option<&Path> = root_ctx.git_dir(seen);
+///         id!(ID.sub(root_acc) SubID.Checkout.files(chk_acc)) => {
+///             // use `root_acc` to get the root args/flags
+///             let _git_dir: Option<&Path> = root_acc.git_dir(seen);
 ///
-///             // use `chk_ctx` to get the args/flags for `checkout` sub-command
-///             let _file_or_commit: Option<&str> = chk_ctx.file_or_commit(seen);
-///             let _files: Vec<&Path> = chk_ctx.files(seen).collect();
+///             // use `chk_acc` to get the args/flags for `checkout` sub-command
+///             let _file_or_commit: Option<&str> = chk_acc.file_or_commit(seen);
+///             let _files: Vec<&Path> = chk_acc.files(seen).collect();
 ///
 ///             // NOTE: the type system guarantees that you can **NEVER** get anything from other subcommands!
 ///         }
@@ -180,8 +180,8 @@ impl Seen {
 
     /// Find the seen values by their ID.
     ///
-    /// In the code-gen workflow, you probably don't want to call this function directly,
-    /// but instead would prefer the generated context functions.
+    /// In the derive & code-gen workflow, you probably don't want to call this function directly,
+    /// but instead would prefer the generated accessor functions.
     /// (Refer to [`Seen`] for more information)
     ///
     /// ----

@@ -44,7 +44,7 @@ pub fn derive_supplement(input: TokenStream) -> TokenStream {
 /// // Root flag or arg
 /// let e = def::ID::ValGitDir(1);
 /// match e {
-///     // To bind to the ID, add `(id)` in the macro
+///     // To bind to the ID, add `(xxx)` to the macro
 ///     id!(def(id) git_dir) => {
 ///         let _tmp: def::ID = id; // `id` binds to the root ID
 ///     }
@@ -91,31 +91,31 @@ pub fn id_codegen(input: TokenStream) -> TokenStream {
 /// Helper macro to simplify the nested ID hell.
 ///
 /// - `id!(GitID.git_dir)` expands to `GitID::X7Xgit_dir(_)`
-/// - `id!(GitID.sub(ctx) SubID.Remote1.verbose)` expands to `GitID::X3Xsub(ctx, SubID::X6XRemote1verbose(_))`
+/// - `id!(GitID.sub(acc) SubID.Remote1.verbose)` expands to `GitID::X3Xsub(acc, SubID::X6XRemote1verbose(_))`
 ///
 /// NOTE: [`id!`] is preferred if `#![feature(more_qualified_paths)]` becomes stable
 ///
 /// ```rust
 /// mod def {
 ///     #[derive(Clone, Copy)]
-///     pub struct Ctx1;
+///     pub struct Acc1;
 ///     #[derive(Clone, Copy)]
-///     pub struct Ctx2;
+///     pub struct Acc2;
 ///     #[derive(Clone, Copy)]
-///     pub struct Ctx3;
+///     pub struct Acc3;
 ///
 ///     #[derive(Clone, Copy)]
 ///     pub enum GitID {
-///         X7Xgit_dir(Ctx1, ()),
-///         X3Xsub(Ctx1, SubID),
+///         X7Xgit_dir(Acc1, ()),
+///         X3Xsub(Acc1, SubID),
 ///     }
 ///     #[derive(Clone, Copy)]
 ///     pub enum SubID {
-///         X6XRemotesub(Ctx2, RemoteSubID),
+///         X6XRemotesub(Acc2, RemoteSubID),
 ///     }
 ///     #[derive(Clone, Copy)]
 ///     pub enum RemoteSubID {
-///         X6XSetURLurl(Ctx3, ()),
+///         X6XSetURLurl(Acc3, ()),
 ///     }
 /// }
 ///
@@ -123,33 +123,33 @@ pub fn id_codegen(input: TokenStream) -> TokenStream {
 /// use supplement_proc_macro::id_no_assoc as id;
 ///
 /// // Root flag or arg
-/// let e = GitID::X7Xgit_dir(Ctx1, ());
+/// let e = GitID::X7Xgit_dir(Acc1, ());
 /// match e {
-///     // To bind to the ctx, add `(ctx)` in the macro
-///     id!(GitID.git_dir(ctx)) => {
-///         let _ctx: Ctx1 = ctx;
+///     // To bind to the accessor, add `(xxx)` to the macro
+///     id!(GitID.git_dir(acc)) => {
+///         let _acc: Acc1 = acc;
 ///     }
 ///     // Or to make no binding
 ///     id!(GitID.git_dir) => panic!(),
 ///     _ => panic!(),
 /// }
 ///
-/// let e = GitID::X3Xsub(Ctx1, SubID::X6XRemotesub(Ctx2, RemoteSubID::X6XSetURLurl(Ctx3, ())));
+/// let e = GitID::X3Xsub(Acc1, SubID::X6XRemotesub(Acc2, RemoteSubID::X6XSetURLurl(Acc3, ())));
 /// match e {
-///     id!(GitID.sub(ctx1) SubID.Remote.sub(ctx2) RemoteSubID.SetURL.url(ctx3)) => {
-///         let _ctx: Ctx1 = ctx1; // `ctx1` binds to the root Ctx
-///         let _ctx: Ctx2 = ctx2; // `ctx2` binds to the inner Ctx
-///         let _ctx: Ctx3 = ctx3; // `ctx3` binds to the inner most Ctx
+///     id!(GitID.sub(acc1) SubID.Remote.sub(acc2) RemoteSubID.SetURL.url(acc3)) => {
+///         let _acc: Acc1 = acc1; // `acc1` binds to the root accessor
+///         let _acc: Acc2 = acc2; // `acc2` binds to the inner accessor
+///         let _acc: Acc3 = acc3; // `acc3` binds to the inner most accessor
 ///     }
-///     // Or to only bind to some context
-///     id!(GitID.sub SubID.Remote.sub(ctx2) RemoteSubID.SetURL.url) => panic!(),
+///     // Or to only bind to some accessor
+///     id!(GitID.sub SubID.Remote.sub(acc2) RemoteSubID.SetURL.url) => panic!(),
 ///     _ => panic!(),
 /// }
 ///
 /// // Start with different ID
-/// let e = SubID::X6XRemotesub(Ctx2, RemoteSubID::X6XSetURLurl(Ctx3, ()));
+/// let e = SubID::X6XRemotesub(Acc2, RemoteSubID::X6XSetURLurl(Acc3, ()));
 /// match e {
-///     id!(SubID.Remote.sub(_ctx1) RemoteSubID.SetURL.url) => (),
+///     id!(SubID.Remote.sub(_acc1) RemoteSubID.SetURL.url) => (),
 ///     _ => panic!(),
 /// }
 /// ```
@@ -161,7 +161,7 @@ pub fn id_no_assoc(input: TokenStream) -> TokenStream {
 /// Helper macro to simplify the nested ID hell.
 ///
 /// - `id!(GitID.git_dir)` expands to `<Git as Supplement>::ID::X7Xgit_dir(_)`
-/// - `id!(GitID.sub(ctx) SubID.Remote1.verbose)` expands to `<Git as Supplement>::ID::ID::X3Xsub(ctx, <SubID as Supplement>::ID::X6XRemote1verbose(_))`
+/// - `id!(GitID.sub(acc) SubID.Remote1.verbose)` expands to `<Git as Supplement>::ID::ID::X3Xsub(acc, <SubID as Supplement>::ID::X6XRemote1verbose(_))`
 ///
 /// This may cause compile error without `#![feature(more_qualified_paths)]`. In such case, you can use [`id_no_assoc!`].
 #[proc_macro]
