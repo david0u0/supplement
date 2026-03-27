@@ -19,6 +19,8 @@ pub struct TestFlat {
     verbose: bool,
     #[clap(long)]
     test_flat: Option<String>,
+    #[clap(value_enum)]
+    test_value_enum_iter: Vec<Pretty>,
 }
 
 #[derive(Parser, Debug, Clone, Supplement)]
@@ -26,7 +28,7 @@ pub enum Sub {
     Log {
         #[clap(long, value_enum)]
         pretty: Option<Pretty>, // NOTE: the `value_enum` is necessary due to lack of specialization
-        commit: String,
+        commit: Commit,
         paths: Vec<PathBuf>,
     },
     Remote1 {
@@ -71,11 +73,20 @@ impl FromStr for URL {
     }
 }
 
+#[derive(Clone, Debug)]
+pub struct Commit(pub String);
+impl FromStr for Commit {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ok(Commit(s.to_string()))
+    }
+}
+
 #[derive(Parser, Debug, Clone, Supplement)]
 pub enum Remote {
     #[clap(name = "add")]
     MyAdd {
-        url: URL,
+        url: Vec<URL>,
     },
     Delete,
 }
@@ -109,13 +120,14 @@ pub fn handle_id(seen: &Seen, id: <Git as Supplement>::ID) {
             let _: u32 = remote_ctx.v(seen);
             let _: u32 = remote_ctx.opts.verbose(seen);
             let _: Option<&str> = remote_ctx.opts.test_flat(seen);
-            let _: Option<Result<URL, _>> = add_ctx.url(seen);
+            let _: Vec<Result<Pretty, _>> = remote_ctx.opts.test_value_enum_iter(seen).collect();
+            let _: Vec<Result<URL, _>> = add_ctx.url(seen).collect();
         }
         id!(GitID.sub SubID.Remote2 RemoteStructID.sub(remote_ctx) RemoteID.MyAdd.url(add_ctx)) => {
             let _: u32 = remote_ctx.v(seen);
             let _: u32 = remote_ctx.opts.verbose(seen);
             let _: Option<&str> = remote_ctx.opts.test_flat(seen);
-            let _: Option<Result<URL, _>> = add_ctx.url(seen);
+            let _: Vec<Result<URL, _>> = add_ctx.url(seen).collect();
         }
 
         id!(GitID.sub SubID.Remote1.opts(remote_ctx) TestFlatID.test_flat(flat_ctx)) => {
@@ -135,6 +147,7 @@ pub fn handle_id(seen: &Seen, id: <Git as Supplement>::ID) {
         id!(GitID.sub SubID.Log.paths(log_ctx)) => {
             let _: Vec<&Path> = log_ctx.paths(seen).collect();
             let _: Option<Result<Pretty, _>> = log_ctx.pretty(seen);
+            let _: Option<Result<Commit, _>> = log_ctx.commit(seen);
         }
         id!(GitID.sub SubID.RM.paths) => {}
         id!(GitID.sub(ctx) SubID.Log.commit) | id!(GitID.sub(ctx) SubID.CherryPick.commit) => {

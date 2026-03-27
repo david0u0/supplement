@@ -185,8 +185,6 @@ fn handle_comp(unready: Unready, id: GitID, mut seen: Seen, val: &str, alias_len
         }
         id!(GitID.sub SubID.Ext(ext_ctx)) => {
             // The arguments of external subcommand
-            #[allow(clippy::needless_late_init)]
-            let aliases; // For some reason, this has to be declared early to avoid lifetime error.
             let mut args = ext_ctx.values(&seen);
             let first = args.next().unwrap();
             if alias_len != 0 {
@@ -195,7 +193,7 @@ fn handle_comp(unready: Unready, id: GitID, mut seen: Seen, val: &str, alias_len
                 std::process::exit(1);
             }
 
-            aliases = get_alias();
+            let aliases = get_alias();
             let Some((_, after)) = aliases.iter().find(|a| a.0 == first) else {
                 log::error!("unknown alias {first}");
                 std::process::exit(1);

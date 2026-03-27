@@ -3,6 +3,12 @@ use proc_macro2::TokenStream as TokenStream2;
 use quote::quote;
 use syn::{Ident, Type, parse_quote};
 
+fn gen_it_type(target: &Type) -> TokenStream2 {
+    quote! {
+        std::iter::Map<std::slice::Iter<'_, String>, fn(&String) -> #target>
+    }
+}
+
 pub enum CtxFunc<'a> {
     Count,
     Single(&'a Type, bool),
@@ -49,10 +55,12 @@ impl CtxFunc<'_> {
                 }
             },
             CtxFunc::Multi(ty, true) => {
+                let target = parse_quote! { std::result::Result<#ty, String> };
+                let it_type = gen_it_type(&target);
                 quote! {
-                    pub fn #name(self, seen: &Seen) -> impl ExactSizeIterator<Item = std::result::Result<#ty, String>> {
+                    pub fn #name(self, seen: &Seen) -> #it_type {
                         let v = seen.find(id::MultiVal::new(#uniq_num)).map(|u| u.values.as_slice()).unwrap_or(&[]);
-                        v.iter().map(|s| <#ty as ValueEnum>::from_str(&u.value, false))
+                        v.iter().map(|s| <#ty as ValueEnum>::from_str(&s, false))
                     }
                 }
             }
@@ -74,15 +82,18 @@ impl CtxFunc<'_> {
             }
             CtxFunc::Multi(ty, false) => {
                 if let Some(as_ref) = map_asref(ty) {
+                    let it_type = gen_it_type(&as_ref);
                     quote! {
-                        pub fn #name(self, seen: &Seen) -> impl ExactSizeIterator<Item = #as_ref> {
+                        pub fn #name(self, seen: &Seen) -> #it_type {
                             let v = seen.find(id::MultiVal::new(#uniq_num)).map(|u| u.values.as_slice()).unwrap_or(&[]);
                             v.iter().map(|s| s.as_ref())
                         }
                     }
                 } else {
+                    let target = parse_quote! { std::result::Result<#ty, <#ty as FromStr>::Err> };
+                    let it_type = gen_it_type(&target);
                     quote! {
-                        pub fn #name(self, seen: &Seen) -> impl ExactSizeIterator<Item = std::result::Result<#ty, <#ty as FromStr>::Err>> {
+                        pub fn #name(self, seen: &Seen) -> #it_type {
                             let v = seen.find(id::MultiVal::new(#uniq_num)).map(|u| u.values.as_slice()).unwrap_or(&[]);
                             v.iter().map(|s| s.parse())
                         }
