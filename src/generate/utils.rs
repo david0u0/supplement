@@ -1,5 +1,5 @@
-use super::abstraction::{Arg, Command};
 use super::{NameType, Trace, ValType};
+use crate::abstraction::{Arg, Command};
 use crate::core::CompleteWithEqual;
 
 pub struct Join<I>(pub I);

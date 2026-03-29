@@ -1,10 +1,9 @@
 use crate::error::GenerateError;
 use std::io::Write;
 
-mod abstraction;
 mod config;
 mod utils;
-use abstraction::{Arg, ArgAction, ClapCommand, Command, CommandMut, PossibleValue};
+use crate::abstraction::{Arg, ArgAction, ClapCommand, Command, PossibleValue};
 pub use config::Config;
 use utils::{Join, ctx_func, gen_enum_name, gen_rust_name, to_screaming_snake_case, to_snake_case};
 
@@ -41,9 +40,8 @@ pub fn generate(
     mut config: Config,
     w: &mut impl Write,
 ) -> Result<(), GenerateError> {
-    let mut cmd = CommandMut(cmd);
     cmd.build();
-    let cmd = cmd.into_const();
+    let cmd = Command(cmd);
 
     writeln!(w, "type GlobalID = ID;")?;
     generate_recur(&[], "", &mut config, &cmd, &[], w)?;

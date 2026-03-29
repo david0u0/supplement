@@ -27,3 +27,11 @@ clap4 = { package = "clap", version = "4", features = ["derive"] }
 default = ["clap-4"]
 clap-3 = ["clap3"]
 clap-4 = ["clap4"]
+
+[[example]]
+name = "derive"
+required-features = ["clap-4"]
+
+[[example]]
+name = "derive_clap3"
+required-features = ["clap-3"]

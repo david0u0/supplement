@@ -9,6 +9,7 @@ pub mod id;
 pub mod seen;
 mod supplement;
 
+pub(crate) mod abstraction;
 pub(crate) mod arg_context;
 pub(crate) mod parsed_flag;
 

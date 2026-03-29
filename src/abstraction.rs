@@ -7,14 +7,12 @@ pub type ClapCommand<'a> = &'a mut clap::Command;
 
 pub use clap::ArgAction;
 
-pub(crate) struct CommandMut<'a>(pub ClapCommand<'a>);
-
 #[cfg(feature = "clap-3")]
 #[derive(Clone, Copy)]
-pub(crate) struct Command<'a>(&'a clap::Command<'static>);
+pub(crate) struct Command<'a>(pub &'a clap::Command<'static>);
 #[cfg(feature = "clap-4")]
 #[derive(Clone, Copy)]
-pub(crate) struct Command<'a>(&'a clap::Command);
+pub(crate) struct Command<'a>(pub &'a clap::Command);
 
 #[cfg(feature = "clap-3")]
 #[derive(Clone, Copy)]
@@ -32,15 +30,6 @@ pub type PossibleValue = clap::builder::PossibleValue;
 pub type Id = str;
 #[cfg(feature = "clap-4")]
 pub type Id = clap::Id;
-
-impl<'a> CommandMut<'a> {
-    pub fn build(&mut self) {
-        self.0.build()
-    }
-    pub fn into_const(self) -> Command<'a> {
-        Command(self.0)
-    }
-}
 
 impl<'a> Command<'a> {
     pub fn get_arguments(&self) -> impl Iterator<Item = Arg<'a>> {
@@ -74,6 +63,9 @@ impl<'a> Command<'a> {
     }
     pub fn is_allow_external_subcommands_set(&self) -> bool {
         self.0.is_allow_external_subcommands_set()
+    }
+    pub fn is_disable_version_flag_set(&self) -> bool {
+        self.0.is_disable_version_flag_set()
     }
     pub fn is_disable_help_flag_set(&self) -> bool {
         self.0.is_disable_help_flag_set()

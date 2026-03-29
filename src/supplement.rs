@@ -1,4 +1,5 @@
-use crate::clap::{Command as ClapCommand, CommandFactory};
+use crate::abstraction::{Arg as AbsArg, Command as AbsCommand};
+use crate::clap::CommandFactory;
 use crate::gen_prelude::*;
 use crate::{CompletionGroup, Result, id};
 use std::fmt::Debug;
@@ -84,6 +85,7 @@ pub trait Supplement: CommandFactory {
     fn gen_cmd() -> Command<Self::ID> {
         let mut cmd = Self::command();
         cmd.build();
+        let cmd = AbsCommand(&cmd);
         gen_cmd_inner::<Self>(true, &cmd, &[], &mut vec![])
     }
 
@@ -105,7 +107,7 @@ struct GlobalFlag<ID> {
 
 fn gen_cmd_inner<Root: Supplement>(
     first: bool,
-    cmd: &ClapCommand,
+    cmd: &AbsCommand<'_>,
     trace: &[String],
     global_flags: &mut Vec<GlobalFlag<Root::ID>>,
 ) -> Command<Root::ID> {
@@ -123,11 +125,11 @@ fn gen_cmd_inner<Root: Supplement>(
         .get_arguments()
         .filter(|a| !a.is_positional())
         .filter(|a| {
-            let id = a.get_id().as_str();
+            let id: &str = a.get_id().as_ref();
             custom_help_flag || id != "help"
         })
         .filter(|a| {
-            let id = a.get_id().as_str();
+            let id: &str = a.get_id().as_ref();
             custom_version_flag || id != "version"
         })
         .map(|arg| gen_flag::<Root>(arg, &trace, global_flags))
@@ -142,7 +144,7 @@ fn gen_cmd_inner<Root: Supplement>(
     let commands: Vec<Command<Root::ID>> = cmd
         .get_subcommands()
         .filter(|c| custom_help_cmd || c.get_name() != "help")
-        .map(|sub| gen_cmd_inner::<Root>(false, sub, &trace, global_flags))
+        .map(|sub| gen_cmd_inner::<Root>(false, &sub, &trace, global_flags))
         .collect();
 
     if cmd.is_allow_external_subcommands_set() {
@@ -167,7 +169,7 @@ fn gen_cmd_inner<Root: Supplement>(
 }
 
 fn gen_flag<Root: Supplement>(
-    arg: &crate::clap::Arg,
+    arg: AbsArg<'_>,
     trace: &[String],
     global_flags: &mut Vec<GlobalFlag<Root::ID>>,
 ) -> Flag<Root::ID> {
@@ -202,31 +204,27 @@ fn gen_flag<Root: Supplement>(
         .into_iter()
         .map(|s| s.to_string())
         .collect();
-    let description = Cow::Owned(arg.get_help().map(|s| s.to_string()).unwrap_or_default());
+    let description = Cow::Owned(arg.get_help());
 
-    let num_args = arg.get_num_args();
-    let takes_values = num_args.map(|n| n.takes_values()).unwrap_or(false);
+    let takes_values = arg.takes_values();
 
     // TODO: re-implement `generate/mod.rs`: `let (once, ty) = match flag.get_action() ...`
     let once = !arg.is_global_set();
 
     let ty = if takes_values {
         let possible_values: Vec<(String, String)> = arg
-            .get_value_parser()
-            .possible_values()
-            .map(|pvs| {
-                pvs.map(|pv| {
-                    (
-                        pv.get_name().to_string(),
-                        pv.get_help().map(|h| h.to_string()).unwrap_or_default(),
-                    )
-                })
-                .collect()
+            .get_possible_values()
+            .into_iter()
+            .map(|pv| {
+                (
+                    pv.get_name().to_string(),
+                    pv.get_help().map(|h| h.to_string()).unwrap_or_default(),
+                )
             })
-            .unwrap_or_default();
+            .collect();
 
         let complete_with_equal = if arg.is_require_equals_set() {
-            let min = num_args.map(|n| n.min_values()).unwrap_or(1);
+            let min = arg.get_min_num_args();
             if min == 0 {
                 CompleteWithEqual::Optional
             } else {
@@ -236,7 +234,7 @@ fn gen_flag<Root: Supplement>(
             CompleteWithEqual::NoNeed
         };
 
-        let max = num_args.map(|n| n.max_values()).unwrap_or(1);
+        let max = arg.get_max_num_args();
         let seen_id = if max > 1 {
             id::MultiVal::new(seen_id).into()
         } else {
@@ -263,28 +261,25 @@ fn gen_flag<Root: Supplement>(
     }
 }
 
-fn gen_arg<Root: Supplement>(arg: &crate::clap::Arg, trace: &[String]) -> Arg<Root::ID> {
+fn gen_arg<Root: Supplement>(arg: AbsArg<'_>, trace: &[String]) -> Arg<Root::ID> {
     let name = arg.get_id();
     let mut trace = trace.to_vec();
     trace.push(name.to_string());
 
-    let max_values = arg.get_num_args().expect("built").max_values();
+    let max_values = arg.get_max_num_args();
 
     let (id, seen_id) = Root::id_from_cmd(&trace).unwrap_or_else(|| panic!("{trace:?} not found"));
 
     let possible_values: Vec<(String, String)> = arg
-        .get_value_parser()
-        .possible_values()
-        .map(|pvs| {
-            pvs.map(|pv| {
-                (
-                    pv.get_name().to_string(),
-                    pv.get_help().map(|h| h.to_string()).unwrap_or_default(),
-                )
-            })
-            .collect()
+        .get_possible_values()
+        .into_iter()
+        .map(|pv| {
+            (
+                pv.get_name().to_string(),
+                pv.get_help().map(|h| h.to_string()).unwrap_or_default(),
+            )
         })
-        .unwrap_or_default();
+        .collect();
 
     let seen_id = if max_values > 1 {
         id::MultiVal::new(seen_id).into()
