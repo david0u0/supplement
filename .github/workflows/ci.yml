@@ -43,3 +43,6 @@ jobs:
 
       - name: Run clippy
         run: cargo clippy --workspace --examples --tests -- -D warnings
+
+      - name: Run v3 example
+        run: cargo build --example derive_clap3 --no-default-features --features clap-3

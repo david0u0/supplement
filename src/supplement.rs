@@ -105,6 +105,17 @@ struct GlobalFlag<ID> {
     _ignored: bool, // TODO: implement this somehow?
 }
 
+fn get_id(arg: &AbsArg<'_>) -> String {
+    #[cfg(feature = "clap3")]
+    {
+        arg.get_id().replace('-', "_")
+    }
+    #[cfg(feature = "clap4")]
+    {
+        arg.get_id().to_string()
+    }
+}
+
 fn gen_cmd_inner<Root: Supplement>(
     first: bool,
     cmd: &AbsCommand<'_>,
@@ -173,12 +184,12 @@ fn gen_flag<Root: Supplement>(
     trace: &[String],
     global_flags: &mut Vec<GlobalFlag<Root::ID>>,
 ) -> Flag<Root::ID> {
-    let name = arg.get_id();
+    let name = get_id(&arg);
     let mut trace = trace.to_vec();
-    trace.push(name.to_string());
+    trace.push(name.clone());
 
     let (id, seen_id) = if arg.is_global_set() {
-        if let Some(prev) = global_flags.iter().find(|f| &f.name == name) {
+        if let Some(prev) = global_flags.iter().find(|f| f.name == name) {
             log::info!("get existing global flag {name}");
             (prev.id, prev.seen_id)
         } else {
@@ -188,7 +199,7 @@ fn gen_flag<Root: Supplement>(
             global_flags.push(GlobalFlag {
                 id,
                 seen_id,
-                name: name.to_string(),
+                name,
                 _ignored: false,
             });
             (id, seen_id)
@@ -262,7 +273,7 @@ fn gen_flag<Root: Supplement>(
 }
 
 fn gen_arg<Root: Supplement>(arg: AbsArg<'_>, trace: &[String]) -> Arg<Root::ID> {
-    let name = arg.get_id();
+    let name = get_id(&arg);
     let mut trace = trace.to_vec();
     trace.push(name.to_string());
 
